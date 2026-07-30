@@ -4,8 +4,11 @@ import {
   useListEmployeeRates,
   useUpdateEmployeeRate,
   useListEmployeeRateHistory,
+  useCreateEmployee,
+  useRemoveEmployee,
   getListEmployeeRatesQueryKey,
   getListEmployeeRateHistoryQueryKey,
+  getListEmployeesQueryKey,
   type EmployeeRate,
 } from '@workspace/api-client-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,7 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Pencil, Loader2, AlertCircle, History } from 'lucide-react';
+import { Pencil, Loader2, AlertCircle, History, Plus, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface EditForm {
@@ -66,6 +69,12 @@ export function EmployeeRatesTable() {
   });
   const [historyFor, setHistoryFor] = useState<EmployeeRate | null>(null);
 
+  const [addOpen, setAddOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newRole, setNewRole] = useState('');
+  const [newRates, setNewRates] = useState<Record<string, string>>({});
+  const [removing, setRemoving] = useState<{ employeeId: string; employeeName: string } | null>(null);
+
   const historyQuery = useListEmployeeRateHistory(historyFor?.id ?? '', {
     query: {
       enabled: !!historyFor,
@@ -92,6 +101,101 @@ export function EmployeeRatesTable() {
       },
     },
   });
+
+  const invalidateEmployees = () => {
+    queryClient.invalidateQueries({ queryKey: getListEmployeeRatesQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey() });
+  };
+
+  const createMutation = useCreateEmployee({
+    mutation: {
+      onSuccess: (employee) => {
+        invalidateEmployees();
+        setAddOpen(false);
+        toast({
+          title: 'Employee added',
+          description: `${employee.name} was added with their starting pay rates.`,
+        });
+      },
+      onError: () => {
+        toast({
+          title: 'Could not add employee',
+          description: 'Please check the details and try again.',
+          variant: 'destructive',
+        });
+      },
+    },
+  });
+
+  const removeMutation = useRemoveEmployee({
+    mutation: {
+      onSuccess: (employee) => {
+        invalidateEmployees();
+        setRemoving(null);
+        toast({
+          title: 'Employee removed',
+          description: `${employee.name} was removed. Past time entries are kept.`,
+        });
+      },
+      onError: () => {
+        toast({
+          title: 'Could not remove employee',
+          description: 'Please try again.',
+          variant: 'destructive',
+        });
+      },
+    },
+  });
+
+  const openAdd = () => {
+    setNewName('');
+    setNewRole('');
+    setNewRates({
+      hourlyRate: '',
+      visitRate: '',
+      mileageRate: '0.655',
+      perDiemRate: '45',
+      weekendMultiplier: '1.5',
+      holidayMultiplier: '2',
+    });
+    setAddOpen(true);
+  };
+
+  const handleAdd = () => {
+    if (!newName.trim()) {
+      toast({ title: 'Missing name', description: 'Enter the employee name.', variant: 'destructive' });
+      return;
+    }
+    if (!newRole.trim()) {
+      toast({ title: 'Missing role', description: 'Enter the role (e.g. RN, PT).', variant: 'destructive' });
+      return;
+    }
+    const values: Record<string, number> = {};
+    for (const field of numericFields) {
+      const parsed = Number(newRates[field.key]);
+      if (newRates[field.key] === '' || !Number.isFinite(parsed) || parsed < field.min) {
+        toast({
+          title: 'Invalid value',
+          description: `Enter a valid number for ${field.label} (minimum ${field.min}).`,
+          variant: 'destructive',
+        });
+        return;
+      }
+      values[field.key] = parsed;
+    }
+    createMutation.mutate({
+      data: {
+        name: newName.trim(),
+        role: newRole.trim(),
+        hourlyRate: values.hourlyRate,
+        visitRate: values.visitRate,
+        mileageRate: values.mileageRate,
+        perDiemRate: values.perDiemRate,
+        weekendMultiplier: values.weekendMultiplier,
+        holidayMultiplier: values.holidayMultiplier,
+      },
+    });
+  };
 
   const openEdit = (rate: EmployeeRate) => {
     setEditing(rate);
@@ -145,11 +249,17 @@ export function EmployeeRatesTable() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Employee Pay Rates</CardTitle>
-        <CardDescription>
-          Current pay rates for all active employees
-        </CardDescription>
+      <CardHeader className="flex flex-row items-start justify-between space-y-0">
+        <div className="space-y-1.5">
+          <CardTitle>Employee Pay Rates</CardTitle>
+          <CardDescription>
+            Current pay rates for all active employees
+          </CardDescription>
+        </div>
+        <Button size="sm" className="gap-2" onClick={openAdd} data-testid="button-add-employee">
+          <Plus className="h-4 w-4" />
+          Add Employee
+        </Button>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -230,6 +340,16 @@ export function EmployeeRatesTable() {
                           <Pencil className="h-3.5 w-3.5" />
                           Edit
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="gap-2 text-destructive hover:text-destructive"
+                          onClick={() => setRemoving({ employeeId: rate.employeeId, employeeName: rate.employeeName })}
+                          data-testid={`button-remove-employee-${rate.employeeId}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Remove
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -239,6 +359,95 @@ export function EmployeeRatesTable() {
           </div>
         )}
       </CardContent>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Employee</DialogTitle>
+            <DialogDescription>
+              The employee is added with these starting pay rates, effective today.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-employee-name">Name</Label>
+              <Input
+                id="new-employee-name"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="e.g. Jane Doe"
+                data-testid="input-new-employee-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-employee-role">Role</Label>
+              <Input
+                id="new-employee-role"
+                value={newRole}
+                onChange={(e) => setNewRole(e.target.value)}
+                placeholder="e.g. RN, PT, OT"
+                data-testid="input-new-employee-role"
+              />
+            </div>
+            {numericFields.map(field => (
+              <div key={field.key} className="space-y-2">
+                <Label htmlFor={`new-employee-${field.key}`}>{field.label}</Label>
+                <Input
+                  id={`new-employee-${field.key}`}
+                  type="number"
+                  min={field.min}
+                  step={field.step}
+                  value={newRates[field.key] ?? ''}
+                  onChange={(e) => setNewRates(prev => ({ ...prev, [field.key]: e.target.value }))}
+                  data-testid={`input-new-employee-${field.key}`}
+                />
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)} data-testid="button-cancel-add-employee">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAdd}
+              disabled={createMutation.isPending}
+              className="gap-2"
+              data-testid="button-save-add-employee"
+            >
+              {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Add Employee
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!removing} onOpenChange={(open) => !open && setRemoving(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Employee</DialogTitle>
+            <DialogDescription>
+              {removing
+                ? `Remove ${removing.employeeName}? They will disappear from rate lists and can no longer log hours. All past time entries and rate history are kept.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemoving(null)} data-testid="button-cancel-remove-employee">
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => removing && removeMutation.mutate({ id: removing.employeeId })}
+              disabled={removeMutation.isPending}
+              className="gap-2"
+              data-testid="button-confirm-remove-employee"
+            >
+              {removeMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent>

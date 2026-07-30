@@ -4,8 +4,11 @@ import {
   useListClientRates,
   useUpdateClientRate,
   useListClientRateHistory,
+  useCreateClient,
+  useRemoveClient,
   getListClientRatesQueryKey,
   getListClientRateHistoryQueryKey,
+  getListClientsQueryKey,
   type ClientRate,
 } from '@workspace/api-client-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,8 +25,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { visitTypeLabels, type VisitType } from '@/lib/data';
-import { Pencil, Loader2, AlertCircle, History } from 'lucide-react';
+import { Pencil, Loader2, AlertCircle, History, Plus, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export function ClientRatesTable() {
@@ -35,6 +39,12 @@ export function ClientRatesTable() {
   const [rateValue, setRateValue] = useState('');
   const [effectiveDate, setEffectiveDate] = useState('');
   const [historyFor, setHistoryFor] = useState<ClientRate | null>(null);
+
+  const [addOpen, setAddOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newVisitType, setNewVisitType] = useState<VisitType | ''>('');
+  const [newRate, setNewRate] = useState('');
+  const [removing, setRemoving] = useState<{ clientId: string; clientName: string } | null>(null);
 
   const historyQuery = useListClientRateHistory(historyFor?.id ?? '', {
     query: {
@@ -62,6 +72,77 @@ export function ClientRatesTable() {
       },
     },
   });
+
+  const invalidateClients = () => {
+    queryClient.invalidateQueries({ queryKey: getListClientRatesQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getListClientsQueryKey() });
+  };
+
+  const createMutation = useCreateClient({
+    mutation: {
+      onSuccess: (client) => {
+        invalidateClients();
+        setAddOpen(false);
+        toast({
+          title: 'Client added',
+          description: `${client.name} is now available for logging hours.`,
+        });
+      },
+      onError: () => {
+        toast({
+          title: 'Could not add client',
+          description: 'Please check the details and try again.',
+          variant: 'destructive',
+        });
+      },
+    },
+  });
+
+  const removeMutation = useRemoveClient({
+    mutation: {
+      onSuccess: (client) => {
+        invalidateClients();
+        setRemoving(null);
+        toast({
+          title: 'Client removed',
+          description: `${client.name} was removed. Past time entries are kept.`,
+        });
+      },
+      onError: () => {
+        toast({
+          title: 'Could not remove client',
+          description: 'Please try again.',
+          variant: 'destructive',
+        });
+      },
+    },
+  });
+
+  const openAdd = () => {
+    setNewName('');
+    setNewVisitType('');
+    setNewRate('');
+    setAddOpen(true);
+  };
+
+  const handleAdd = () => {
+    const parsedRate = Number(newRate);
+    if (!newName.trim()) {
+      toast({ title: 'Missing name', description: 'Enter the client name.', variant: 'destructive' });
+      return;
+    }
+    if (!newVisitType) {
+      toast({ title: 'Missing visit type', description: 'Choose a visit type.', variant: 'destructive' });
+      return;
+    }
+    if (!newRate || !Number.isFinite(parsedRate) || parsedRate < 0) {
+      toast({ title: 'Invalid rate', description: 'Enter a valid dollar amount.', variant: 'destructive' });
+      return;
+    }
+    createMutation.mutate({
+      data: { name: newName.trim(), visitType: newVisitType, rate: parsedRate },
+    });
+  };
 
   const openEdit = (rate: ClientRate) => {
     setEditing(rate);
@@ -105,11 +186,17 @@ export function ClientRatesTable() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Client Rates</CardTitle>
-        <CardDescription>
-          Billing rates by client and visit type
-        </CardDescription>
+      <CardHeader className="flex flex-row items-start justify-between space-y-0">
+        <div className="space-y-1.5">
+          <CardTitle>Client Rates</CardTitle>
+          <CardDescription>
+            Billing rates by client and visit type
+          </CardDescription>
+        </div>
+        <Button size="sm" className="gap-2" onClick={openAdd} data-testid="button-add-client">
+          <Plus className="h-4 w-4" />
+          Add Client
+        </Button>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -128,7 +215,19 @@ export function ClientRatesTable() {
           <div className="space-y-8">
             {Object.entries(clientGroups).map(([clientId, clientRates]) => (
               <div key={clientId}>
-                <h3 className="font-medium mb-3">{clientRates[0].clientName}</h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-medium">{clientRates[0].clientName}</h3>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="gap-2 text-destructive hover:text-destructive"
+                    onClick={() => setRemoving({ clientId, clientName: clientRates[0].clientName })}
+                    data-testid={`button-remove-client-${clientId}`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Remove
+                  </Button>
+                </div>
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -183,6 +282,99 @@ export function ClientRatesTable() {
           </div>
         )}
       </CardContent>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Client</DialogTitle>
+            <DialogDescription>
+              The client will appear right away in rate lists and the Log Hours form.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-client-name">Client Name</Label>
+              <Input
+                id="new-client-name"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="e.g. Boise Family Clinic"
+                data-testid="input-new-client-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-client-visit-type">Visit Type</Label>
+              <Select value={newVisitType} onValueChange={(v) => setNewVisitType(v as VisitType)}>
+                <SelectTrigger id="new-client-visit-type" data-testid="select-new-client-visit-type">
+                  <SelectValue placeholder="Select visit type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(visitTypeLabels) as VisitType[]).map(type => (
+                    <SelectItem key={type} value={type} data-testid={`select-new-client-visit-type-${type}`}>
+                      {visitTypeLabels[type]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-client-rate">Rate ($ per visit)</Label>
+              <Input
+                id="new-client-rate"
+                type="number"
+                min="0"
+                step="0.01"
+                value={newRate}
+                onChange={(e) => setNewRate(e.target.value)}
+                placeholder="95.00"
+                data-testid="input-new-client-rate"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)} data-testid="button-cancel-add-client">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAdd}
+              disabled={createMutation.isPending}
+              className="gap-2"
+              data-testid="button-save-add-client"
+            >
+              {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Add Client
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!removing} onOpenChange={(open) => !open && setRemoving(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Client</DialogTitle>
+            <DialogDescription>
+              {removing
+                ? `Remove ${removing.clientName}? They will disappear from rate lists and the Log Hours form. All past time entries and rate history are kept.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemoving(null)} data-testid="button-cancel-remove-client">
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => removing && removeMutation.mutate({ id: removing.clientId })}
+              disabled={removeMutation.isPending}
+              className="gap-2"
+              data-testid="button-confirm-remove-client"
+            >
+              {removeMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent>

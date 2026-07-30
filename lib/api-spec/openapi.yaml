@@ -14,6 +14,8 @@ tags:
     description: Time entry operations
   - name: rates
     description: Client and employee rate operations
+  - name: roster
+    description: Client and employee roster operations
 paths:
   /healthz:
     get:
@@ -289,8 +291,210 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /clients:
+    get:
+      operationId: listClients
+      tags: [roster]
+      summary: List active clients
+      responses:
+        "200":
+          description: List of active clients
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Client"
+    post:
+      operationId: createClient
+      tags: [roster]
+      summary: Add a client with an initial billing rate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientInput"
+      responses:
+        "201":
+          description: Created client
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /clients/{id}:
+    delete:
+      operationId: removeClient
+      tags: [roster]
+      summary: Remove a client (soft delete; past entries are kept)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Removed client
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+        "404":
+          description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /employees:
+    get:
+      operationId: listEmployees
+      tags: [roster]
+      summary: List active employees
+      responses:
+        "200":
+          description: List of active employees
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Employee"
+    post:
+      operationId: createEmployee
+      tags: [roster]
+      summary: Add an employee with initial pay rates
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeInput"
+      responses:
+        "201":
+          description: Created employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /employees/{id}:
+    delete:
+      operationId: removeEmployee
+      tags: [roster]
+      summary: Remove an employee (soft delete; past entries are kept)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Removed employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 components:
   schemas:
+    Client:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        active:
+          type: boolean
+      required:
+        - id
+        - name
+        - active
+    ClientInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        visitType:
+          $ref: "#/components/schemas/VisitType"
+        rate:
+          type: number
+          minimum: 0
+      required:
+        - name
+        - visitType
+        - rate
+    Employee:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+        active:
+          type: boolean
+      required:
+        - id
+        - name
+        - role
+        - active
+    EmployeeInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        role:
+          type: string
+          minLength: 1
+        hourlyRate:
+          type: number
+          minimum: 0
+        visitRate:
+          type: number
+          minimum: 0
+        mileageRate:
+          type: number
+          minimum: 0
+        perDiemRate:
+          type: number
+          minimum: 0
+        weekendMultiplier:
+          type: number
+          minimum: 1
+        holidayMultiplier:
+          type: number
+          minimum: 1
+      required:
+        - name
+        - role
+        - hourlyRate
+        - visitRate
+        - mileageRate
+        - perDiemRate
+        - weekendMultiplier
+        - holidayMultiplier
     ClientRate:
       type: object
       properties:

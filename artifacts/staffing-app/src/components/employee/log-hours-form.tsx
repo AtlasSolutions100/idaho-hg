@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useCreateTimeEntry,
+  useListClients,
   getListTimeEntriesQueryKey,
 } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
@@ -12,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { mockClients, visitTypeLabels, type VisitType } from '@/lib/data';
+import { visitTypeLabels, type VisitType } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { Check, Loader2 } from 'lucide-react';
 
@@ -36,6 +37,7 @@ export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursF
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { data: clients, isLoading: clientsLoading } = useListClients();
   const createEntry = useCreateTimeEntry({
     mutation: {
       onSuccess: () => {
@@ -85,10 +87,10 @@ export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursF
             <Label htmlFor="client">Client *</Label>
             <Select value={clientId} onValueChange={setClientId} required>
               <SelectTrigger id="client" data-testid="select-client">
-                <SelectValue placeholder="Select client" />
+                <SelectValue placeholder={clientsLoading ? 'Loading clients...' : 'Select client'} />
               </SelectTrigger>
               <SelectContent>
-                {mockClients.filter(c => c.active).map(client => (
+                {(clients ?? []).map(client => (
                   <SelectItem key={client.id} value={client.id} data-testid={`select-client-${client.id}`}>
                     {client.name}
                   </SelectItem>

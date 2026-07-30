@@ -8,8 +8,12 @@
 
 export * from './apiError';
 export * from './approveAllResult';
+export * from './client';
+export * from './clientInput';
 export * from './clientRate';
 export * from './createTimeEntry';
+export * from './employee';
+export * from './employeeInput';
 export * from './employeeRate';
 export * from './entryStatus';
 export * from './healthStatus';

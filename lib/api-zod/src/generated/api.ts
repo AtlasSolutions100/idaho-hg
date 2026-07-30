@@ -303,3 +303,112 @@ export const ListEmployeeRateHistoryResponseItem = zod.object({
 export const ListEmployeeRateHistoryResponse = zod.array(ListEmployeeRateHistoryResponseItem)
 
 
+/**
+ * @summary List active clients
+ */
+export const ListClientsResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "active": zod.boolean()
+})
+export const ListClientsResponse = zod.array(ListClientsResponseItem)
+
+
+/**
+ * @summary Add a client with an initial billing rate
+ */
+
+export const createClientBodyRateMin = 0;
+
+
+
+export const CreateClientBody = zod.object({
+  "name": zod.string().min(1),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy']),
+  "rate": zod.number().min(createClientBodyRateMin)
+})
+
+export const CreateClientResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "active": zod.boolean()
+})
+
+
+/**
+ * @summary Remove a client (soft delete; past entries are kept)
+ */
+export const RemoveClientParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const RemoveClientResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "active": zod.boolean()
+})
+
+
+/**
+ * @summary List active employees
+ */
+export const ListEmployeesResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "active": zod.boolean()
+})
+export const ListEmployeesResponse = zod.array(ListEmployeesResponseItem)
+
+
+/**
+ * @summary Add an employee with initial pay rates
+ */
+
+
+export const createEmployeeBodyHourlyRateMin = 0;
+
+export const createEmployeeBodyVisitRateMin = 0;
+
+export const createEmployeeBodyMileageRateMin = 0;
+
+export const createEmployeeBodyPerDiemRateMin = 0;
+
+
+
+
+
+export const CreateEmployeeBody = zod.object({
+  "name": zod.string().min(1),
+  "role": zod.string().min(1),
+  "hourlyRate": zod.number().min(createEmployeeBodyHourlyRateMin),
+  "visitRate": zod.number().min(createEmployeeBodyVisitRateMin),
+  "mileageRate": zod.number().min(createEmployeeBodyMileageRateMin),
+  "perDiemRate": zod.number().min(createEmployeeBodyPerDiemRateMin),
+  "weekendMultiplier": zod.number().min(1),
+  "holidayMultiplier": zod.number().min(1)
+})
+
+export const CreateEmployeeResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "active": zod.boolean()
+})
+
+
+/**
+ * @summary Remove an employee (soft delete; past entries are kept)
+ */
+export const RemoveEmployeeParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const RemoveEmployeeResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "active": zod.boolean()
+})
+
+

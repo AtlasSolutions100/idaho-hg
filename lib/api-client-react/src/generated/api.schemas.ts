@@ -5,6 +5,12 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface Client {
+  id: string;
+  name: string;
+  active: boolean;
+}
+
 export type VisitType = typeof VisitType[keyof typeof VisitType];
 
 
@@ -14,6 +20,40 @@ export const VisitType = {
   'occupational-therapy': 'occupational-therapy',
   'speech-therapy': 'speech-therapy',
 } as const;
+
+export interface ClientInput {
+  /** @minLength 1 */
+  name: string;
+  visitType: VisitType;
+  /** @minimum 0 */
+  rate: number;
+}
+
+export interface Employee {
+  id: string;
+  name: string;
+  role: string;
+  active: boolean;
+}
+
+export interface EmployeeInput {
+  /** @minLength 1 */
+  name: string;
+  /** @minLength 1 */
+  role: string;
+  /** @minimum 0 */
+  hourlyRate: number;
+  /** @minimum 0 */
+  visitRate: number;
+  /** @minimum 0 */
+  mileageRate: number;
+  /** @minimum 0 */
+  perDiemRate: number;
+  /** @minimum 1 */
+  weekendMultiplier: number;
+  /** @minimum 1 */
+  holidayMultiplier: number;
+}
 
 export interface ClientRate {
   id: string;

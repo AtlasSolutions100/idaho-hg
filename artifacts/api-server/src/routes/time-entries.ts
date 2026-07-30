@@ -1,6 +1,13 @@
 import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
-import { db, timeEntriesTable, type TimeEntryRow } from "@workspace/db";
+import { eq, and, desc } from "drizzle-orm";
+import {
+  db,
+  timeEntriesTable,
+  clientsTable,
+  employeesTable,
+  type TimeEntryRow,
+} from "@workspace/db";
+import { ensureRosterSeeded } from "./roster";
 import {
   CreateTimeEntryBody,
   ListTimeEntriesQueryParams,
@@ -30,24 +37,6 @@ function serialize(row: TimeEntryRow) {
   };
 }
 
-// Hardcoded roster until real user accounts exist (Phase 2 scope)
-const employees: Record<string, { name: string; role: string }> = {
-  "1": { name: "Sarah Martinez", role: "RN" },
-  "2": { name: "James Chen", role: "PT" },
-  "3": { name: "Emily Rodriguez", role: "RN" },
-  "4": { name: "Michael Thompson", role: "OT" },
-  "5": { name: "Jessica Park", role: "PT" },
-  "6": { name: "David Williams", role: "RN" },
-};
-
-const clients: Record<string, string> = {
-  "1": "St. Luke's Health System",
-  "2": "Weiser Memorial Hospital",
-  "3": "Idaho Youth Ranch",
-  "4": "Treasure Valley Outpatient Clinic",
-  "5": "Meridian Senior Care",
-};
-
 router.get("/time-entries", async (req, res, next) => {
   try {
     const query = ListTimeEntriesQueryParams.parse(req.query);
@@ -75,13 +64,20 @@ router.post("/time-entries", async (req, res, next) => {
       return;
     }
     const body = parsed.data;
-    const employee = employees[body.employeeId];
-    const clientName = clients[body.clientId];
+    await ensureRosterSeeded();
+    const [employee] = await db
+      .select()
+      .from(employeesTable)
+      .where(and(eq(employeesTable.id, body.employeeId), eq(employeesTable.active, true)));
+    const [client] = await db
+      .select()
+      .from(clientsTable)
+      .where(and(eq(clientsTable.id, body.clientId), eq(clientsTable.active, true)));
     if (!employee) {
       res.status(400).json({ message: "Unknown employee" });
       return;
     }
-    if (!clientName) {
+    if (!client) {
       res.status(400).json({ message: "Unknown client" });
       return;
     }
@@ -96,7 +92,7 @@ router.post("/time-entries", async (req, res, next) => {
         employeeName: employee.name,
         employeeRole: employee.role,
         clientId: body.clientId,
-        clientName,
+        clientName: client.name,
         date: body.date,
         visitType: body.visitType ?? null,
         hours: body.hours ?? null,

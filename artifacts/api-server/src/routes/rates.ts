@@ -4,6 +4,8 @@ import {
   db,
   clientRatesTable,
   employeeRatesTable,
+  clientsTable,
+  employeesTable,
   type ClientRateRow,
   type EmployeeRateRow,
 } from "@workspace/db";
@@ -105,7 +107,11 @@ router.get("/client-rates", async (_req, res, next) => {
   try {
     await ensureSeeded();
     const rows = await db.select().from(clientRatesTable);
-    const current = latestPerGroup(rows, (row) => `${row.clientId}::${row.visitType}`)
+    // Hide rates for removed (inactive) clients; unknown ids stay visible.
+    const inactive = new Set(
+      (await db.select().from(clientsTable).where(eq(clientsTable.active, false))).map((c) => c.id),
+    );
+    const current = latestPerGroup(rows.filter((r) => !inactive.has(r.clientId)), (row) => `${row.clientId}::${row.visitType}`)
       .sort((a, b) =>
         a.clientName.localeCompare(b.clientName) || a.visitType.localeCompare(b.visitType),
       );
@@ -189,7 +195,11 @@ router.get("/employee-rates", async (_req, res, next) => {
   try {
     await ensureSeeded();
     const rows = await db.select().from(employeeRatesTable);
-    const current = latestPerGroup(rows, (row) => row.employeeId).sort((a, b) =>
+    // Hide rates for removed (inactive) employees; unknown ids stay visible.
+    const inactive = new Set(
+      (await db.select().from(employeesTable).where(eq(employeesTable.active, false))).map((e) => e.id),
+    );
+    const current = latestPerGroup(rows.filter((r) => !inactive.has(r.employeeId)), (row) => row.employeeId).sort((a, b) =>
       a.employeeName.localeCompare(b.employeeName),
     );
     res.json(current.map(serializeEmployeeRate));
