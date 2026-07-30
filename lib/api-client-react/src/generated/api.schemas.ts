@@ -5,12 +5,6 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-export interface Client {
-  id: string;
-  name: string;
-  active: boolean;
-}
-
 export type VisitType = typeof VisitType[keyof typeof VisitType];
 
 
@@ -20,6 +14,78 @@ export const VisitType = {
   'occupational-therapy': 'occupational-therapy',
   'speech-therapy': 'speech-therapy',
 } as const;
+
+export interface PayrollReportLine {
+  entryId: string;
+  date: string;
+  clientName: string;
+  visitType?: VisitType;
+  hours?: number;
+  isWeekend: boolean;
+  isHoliday: boolean;
+  multiplier: number;
+  basePay: number;
+  mileage?: number;
+  mileagePay: number;
+  perDiem?: number;
+  perDiemPay: number;
+  total: number;
+  missingRate: boolean;
+}
+
+export interface PayrollReportEmployee {
+  employeeId: string;
+  employeeName: string;
+  employeeRole: string;
+  lines: PayrollReportLine[];
+  visitCount: number;
+  totalHours: number;
+  basePay: number;
+  mileagePay: number;
+  perDiemPay: number;
+  total: number;
+}
+
+export interface PayrollReport {
+  start: string;
+  end: string;
+  employees: PayrollReportEmployee[];
+  grandTotal: number;
+  entryCount: number;
+  missingRateCount: number;
+}
+
+export interface InvoiceReportLine {
+  entryId: string;
+  date: string;
+  employeeName: string;
+  employeeRole: string;
+  visitType?: VisitType;
+  hours?: number;
+  rate?: number;
+  amount: number;
+  billable: boolean;
+  missingRate: boolean;
+  note?: string;
+}
+
+export interface InvoiceReport {
+  clientId: string;
+  clientName: string;
+  start: string;
+  end: string;
+  lines: InvoiceReportLine[];
+  total: number;
+  entryCount: number;
+  missingRateCount: number;
+  unbilledCount: number;
+}
+
+export interface Client {
+  id: string;
+  name: string;
+  active: boolean;
+}
 
 export interface ClientInput {
   /** @minLength 1 */
@@ -166,5 +232,16 @@ export interface ApiError {
 export type ListTimeEntriesParams = {
 employeeId?: string;
 status?: EntryStatus;
+};
+
+export type GetPayrollReportParams = {
+start: string;
+end: string;
+};
+
+export type GetInvoiceReportParams = {
+clientId: string;
+start: string;
+end: string;
 };
 

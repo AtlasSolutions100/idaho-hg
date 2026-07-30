@@ -1,10 +1,8 @@
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
-import { 
-  PayrollExportReport, 
-  ClientInvoiceReport, 
-  ClientReconciliationReport 
-} from '@/components/admin/reports-placeholder';
+import { PayrollReportCard } from '@/components/admin/payroll-report-card';
+import { InvoiceReportCard } from '@/components/admin/invoice-report-card';
+import { ClientReconciliationReport } from '@/components/admin/reports-placeholder';
 import { ChevronLeft } from 'lucide-react';
 
 export default function ReportsPage() {
@@ -30,8 +28,8 @@ export default function ReportsPage() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        <PayrollExportReport />
-        <ClientInvoiceReport />
+        <PayrollReportCard />
+        <InvoiceReportCard />
         <ClientReconciliationReport />
       </div>
     </div>

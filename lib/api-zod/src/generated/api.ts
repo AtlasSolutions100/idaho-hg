@@ -412,3 +412,82 @@ export const RemoveEmployeeResponse = zod.object({
 })
 
 
+/**
+ * @summary Payroll report from approved entries in a date range
+ */
+export const GetPayrollReportQueryParams = zod.object({
+  "start": zod.coerce.string(),
+  "end": zod.coerce.string()
+})
+
+export const GetPayrollReportResponse = zod.object({
+  "start": zod.string(),
+  "end": zod.string(),
+  "employees": zod.array(zod.object({
+  "employeeId": zod.string(),
+  "employeeName": zod.string(),
+  "employeeRole": zod.string(),
+  "lines": zod.array(zod.object({
+  "entryId": zod.string(),
+  "date": zod.string(),
+  "clientName": zod.string(),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy']).optional(),
+  "hours": zod.number().optional(),
+  "isWeekend": zod.boolean(),
+  "isHoliday": zod.boolean(),
+  "multiplier": zod.number(),
+  "basePay": zod.number(),
+  "mileage": zod.number().optional(),
+  "mileagePay": zod.number(),
+  "perDiem": zod.number().optional(),
+  "perDiemPay": zod.number(),
+  "total": zod.number(),
+  "missingRate": zod.boolean()
+})),
+  "visitCount": zod.number(),
+  "totalHours": zod.number(),
+  "basePay": zod.number(),
+  "mileagePay": zod.number(),
+  "perDiemPay": zod.number(),
+  "total": zod.number()
+})),
+  "grandTotal": zod.number(),
+  "entryCount": zod.number(),
+  "missingRateCount": zod.number()
+})
+
+
+/**
+ * @summary Client invoice report from approved entries in a date range
+ */
+export const GetInvoiceReportQueryParams = zod.object({
+  "clientId": zod.coerce.string(),
+  "start": zod.coerce.string(),
+  "end": zod.coerce.string()
+})
+
+export const GetInvoiceReportResponse = zod.object({
+  "clientId": zod.string(),
+  "clientName": zod.string(),
+  "start": zod.string(),
+  "end": zod.string(),
+  "lines": zod.array(zod.object({
+  "entryId": zod.string(),
+  "date": zod.string(),
+  "employeeName": zod.string(),
+  "employeeRole": zod.string(),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy']).optional(),
+  "hours": zod.number().optional(),
+  "rate": zod.number().optional(),
+  "amount": zod.number(),
+  "billable": zod.boolean(),
+  "missingRate": zod.boolean(),
+  "note": zod.string().optional()
+})),
+  "total": zod.number(),
+  "entryCount": zod.number(),
+  "missingRateCount": zod.number(),
+  "unbilledCount": zod.number()
+})
+
+

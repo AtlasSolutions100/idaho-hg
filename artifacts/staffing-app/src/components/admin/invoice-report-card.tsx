@@ -1,0 +1,226 @@
+import { useState } from 'react';
+import {
+  useGetInvoiceReport,
+  getGetInvoiceReportQueryKey,
+  useListClients,
+  type InvoiceReport,
+} from '@workspace/api-client-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
+import { visitTypeLabels } from '@/lib/data';
+import { downloadCsv, formatMoney } from '@/lib/report-csv';
+import { format } from 'date-fns';
+import { FileSpreadsheet, Download, Loader2, AlertCircle, Inbox } from 'lucide-react';
+
+function invoiceCsv(report: InvoiceReport): string[][] {
+  const rows: string[][] = [
+    ['Client', 'Date', 'Employee', 'Role', 'Type', 'Hours', 'Rate', 'Amount', 'Note'],
+  ];
+  for (const line of report.lines) {
+    rows.push([
+      report.clientName,
+      line.date,
+      line.employeeName,
+      line.employeeRole,
+      line.visitType ? visitTypeLabels[line.visitType] : 'Hourly',
+      line.hours != null ? String(line.hours) : '',
+      line.rate != null ? line.rate.toFixed(2) : '',
+      line.amount.toFixed(2),
+      line.note ?? '',
+    ]);
+  }
+  rows.push(['Total', '', '', '', '', '', '', report.total.toFixed(2), '']);
+  return rows;
+}
+
+export function InvoiceReportCard() {
+  const [clientId, setClientId] = useState('');
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
+  const [params, setParams] = useState<{ clientId: string; start: string; end: string } | null>(null);
+
+  const { data: clients } = useListClients();
+  const { data: report, isLoading, isError } = useGetInvoiceReport(
+    params ?? { clientId: '', start: '', end: '' },
+    {
+      query: {
+        enabled: params !== null,
+        queryKey: getGetInvoiceReportQueryKey(params ?? { clientId: '', start: '', end: '' }),
+      },
+    },
+  );
+
+  const canGenerate = clientId !== '' && start !== '' && end !== '' && start <= end;
+  const showResults = params !== null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start gap-4">
+          <div className="p-3 rounded-lg bg-primary/10 text-primary">
+            <FileSpreadsheet className="h-6 w-6" />
+          </div>
+          <div className="flex-1">
+            <CardTitle>Client Invoice Summary</CardTitle>
+            <CardDescription>Invoice-style summary for client billing</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="space-y-2">
+            <Label>Client</Label>
+            <Select value={clientId} onValueChange={setClientId}>
+              <SelectTrigger data-testid="select-invoice-client">
+                <SelectValue placeholder="Select client" />
+              </SelectTrigger>
+              <SelectContent>
+                {(clients ?? []).map((client) => (
+                  <SelectItem key={client.id} value={client.id}>
+                    {client.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="invoice-start">Invoice Period Start</Label>
+            <Input
+              id="invoice-start" type="date" value={start}
+              onChange={(e) => setStart(e.target.value)}
+              data-testid="input-invoice-period-start"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="invoice-end">Invoice Period End</Label>
+            <Input
+              id="invoice-end" type="date" value={end}
+              onChange={(e) => setEnd(e.target.value)}
+              data-testid="input-invoice-period-end"
+            />
+          </div>
+        </div>
+        {start !== '' && end !== '' && start > end && (
+          <p className="text-sm text-destructive">Start date must be on or before the end date.</p>
+        )}
+        <div className="flex gap-3 pt-2">
+          <Button
+            className="gap-2"
+            disabled={!canGenerate || isLoading}
+            onClick={() => setParams({ clientId, start, end })}
+            data-testid="button-generate-client-invoice-summary"
+          >
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+            Generate Report
+          </Button>
+          <Button
+            variant="outline" className="gap-2"
+            disabled={!report || report.entryCount === 0}
+            onClick={() => report && downloadCsv(`invoice-${report.clientName.replace(/\s+/g, '-').toLowerCase()}-${report.start}-to-${report.end}.csv`, invoiceCsv(report))}
+            data-testid="button-download-client-invoice-summary"
+          >
+            <Download className="h-4 w-4" />
+            Download CSV
+          </Button>
+        </div>
+
+        {showResults && isLoading && (
+          <div className="space-y-3 pt-2">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        )}
+        {showResults && isError && (
+          <div className="py-8 text-center text-muted-foreground">
+            <AlertCircle className="h-10 w-10 mx-auto mb-2 opacity-20" />
+            <p>Couldn't generate the invoice report. Please try again.</p>
+          </div>
+        )}
+        {report && report.entryCount === 0 && (
+          <div className="py-8 text-center text-muted-foreground" data-testid="invoice-empty-state">
+            <Inbox className="h-10 w-10 mx-auto mb-2 opacity-20" />
+            <p>
+              No approved time entries for {report.clientName} between{' '}
+              {format(new Date(report.start), 'MMM d, yyyy')} and {format(new Date(report.end), 'MMM d, yyyy')}.
+            </p>
+            <p className="text-sm mt-1">Approve entries on the Approve Payroll page first.</p>
+          </div>
+        )}
+        {report && report.entryCount > 0 && (
+          <div className="space-y-4 pt-2" data-testid="invoice-results">
+            {report.missingRateCount > 0 && (
+              <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-500">
+                <AlertCircle className="h-4 w-4" />
+                {report.missingRateCount} entr{report.missingRateCount === 1 ? 'y has' : 'ies have'} no billing rate on file — shown with a "No rate" badge and billed as $0.
+              </div>
+            )}
+            {report.unbilledCount > 0 && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <AlertCircle className="h-4 w-4" />
+                {report.unbilledCount} hourly entr{report.unbilledCount === 1 ? 'y is' : 'ies are'} listed for reference but not billed — client rates are per visit type only.
+              </div>
+            )}
+            <div className="overflow-x-auto border rounded-md">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Employee</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead className="text-right">Hours</TableHead>
+                    <TableHead className="text-right">Rate</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {report.lines.map((line) => (
+                    <TableRow key={line.entryId} data-testid={`invoice-line-${line.entryId}`}>
+                      <TableCell className="font-mono text-sm whitespace-nowrap">
+                        {format(new Date(line.date), 'MMM d, yyyy')}
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium">{line.employeeName}</div>
+                        <div className="text-xs text-muted-foreground">{line.employeeRole}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <span className="text-sm">{line.visitType ? visitTypeLabels[line.visitType] : 'Hourly'}</span>
+                          {line.missingRate && <Badge variant="destructive" className="text-xs">No rate</Badge>}
+                          {!line.billable && <Badge variant="outline" className="text-xs">Not billed</Badge>}
+                        </div>
+                        {line.note && <div className="text-xs text-muted-foreground mt-1">{line.note}</div>}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">{line.hours ?? '—'}</TableCell>
+                      <TableCell className="text-right font-mono">{line.rate != null ? formatMoney(line.rate) : '—'}</TableCell>
+                      <TableCell className="text-right font-mono font-medium">
+                        {line.billable ? formatMoney(line.amount) : '—'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="flex justify-end border-t pt-3">
+              <div className="text-right">
+                <div className="text-sm text-muted-foreground">
+                  Invoice total for {report.clientName} ({report.entryCount} entries)
+                </div>
+                <div className="text-xl font-semibold" data-testid="invoice-total">{formatMoney(report.total)}</div>
+              </div>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

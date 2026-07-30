@@ -29,8 +29,12 @@ import type {
   Employee,
   EmployeeInput,
   EmployeeRate,
+  GetInvoiceReportParams,
+  GetPayrollReportParams,
   HealthStatus,
+  InvoiceReport,
   ListTimeEntriesParams,
+  PayrollReport,
   TimeEntry,
   UpdateClientRate,
   UpdateEmployeeRate
@@ -1399,4 +1403,172 @@ export const useRemoveEmployee = <TError = ErrorType<ApiError>,
       > => {
       return useMutation(getRemoveEmployeeMutationOptions(options));
     }
+
+export const getGetPayrollReportUrl = (params: GetPayrollReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/payroll?${stringifiedParams}` : `/api/reports/payroll`
+}
+
+/**
+ * @summary Payroll report from approved entries in a date range
+ */
+export const getPayrollReport = async (params: GetPayrollReportParams, options?: Parameters<typeof customFetch>[1]): Promise<PayrollReport> => {
+
+  return customFetch<PayrollReport>(getGetPayrollReportUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPayrollReportQueryKey = (params?: GetPayrollReportParams,) => {
+    return [
+    `/api/reports/payroll`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetPayrollReportQueryOptions = <TData = Awaited<ReturnType<typeof getPayrollReport>>, TError = ErrorType<ApiError>>(params: GetPayrollReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPayrollReportQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPayrollReport>>> = ({ signal }) => getPayrollReport(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPayrollReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPayrollReportQueryResult = NonNullable<Awaited<ReturnType<typeof getPayrollReport>>>
+export type GetPayrollReportQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Payroll report from approved entries in a date range
+ */
+
+export function useGetPayrollReport<TData = Awaited<ReturnType<typeof getPayrollReport>>, TError = ErrorType<ApiError>>(
+ params: GetPayrollReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPayrollReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPayrollReportQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetInvoiceReportUrl = (params: GetInvoiceReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/invoice?${stringifiedParams}` : `/api/reports/invoice`
+}
+
+/**
+ * @summary Client invoice report from approved entries in a date range
+ */
+export const getInvoiceReport = async (params: GetInvoiceReportParams, options?: Parameters<typeof customFetch>[1]): Promise<InvoiceReport> => {
+
+  return customFetch<InvoiceReport>(getGetInvoiceReportUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetInvoiceReportQueryKey = (params?: GetInvoiceReportParams,) => {
+    return [
+    `/api/reports/invoice`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetInvoiceReportQueryOptions = <TData = Awaited<ReturnType<typeof getInvoiceReport>>, TError = ErrorType<ApiError>>(params: GetInvoiceReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInvoiceReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetInvoiceReportQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInvoiceReport>>> = ({ signal }) => getInvoiceReport(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInvoiceReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetInvoiceReportQueryResult = NonNullable<Awaited<ReturnType<typeof getInvoiceReport>>>
+export type GetInvoiceReportQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Client invoice report from approved entries in a date range
+ */
+
+export function useGetInvoiceReport<TData = Awaited<ReturnType<typeof getInvoiceReport>>, TError = ErrorType<ApiError>>(
+ params: GetInvoiceReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInvoiceReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetInvoiceReportQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

@@ -16,6 +16,8 @@ tags:
     description: Client and employee rate operations
   - name: roster
     description: Client and employee roster operations
+  - name: reports
+    description: Payroll and invoice reports computed from approved time entries
 paths:
   /healthz:
     get:
@@ -413,8 +415,248 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /reports/payroll:
+    get:
+      operationId: getPayrollReport
+      tags: [reports]
+      summary: Payroll report from approved entries in a date range
+      parameters:
+        - name: start
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: end
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Payroll report grouped per employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayrollReport"
+        "400":
+          description: Missing or invalid date range
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /reports/invoice:
+    get:
+      operationId: getInvoiceReport
+      tags: [reports]
+      summary: Client invoice report from approved entries in a date range
+      parameters:
+        - name: clientId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: start
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: end
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Invoice report for the client
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceReport"
+        "400":
+          description: Missing or invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 components:
   schemas:
+    PayrollReportLine:
+      type: object
+      properties:
+        entryId:
+          type: string
+        date:
+          type: string
+        clientName:
+          type: string
+        visitType:
+          $ref: "#/components/schemas/VisitType"
+        hours:
+          type: number
+        isWeekend:
+          type: boolean
+        isHoliday:
+          type: boolean
+        multiplier:
+          type: number
+        basePay:
+          type: number
+        mileage:
+          type: number
+        mileagePay:
+          type: number
+        perDiem:
+          type: number
+        perDiemPay:
+          type: number
+        total:
+          type: number
+        missingRate:
+          type: boolean
+      required:
+        - entryId
+        - date
+        - clientName
+        - isWeekend
+        - isHoliday
+        - multiplier
+        - basePay
+        - mileagePay
+        - perDiemPay
+        - total
+        - missingRate
+    PayrollReportEmployee:
+      type: object
+      properties:
+        employeeId:
+          type: string
+        employeeName:
+          type: string
+        employeeRole:
+          type: string
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/PayrollReportLine"
+        visitCount:
+          type: number
+        totalHours:
+          type: number
+        basePay:
+          type: number
+        mileagePay:
+          type: number
+        perDiemPay:
+          type: number
+        total:
+          type: number
+      required:
+        - employeeId
+        - employeeName
+        - employeeRole
+        - lines
+        - visitCount
+        - totalHours
+        - basePay
+        - mileagePay
+        - perDiemPay
+        - total
+    PayrollReport:
+      type: object
+      properties:
+        start:
+          type: string
+        end:
+          type: string
+        employees:
+          type: array
+          items:
+            $ref: "#/components/schemas/PayrollReportEmployee"
+        grandTotal:
+          type: number
+        entryCount:
+          type: number
+        missingRateCount:
+          type: number
+      required:
+        - start
+        - end
+        - employees
+        - grandTotal
+        - entryCount
+        - missingRateCount
+    InvoiceReportLine:
+      type: object
+      properties:
+        entryId:
+          type: string
+        date:
+          type: string
+        employeeName:
+          type: string
+        employeeRole:
+          type: string
+        visitType:
+          $ref: "#/components/schemas/VisitType"
+        hours:
+          type: number
+        rate:
+          type: number
+        amount:
+          type: number
+        billable:
+          type: boolean
+        missingRate:
+          type: boolean
+        note:
+          type: string
+      required:
+        - entryId
+        - date
+        - employeeName
+        - employeeRole
+        - amount
+        - billable
+        - missingRate
+    InvoiceReport:
+      type: object
+      properties:
+        clientId:
+          type: string
+        clientName:
+          type: string
+        start:
+          type: string
+        end:
+          type: string
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvoiceReportLine"
+        total:
+          type: number
+        entryCount:
+          type: number
+        missingRateCount:
+          type: number
+        unbilledCount:
+          type: number
+      required:
+        - clientId
+        - clientName
+        - start
+        - end
+        - lines
+        - total
+        - entryCount
+        - missingRateCount
+        - unbilledCount
     Client:
       type: object
       properties:
