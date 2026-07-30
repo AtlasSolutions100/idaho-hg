@@ -1,61 +1,90 @@
-import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  useListTimeEntries,
+  useApproveTimeEntry,
+  useRejectTimeEntry,
+  useApproveAllTimeEntries,
+  getListTimeEntriesQueryKey,
+} from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { mockTimeEntries, statusLabels, visitTypeLabels, type TimeEntry } from '@/lib/data';
+import { visitTypeLabels } from '@/lib/data';
 import { format } from 'date-fns';
-import { Check, X, ChevronRight } from 'lucide-react';
+import { Check, X, Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export function ApprovePayrollTable() {
-  const [entries, setEntries] = useState(mockTimeEntries);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { data: entries, isLoading, isError } = useListTimeEntries();
 
-  const pendingEntries = entries.filter(e => e.status === 'submitted');
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: getListTimeEntriesQueryKey() });
 
-  const handleApprove = (entryId: string) => {
-    setEntries(prev => 
-      prev.map(e => 
-        e.id === entryId 
-          ? { ...e, status: 'approved' as const, approvedAt: new Date().toISOString() } 
-          : e
-      )
-    );
-    toast({
-      title: 'Entry approved',
-      description: 'Time entry has been approved for payroll.',
-    });
-  };
+  const approveMutation = useApproveTimeEntry({
+    mutation: {
+      onSuccess: () => {
+        invalidate();
+        toast({
+          title: 'Entry approved',
+          description: 'Time entry has been approved for payroll.',
+        });
+      },
+      onError: () => {
+        toast({
+          title: 'Approval failed',
+          description: 'Could not approve the entry. Please try again.',
+          variant: 'destructive',
+        });
+      },
+    },
+  });
 
-  const handleReject = (entryId: string) => {
-    setEntries(prev => 
-      prev.map(e => 
-        e.id === entryId 
-          ? { ...e, status: 'rejected' as const } 
-          : e
-      )
-    );
-    toast({
-      title: 'Entry rejected',
-      description: 'Time entry has been rejected.',
-      variant: 'destructive',
-    });
-  };
+  const rejectMutation = useRejectTimeEntry({
+    mutation: {
+      onSuccess: () => {
+        invalidate();
+        toast({
+          title: 'Entry rejected',
+          description: 'Time entry has been rejected.',
+          variant: 'destructive',
+        });
+      },
+      onError: () => {
+        toast({
+          title: 'Rejection failed',
+          description: 'Could not reject the entry. Please try again.',
+          variant: 'destructive',
+        });
+      },
+    },
+  });
 
-  const handleApproveAll = () => {
-    setEntries(prev => 
-      prev.map(e => 
-        e.status === 'submitted' 
-          ? { ...e, status: 'approved' as const, approvedAt: new Date().toISOString() } 
-          : e
-      )
-    );
-    toast({
-      title: `Approved ${pendingEntries.length} entries`,
-      description: 'All pending entries have been approved for payroll.',
-    });
-  };
+  const approveAllMutation = useApproveAllTimeEntries({
+    mutation: {
+      onSuccess: (result) => {
+        invalidate();
+        toast({
+          title: `Approved ${result.approvedCount} entries`,
+          description: 'All pending entries have been approved for payroll.',
+        });
+      },
+      onError: () => {
+        toast({
+          title: 'Bulk approval failed',
+          description: 'Could not approve all entries. Please try again.',
+          variant: 'destructive',
+        });
+      },
+    },
+  });
+
+  const pendingEntries = (entries ?? []).filter(e => e.status === 'submitted');
+  const isActing =
+    approveMutation.isPending || rejectMutation.isPending || approveAllMutation.isPending;
 
   return (
     <Card>
@@ -68,15 +97,36 @@ export function ApprovePayrollTable() {
             </CardDescription>
           </div>
           {pendingEntries.length > 0 && (
-            <Button onClick={handleApproveAll} className="gap-2" data-testid="button-approve-all">
-              <Check className="h-4 w-4" />
+            <Button
+              onClick={() => approveAllMutation.mutate()}
+              disabled={isActing}
+              className="gap-2"
+              data-testid="button-approve-all"
+            >
+              {approveAllMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Check className="h-4 w-4" />
+              )}
               Approve All ({pendingEntries.length})
             </Button>
           )}
         </div>
       </CardHeader>
       <CardContent>
-        {pendingEntries.length === 0 ? (
+        {isLoading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        ) : isError ? (
+          <div className="py-12 text-center text-muted-foreground">
+            <AlertCircle className="h-12 w-12 mx-auto mb-3 opacity-20" />
+            <p>Couldn't load time entries.</p>
+            <p className="text-sm mt-1">Please try refreshing the page.</p>
+          </div>
+        ) : pendingEntries.length === 0 ? (
           <div className="py-12 text-center text-muted-foreground">
             <Check className="h-12 w-12 mx-auto mb-3 opacity-20" />
             <p>All time entries have been reviewed.</p>
@@ -132,9 +182,9 @@ export function ApprovePayrollTable() {
                         {entry.isHoliday && (
                           <Badge variant="outline" className="text-xs">HOL</Badge>
                         )}
-                        {entry.perDiem && entry.perDiem > 0 && (
+                        {entry.perDiem && entry.perDiem > 0 ? (
                           <Badge variant="outline" className="text-xs">PD</Badge>
-                        )}
+                        ) : null}
                       </div>
                     </TableCell>
                     <TableCell className="max-w-[200px]">
@@ -149,7 +199,8 @@ export function ApprovePayrollTable() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => handleReject(entry.id)}
+                          onClick={() => rejectMutation.mutate({ id: entry.id })}
+                          disabled={isActing}
                           className="h-8 gap-1 text-destructive hover:text-destructive"
                           data-testid={`button-reject-${entry.id}`}
                         >
@@ -157,7 +208,8 @@ export function ApprovePayrollTable() {
                         </Button>
                         <Button
                           size="sm"
-                          onClick={() => handleApprove(entry.id)}
+                          onClick={() => approveMutation.mutate({ id: entry.id })}
+                          disabled={isActing}
                           className="h-8 gap-1"
                           data-testid={`button-approve-${entry.id}`}
                         >

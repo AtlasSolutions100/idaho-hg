@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: time-entries
+    description: Time entry operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,115 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /time-entries:
+    get:
+      operationId: listTimeEntries
+      tags: [time-entries]
+      summary: List time entries
+      description: Returns time entries, optionally filtered by employee or status
+      parameters:
+        - name: employeeId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/EntryStatus"
+      responses:
+        "200":
+          description: List of time entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimeEntry"
+    post:
+      operationId: createTimeEntry
+      tags: [time-entries]
+      summary: Submit a time entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTimeEntry"
+      responses:
+        "201":
+          description: Created time entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeEntry"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /time-entries/{id}/approve:
+    post:
+      operationId: approveTimeEntry
+      tags: [time-entries]
+      summary: Approve a time entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Approved time entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeEntry"
+        "404":
+          description: Entry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /time-entries/{id}/reject:
+    post:
+      operationId: rejectTimeEntry
+      tags: [time-entries]
+      summary: Reject a time entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Rejected time entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeEntry"
+        "404":
+          description: Entry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /time-entries/approve-all:
+    post:
+      operationId: approveAllTimeEntries
+      tags: [time-entries]
+      summary: Approve all submitted time entries
+      responses:
+        "200":
+          description: Result of bulk approval
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApproveAllResult"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +144,106 @@ components:
           type: string
       required:
         - status
-
+    EntryStatus:
+      type: string
+      enum: [submitted, approved, rejected]
+    VisitType:
+      type: string
+      enum: [skilled-nursing, physical-therapy, occupational-therapy, speech-therapy]
+    TimeEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        employeeId:
+          type: string
+        employeeName:
+          type: string
+        employeeRole:
+          type: string
+        clientId:
+          type: string
+        clientName:
+          type: string
+        date:
+          type: string
+        visitType:
+          $ref: "#/components/schemas/VisitType"
+        hours:
+          type: number
+        mileage:
+          type: number
+        perDiem:
+          type: number
+        isWeekend:
+          type: boolean
+        isHoliday:
+          type: boolean
+        note:
+          type: string
+        status:
+          $ref: "#/components/schemas/EntryStatus"
+        submittedAt:
+          type: string
+        approvedAt:
+          type: string
+      required:
+        - id
+        - employeeId
+        - employeeName
+        - employeeRole
+        - clientId
+        - clientName
+        - date
+        - isWeekend
+        - isHoliday
+        - status
+        - submittedAt
+    CreateTimeEntry:
+      type: object
+      properties:
+        employeeId:
+          type: string
+        clientId:
+          type: string
+        date:
+          type: string
+        visitType:
+          $ref: "#/components/schemas/VisitType"
+        hours:
+          type: number
+          minimum: 0
+          maximum: 24
+        mileage:
+          type: number
+          minimum: 0
+        perDiem:
+          type: number
+          minimum: 0
+          maximum: 1
+        isWeekend:
+          type: boolean
+        isHoliday:
+          type: boolean
+        note:
+          type: string
+      required:
+        - employeeId
+        - clientId
+        - date
+        - isWeekend
+        - isHoliday
+    ApproveAllResult:
+      type: object
+      properties:
+        approvedCount:
+          type: number
+      required:
+        - approvedCount
+    ApiError:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message

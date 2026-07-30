@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useListTimeEntries } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
 import { LogHoursForm } from '@/components/employee/log-hours-form';
 import { TimeEntriesList } from '@/components/employee/time-entries-list';
@@ -7,12 +8,12 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function EmployeeDashboard() {
   const [showForm, setShowForm] = useState(false);
-  const [submittedCount, setSubmittedCount] = useState(0);
   const { toast } = useToast();
+  const { data: entries } = useListTimeEntries({ employeeId: '1' });
+  const submittedCount = (entries ?? []).filter(e => e.status === 'submitted').length;
 
   const handleSubmit = () => {
     setShowForm(false);
-    setSubmittedCount(prev => prev + 1);
     toast({
       title: 'Hours submitted',
       description: 'Your time entry has been submitted for approval.',
@@ -31,7 +32,7 @@ export default function EmployeeDashboard() {
             </div>
             <div className="flex items-center gap-2 text-sm">
               <CheckCircle className="h-4 w-4 text-primary" />
-              <span className="font-mono font-medium">2 submitted</span>
+              <span className="font-mono font-medium">{submittedCount} submitted</span>
             </div>
           </div>
         </div>

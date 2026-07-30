@@ -1,4 +1,9 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  useCreateTimeEntry,
+  getListTimeEntriesQueryKey,
+} from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,14 +13,16 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { mockClients, visitTypeLabels, type VisitType } from '@/lib/data';
-import { Check } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Check, Loader2 } from 'lucide-react';
 
 interface LogHoursFormProps {
+  employeeId?: string;
   onSubmit: () => void;
   onCancel: () => void;
 }
 
-export function LogHoursForm({ onSubmit, onCancel }: LogHoursFormProps) {
+export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursFormProps) {
   const [entryType, setEntryType] = useState<'visit' | 'hourly'>('visit');
   const [clientId, setClientId] = useState('');
   const [visitType, setVisitType] = useState<VisitType | ''>('');
@@ -27,10 +34,42 @@ export function LogHoursForm({ onSubmit, onCancel }: LogHoursFormProps) {
   const [isHoliday, setIsHoliday] = useState(false);
   const [note, setNote] = useState('');
 
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const createEntry = useCreateTimeEntry({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListTimeEntriesQueryKey() });
+        onSubmit();
+      },
+      onError: (error) => {
+        toast({
+          title: 'Could not submit hours',
+          description: error?.message ?? 'Something went wrong. Please try again.',
+          variant: 'destructive',
+        });
+      },
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Visual-only submission
-    onSubmit();
+    if (entryType === 'visit' && !visitType) return;
+    if (entryType === 'hourly' && !hours) return;
+    createEntry.mutate({
+      data: {
+        employeeId,
+        clientId,
+        date,
+        ...(entryType === 'visit' && visitType ? { visitType } : {}),
+        ...(entryType === 'hourly' && hours ? { hours: parseFloat(hours) } : {}),
+        ...(mileage ? { mileage: parseFloat(mileage) } : {}),
+        ...(perDiem && parseFloat(perDiem) > 0 ? { perDiem: parseFloat(perDiem) } : {}),
+        isWeekend,
+        isHoliday,
+        ...(note.trim() ? { note: note.trim() } : {}),
+      },
+    });
   };
 
   return (
@@ -202,6 +241,7 @@ export function LogHoursForm({ onSubmit, onCancel }: LogHoursFormProps) {
             variant="outline"
             onClick={onCancel}
             className="flex-1"
+            disabled={createEntry.isPending}
             data-testid="button-cancel"
           >
             Cancel
@@ -209,11 +249,15 @@ export function LogHoursForm({ onSubmit, onCancel }: LogHoursFormProps) {
           <Button
             type="submit"
             className="flex-1 gap-2"
-            disabled={!clientId || !date}
+            disabled={!clientId || !date || createEntry.isPending}
             data-testid="button-submit"
           >
-            <Check className="h-4 w-4" />
-            Submit Hours
+            {createEntry.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Check className="h-4 w-4" />
+            )}
+            {createEntry.isPending ? 'Submitting...' : 'Submit Hours'}
           </Button>
         </CardFooter>
       </Card>

@@ -1,19 +1,42 @@
+import { useListTimeEntries, type TimeEntry } from '@workspace/api-client-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { mockTimeEntries, statusLabels, visitTypeLabels, type TimeEntry } from '@/lib/data';
+import { Skeleton } from '@/components/ui/skeleton';
+import { statusLabels, visitTypeLabels } from '@/lib/data';
 import { format } from 'date-fns';
-import { Calendar, MapPin, DollarSign, FileText } from 'lucide-react';
+import { Calendar, MapPin, DollarSign, FileText, AlertCircle } from 'lucide-react';
 
 interface TimeEntriesListProps {
   employeeId?: string;
 }
 
 export function TimeEntriesList({ employeeId = '1' }: TimeEntriesListProps) {
-  const entries = mockTimeEntries
-    .filter(e => e.employeeId === employeeId)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const { data: entries, isLoading, isError } = useListTimeEntries({ employeeId });
 
-  if (entries.length === 0) {
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        <Skeleton className="h-40 w-full rounded-lg" />
+        <Skeleton className="h-40 w-full rounded-lg" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Card>
+        <CardContent className="py-12">
+          <div className="text-center text-muted-foreground">
+            <AlertCircle className="h-12 w-12 mx-auto mb-3 opacity-20" />
+            <p>Couldn't load your time entries.</p>
+            <p className="text-sm mt-1">Please try refreshing the page.</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!entries || entries.length === 0) {
     return (
       <Card>
         <CardHeader>
@@ -78,13 +101,13 @@ function TimeEntryCard({ entry }: { entry: TimeEntry }) {
               <div className="font-medium font-mono">{visitTypeLabels[entry.visitType]}</div>
             </div>
           )}
-          {entry.hours && (
+          {entry.hours ? (
             <div className="space-y-1">
               <div className="text-muted-foreground">Hours</div>
               <div className="font-medium font-mono">{entry.hours} hrs</div>
             </div>
-          )}
-          {entry.mileage && entry.mileage > 0 && (
+          ) : null}
+          {entry.mileage && entry.mileage > 0 ? (
             <div className="space-y-1">
               <div className="text-muted-foreground flex items-center gap-1">
                 <MapPin className="h-3 w-3" />
@@ -92,8 +115,8 @@ function TimeEntryCard({ entry }: { entry: TimeEntry }) {
               </div>
               <div className="font-medium font-mono">{entry.mileage} mi</div>
             </div>
-          )}
-          {entry.perDiem && entry.perDiem > 0 && (
+          ) : null}
+          {entry.perDiem && entry.perDiem > 0 ? (
             <div className="space-y-1">
               <div className="text-muted-foreground flex items-center gap-1">
                 <DollarSign className="h-3 w-3" />
@@ -101,7 +124,7 @@ function TimeEntryCard({ entry }: { entry: TimeEntry }) {
               </div>
               <div className="font-medium font-mono">{entry.perDiem} day{entry.perDiem > 1 ? 's' : ''}</div>
             </div>
-          )}
+          ) : null}
         </div>
 
         {(entry.isWeekend || entry.isHoliday) && (

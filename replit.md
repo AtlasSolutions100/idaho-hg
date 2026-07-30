@@ -23,14 +23,19 @@ Time-entry and payroll-approval app for Molly Hodge's healthcare staffing compan
 ## Where things live
 
 - `artifacts/staffing-app/` — the web app (served at `/`); pages in `src/pages/`, mock data + types in `src/lib/data.ts`, theme in `src/index.css`
-- `lib/api-spec/openapi.yaml` — API contract (still health-check only; Phase 2 adds real endpoints)
-- `lib/db/src/schema/` — DB schema (empty until Phase 2)
+- `lib/api-spec/openapi.yaml` — API contract (health + time-entry endpoints: list, create, approve, reject, approve-all)
+- `lib/db/src/schema/` — DB schema (`time_entries` table)
+- `artifacts/api-server/src/routes/time-entries.ts` — time-entry route handlers (Zod-validated)
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- No real auth yet: employee/client rosters are hardcoded in `time-entries.ts` routes; the app acts as employee "1" (Sarah Martinez). Phase 3+ replaces with real accounts.
+- Time-entry names (employee/client) are denormalized onto rows at submit time so the approval table needs no joins.
+- Clients/employees/rates in the UI still come from `src/lib/data.ts` mock data; only time entries are database-backed.
 
 ## Product
+
+Phase 2 (done): working time entry → approval loop. Employees submit real entries (persisted in Postgres), admins approve/reject individually or Approve All; both sides read the same data via the generated API client.
 
 Phase 1 (done): clickable visual shell, no backend. Role switcher at `/`; employee side (`/employee`, mobile-first Log Hours flow + entries list); admin side (`/admin` dashboard, Approve Payroll, Client Rates, Employee Rates, Reports placeholders — Pezwise payroll / invoices / reconciliation — and Onboarding checklist). All data is hardcoded placeholder content.
 
