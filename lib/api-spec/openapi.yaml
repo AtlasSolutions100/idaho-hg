@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: time-entries
     description: Time entry operations
+  - name: rates
+    description: Client and employee rate operations
 paths:
   /healthz:
     get:
@@ -135,8 +137,209 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApproveAllResult"
+  /client-rates:
+    get:
+      operationId: listClientRates
+      tags: [rates]
+      summary: List client billing rates
+      responses:
+        "200":
+          description: List of client rates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ClientRate"
+  /client-rates/{id}:
+    patch:
+      operationId: updateClientRate
+      tags: [rates]
+      summary: Update a client billing rate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateClientRate"
+      responses:
+        "200":
+          description: Updated client rate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientRate"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Rate not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /employee-rates:
+    get:
+      operationId: listEmployeeRates
+      tags: [rates]
+      summary: List employee pay rates
+      responses:
+        "200":
+          description: List of employee rates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeRate"
+  /employee-rates/{id}:
+    patch:
+      operationId: updateEmployeeRate
+      tags: [rates]
+      summary: Update an employee pay rate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEmployeeRate"
+      responses:
+        "200":
+          description: Updated employee rate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeRate"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Rate not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 components:
   schemas:
+    ClientRate:
+      type: object
+      properties:
+        id:
+          type: string
+        clientId:
+          type: string
+        clientName:
+          type: string
+        visitType:
+          $ref: "#/components/schemas/VisitType"
+        rate:
+          type: number
+        effectiveDate:
+          type: string
+      required:
+        - id
+        - clientId
+        - clientName
+        - visitType
+        - rate
+        - effectiveDate
+    UpdateClientRate:
+      type: object
+      properties:
+        rate:
+          type: number
+          minimum: 0
+        effectiveDate:
+          type: string
+      required:
+        - rate
+        - effectiveDate
+    EmployeeRate:
+      type: object
+      properties:
+        id:
+          type: string
+        employeeId:
+          type: string
+        employeeName:
+          type: string
+        employeeRole:
+          type: string
+        hourlyRate:
+          type: number
+        visitRate:
+          type: number
+        mileageRate:
+          type: number
+        perDiemRate:
+          type: number
+        weekendMultiplier:
+          type: number
+        holidayMultiplier:
+          type: number
+        effectiveDate:
+          type: string
+      required:
+        - id
+        - employeeId
+        - employeeName
+        - employeeRole
+        - hourlyRate
+        - visitRate
+        - mileageRate
+        - perDiemRate
+        - weekendMultiplier
+        - holidayMultiplier
+        - effectiveDate
+    UpdateEmployeeRate:
+      type: object
+      properties:
+        hourlyRate:
+          type: number
+          minimum: 0
+        visitRate:
+          type: number
+          minimum: 0
+        mileageRate:
+          type: number
+          minimum: 0
+        perDiemRate:
+          type: number
+          minimum: 0
+        weekendMultiplier:
+          type: number
+          minimum: 1
+        holidayMultiplier:
+          type: number
+          minimum: 1
+        effectiveDate:
+          type: string
+      required:
+        - hourlyRate
+        - visitRate
+        - mileageRate
+        - perDiemRate
+        - weekendMultiplier
+        - holidayMultiplier
+        - effectiveDate
     HealthStatus:
       type: object
       properties:

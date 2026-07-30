@@ -5,6 +5,61 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export type VisitType = typeof VisitType[keyof typeof VisitType];
+
+
+export const VisitType = {
+  'skilled-nursing': 'skilled-nursing',
+  'physical-therapy': 'physical-therapy',
+  'occupational-therapy': 'occupational-therapy',
+  'speech-therapy': 'speech-therapy',
+} as const;
+
+export interface ClientRate {
+  id: string;
+  clientId: string;
+  clientName: string;
+  visitType: VisitType;
+  rate: number;
+  effectiveDate: string;
+}
+
+export interface UpdateClientRate {
+  /** @minimum 0 */
+  rate: number;
+  effectiveDate: string;
+}
+
+export interface EmployeeRate {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  employeeRole: string;
+  hourlyRate: number;
+  visitRate: number;
+  mileageRate: number;
+  perDiemRate: number;
+  weekendMultiplier: number;
+  holidayMultiplier: number;
+  effectiveDate: string;
+}
+
+export interface UpdateEmployeeRate {
+  /** @minimum 0 */
+  hourlyRate: number;
+  /** @minimum 0 */
+  visitRate: number;
+  /** @minimum 0 */
+  mileageRate: number;
+  /** @minimum 0 */
+  perDiemRate: number;
+  /** @minimum 1 */
+  weekendMultiplier: number;
+  /** @minimum 1 */
+  holidayMultiplier: number;
+  effectiveDate: string;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -16,16 +71,6 @@ export const EntryStatus = {
   submitted: 'submitted',
   approved: 'approved',
   rejected: 'rejected',
-} as const;
-
-export type VisitType = typeof VisitType[keyof typeof VisitType];
-
-
-export const VisitType = {
-  'skilled-nursing': 'skilled-nursing',
-  'physical-therapy': 'physical-therapy',
-  'occupational-therapy': 'occupational-therapy',
-  'speech-therapy': 'speech-therapy',
 } as const;
 
 export interface TimeEntry {

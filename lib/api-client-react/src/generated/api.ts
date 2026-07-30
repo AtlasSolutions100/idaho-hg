@@ -22,10 +22,14 @@ import type {
 import type {
   ApiError,
   ApproveAllResult,
+  ClientRate,
   CreateTimeEntry,
+  EmployeeRate,
   HealthStatus,
   ListTimeEntriesParams,
-  TimeEntry
+  TimeEntry,
+  UpdateClientRate,
+  UpdateEmployeeRate
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -500,5 +504,303 @@ export const useApproveAllTimeEntries = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getApproveAllTimeEntriesMutationOptions(options));
+    }
+
+export const getListClientRatesUrl = () => {
+
+
+
+
+  return `/api/client-rates`
+}
+
+/**
+ * @summary List client billing rates
+ */
+export const listClientRates = async ( options?: Parameters<typeof customFetch>[1]): Promise<ClientRate[]> => {
+
+  return customFetch<ClientRate[]>(getListClientRatesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListClientRatesQueryKey = () => {
+    return [
+    `/api/client-rates`
+    ] as const;
+    }
+
+
+export const getListClientRatesQueryOptions = <TData = Awaited<ReturnType<typeof listClientRates>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listClientRates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListClientRatesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listClientRates>>> = ({ signal }) => listClientRates({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listClientRates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListClientRatesQueryResult = NonNullable<Awaited<ReturnType<typeof listClientRates>>>
+export type ListClientRatesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List client billing rates
+ */
+
+export function useListClientRates<TData = Awaited<ReturnType<typeof listClientRates>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listClientRates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListClientRatesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateClientRateUrl = (id: string,) => {
+
+
+
+
+  return `/api/client-rates/${id}`
+}
+
+/**
+ * @summary Update a client billing rate
+ */
+export const updateClientRate = async (id: string,
+    updateClientRate: UpdateClientRate, options?: Parameters<typeof customFetch>[1]): Promise<ClientRate> => {
+
+  return customFetch<ClientRate>(getUpdateClientRateUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateClientRate)
+  }
+);}
+
+
+
+
+
+export const getUpdateClientRateMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateClientRate>>, TError,{id: string;data: BodyType<UpdateClientRate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateClientRate>>, TError,{id: string;data: BodyType<UpdateClientRate>}, TContext> => {
+
+const mutationKey = ['updateClientRate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateClientRate>>, {id: string;data: BodyType<UpdateClientRate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateClientRate(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateClientRateMutationResult = NonNullable<Awaited<ReturnType<typeof updateClientRate>>>
+    export type UpdateClientRateMutationBody = BodyType<UpdateClientRate>
+    export type UpdateClientRateMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update a client billing rate
+ */
+export const useUpdateClientRate = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateClientRate>>, TError,{id: string;data: BodyType<UpdateClientRate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateClientRate>>,
+        TError,
+        {id: string;data: BodyType<UpdateClientRate>},
+        TContext
+      > => {
+      return useMutation(getUpdateClientRateMutationOptions(options));
+    }
+
+export const getListEmployeeRatesUrl = () => {
+
+
+
+
+  return `/api/employee-rates`
+}
+
+/**
+ * @summary List employee pay rates
+ */
+export const listEmployeeRates = async ( options?: Parameters<typeof customFetch>[1]): Promise<EmployeeRate[]> => {
+
+  return customFetch<EmployeeRate[]>(getListEmployeeRatesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEmployeeRatesQueryKey = () => {
+    return [
+    `/api/employee-rates`
+    ] as const;
+    }
+
+
+export const getListEmployeeRatesQueryOptions = <TData = Awaited<ReturnType<typeof listEmployeeRates>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeRates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEmployeeRatesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEmployeeRates>>> = ({ signal }) => listEmployeeRates({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEmployeeRates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEmployeeRatesQueryResult = NonNullable<Awaited<ReturnType<typeof listEmployeeRates>>>
+export type ListEmployeeRatesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List employee pay rates
+ */
+
+export function useListEmployeeRates<TData = Awaited<ReturnType<typeof listEmployeeRates>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeRates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEmployeeRatesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateEmployeeRateUrl = (id: string,) => {
+
+
+
+
+  return `/api/employee-rates/${id}`
+}
+
+/**
+ * @summary Update an employee pay rate
+ */
+export const updateEmployeeRate = async (id: string,
+    updateEmployeeRate: UpdateEmployeeRate, options?: Parameters<typeof customFetch>[1]): Promise<EmployeeRate> => {
+
+  return customFetch<EmployeeRate>(getUpdateEmployeeRateUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateEmployeeRate)
+  }
+);}
+
+
+
+
+
+export const getUpdateEmployeeRateMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEmployeeRate>>, TError,{id: string;data: BodyType<UpdateEmployeeRate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateEmployeeRate>>, TError,{id: string;data: BodyType<UpdateEmployeeRate>}, TContext> => {
+
+const mutationKey = ['updateEmployeeRate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateEmployeeRate>>, {id: string;data: BodyType<UpdateEmployeeRate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateEmployeeRate(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateEmployeeRateMutationResult = NonNullable<Awaited<ReturnType<typeof updateEmployeeRate>>>
+    export type UpdateEmployeeRateMutationBody = BodyType<UpdateEmployeeRate>
+    export type UpdateEmployeeRateMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update an employee pay rate
+ */
+export const useUpdateEmployeeRate = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEmployeeRate>>, TError,{id: string;data: BodyType<UpdateEmployeeRate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateEmployeeRate>>,
+        TError,
+        {id: string;data: BodyType<UpdateEmployeeRate>},
+        TContext
+      > => {
+      return useMutation(getUpdateEmployeeRateMutationOptions(options));
     }
 

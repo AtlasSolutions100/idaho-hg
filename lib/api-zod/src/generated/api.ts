@@ -159,3 +159,106 @@ export const ApproveAllTimeEntriesResponse = zod.object({
 })
 
 
+/**
+ * @summary List client billing rates
+ */
+export const ListClientRatesResponseItem = zod.object({
+  "id": zod.string(),
+  "clientId": zod.string(),
+  "clientName": zod.string(),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy']),
+  "rate": zod.number(),
+  "effectiveDate": zod.string()
+})
+export const ListClientRatesResponse = zod.array(ListClientRatesResponseItem)
+
+
+/**
+ * @summary Update a client billing rate
+ */
+export const UpdateClientRateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const updateClientRateBodyRateMin = 0;
+
+
+
+export const UpdateClientRateBody = zod.object({
+  "rate": zod.number().min(updateClientRateBodyRateMin),
+  "effectiveDate": zod.string()
+})
+
+export const UpdateClientRateResponse = zod.object({
+  "id": zod.string(),
+  "clientId": zod.string(),
+  "clientName": zod.string(),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy']),
+  "rate": zod.number(),
+  "effectiveDate": zod.string()
+})
+
+
+/**
+ * @summary List employee pay rates
+ */
+export const ListEmployeeRatesResponseItem = zod.object({
+  "id": zod.string(),
+  "employeeId": zod.string(),
+  "employeeName": zod.string(),
+  "employeeRole": zod.string(),
+  "hourlyRate": zod.number(),
+  "visitRate": zod.number(),
+  "mileageRate": zod.number(),
+  "perDiemRate": zod.number(),
+  "weekendMultiplier": zod.number(),
+  "holidayMultiplier": zod.number(),
+  "effectiveDate": zod.string()
+})
+export const ListEmployeeRatesResponse = zod.array(ListEmployeeRatesResponseItem)
+
+
+/**
+ * @summary Update an employee pay rate
+ */
+export const UpdateEmployeeRateParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const updateEmployeeRateBodyHourlyRateMin = 0;
+
+export const updateEmployeeRateBodyVisitRateMin = 0;
+
+export const updateEmployeeRateBodyMileageRateMin = 0;
+
+export const updateEmployeeRateBodyPerDiemRateMin = 0;
+
+
+
+
+
+export const UpdateEmployeeRateBody = zod.object({
+  "hourlyRate": zod.number().min(updateEmployeeRateBodyHourlyRateMin),
+  "visitRate": zod.number().min(updateEmployeeRateBodyVisitRateMin),
+  "mileageRate": zod.number().min(updateEmployeeRateBodyMileageRateMin),
+  "perDiemRate": zod.number().min(updateEmployeeRateBodyPerDiemRateMin),
+  "weekendMultiplier": zod.number().min(1),
+  "holidayMultiplier": zod.number().min(1),
+  "effectiveDate": zod.string()
+})
+
+export const UpdateEmployeeRateResponse = zod.object({
+  "id": zod.string(),
+  "employeeId": zod.string(),
+  "employeeName": zod.string(),
+  "employeeRole": zod.string(),
+  "hourlyRate": zod.number(),
+  "visitRate": zod.number(),
+  "mileageRate": zod.number(),
+  "perDiemRate": zod.number(),
+  "weekendMultiplier": zod.number(),
+  "holidayMultiplier": zod.number(),
+  "effectiveDate": zod.string()
+})
+
+

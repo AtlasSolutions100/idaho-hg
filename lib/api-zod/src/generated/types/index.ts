@@ -8,9 +8,13 @@
 
 export * from './apiError';
 export * from './approveAllResult';
+export * from './clientRate';
 export * from './createTimeEntry';
+export * from './employeeRate';
 export * from './entryStatus';
 export * from './healthStatus';
 export * from './listTimeEntriesParams';
 export * from './timeEntry';
+export * from './updateClientRate';
+export * from './updateEmployeeRate';
 export * from './visitType';
