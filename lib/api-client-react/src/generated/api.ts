@@ -655,6 +655,83 @@ export const useUpdateClientRate = <TError = ErrorType<ApiError>,
       return useMutation(getUpdateClientRateMutationOptions(options));
     }
 
+export const getListClientRateHistoryUrl = (id: string,) => {
+
+
+
+
+  return `/api/client-rates/${id}/history`
+}
+
+/**
+ * @summary List all historical rates for the client/visit-type of the given rate row
+ */
+export const listClientRateHistory = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<ClientRate[]> => {
+
+  return customFetch<ClientRate[]>(getListClientRateHistoryUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListClientRateHistoryQueryKey = (id: string,) => {
+    return [
+    `/api/client-rates/${id}/history`
+    ] as const;
+    }
+
+
+export const getListClientRateHistoryQueryOptions = <TData = Awaited<ReturnType<typeof listClientRateHistory>>, TError = ErrorType<ApiError>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listClientRateHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListClientRateHistoryQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listClientRateHistory>>> = ({ signal }) => listClientRateHistory(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listClientRateHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListClientRateHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof listClientRateHistory>>>
+export type ListClientRateHistoryQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List all historical rates for the client/visit-type of the given rate row
+ */
+
+export function useListClientRateHistory<TData = Awaited<ReturnType<typeof listClientRateHistory>>, TError = ErrorType<ApiError>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listClientRateHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListClientRateHistoryQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getListEmployeeRatesUrl = () => {
 
 
@@ -803,4 +880,81 @@ export const useUpdateEmployeeRate = <TError = ErrorType<ApiError>,
       > => {
       return useMutation(getUpdateEmployeeRateMutationOptions(options));
     }
+
+export const getListEmployeeRateHistoryUrl = (id: string,) => {
+
+
+
+
+  return `/api/employee-rates/${id}/history`
+}
+
+/**
+ * @summary List all historical pay rates for the employee of the given rate row
+ */
+export const listEmployeeRateHistory = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<EmployeeRate[]> => {
+
+  return customFetch<EmployeeRate[]>(getListEmployeeRateHistoryUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEmployeeRateHistoryQueryKey = (id: string,) => {
+    return [
+    `/api/employee-rates/${id}/history`
+    ] as const;
+    }
+
+
+export const getListEmployeeRateHistoryQueryOptions = <TData = Awaited<ReturnType<typeof listEmployeeRateHistory>>, TError = ErrorType<ApiError>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeRateHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEmployeeRateHistoryQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEmployeeRateHistory>>> = ({ signal }) => listEmployeeRateHistory(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEmployeeRateHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEmployeeRateHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof listEmployeeRateHistory>>>
+export type ListEmployeeRateHistoryQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List all historical pay rates for the employee of the given rate row
+ */
+
+export function useListEmployeeRateHistory<TData = Awaited<ReturnType<typeof listEmployeeRateHistory>>, TError = ErrorType<ApiError>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEmployeeRateHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEmployeeRateHistoryQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

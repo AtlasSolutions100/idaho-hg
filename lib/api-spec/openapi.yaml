@@ -187,6 +187,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /client-rates/{id}/history:
+    get:
+      operationId: listClientRateHistory
+      tags: [rates]
+      summary: List all historical rates for the client/visit-type of the given rate row
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Rate history, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ClientRate"
+        "404":
+          description: Rate not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /employee-rates:
     get:
       operationId: listEmployeeRates
@@ -231,6 +257,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Rate not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /employee-rates/{id}/history:
+    get:
+      operationId: listEmployeeRateHistory
+      tags: [rates]
+      summary: List all historical pay rates for the employee of the given rate row
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Rate history, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployeeRate"
         "404":
           description: Rate not found
           content:

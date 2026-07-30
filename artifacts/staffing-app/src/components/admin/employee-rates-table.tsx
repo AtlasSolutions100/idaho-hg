@@ -3,7 +3,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   useListEmployeeRates,
   useUpdateEmployeeRate,
+  useListEmployeeRateHistory,
   getListEmployeeRatesQueryKey,
+  getListEmployeeRateHistoryQueryKey,
   type EmployeeRate,
 } from '@workspace/api-client-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,7 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Pencil, Loader2, AlertCircle } from 'lucide-react';
+import { Pencil, Loader2, AlertCircle, History } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface EditForm {
@@ -62,13 +64,24 @@ export function EmployeeRatesTable() {
     holidayMultiplier: '',
     effectiveDate: '',
   });
+  const [historyFor, setHistoryFor] = useState<EmployeeRate | null>(null);
+
+  const historyQuery = useListEmployeeRateHistory(historyFor?.id ?? '', {
+    query: {
+      enabled: !!historyFor,
+      queryKey: getListEmployeeRateHistoryQueryKey(historyFor?.id ?? ''),
+    },
+  });
 
   const updateMutation = useUpdateEmployeeRate({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListEmployeeRatesQueryKey() });
         setEditing(null);
-        toast({ title: 'Rate updated', description: 'The employee pay rate has been saved.' });
+        toast({
+          title: 'Rate updated',
+          description: 'The new pay rate was saved. Earlier entries keep the old rate.',
+        });
       },
       onError: () => {
         toast({
@@ -89,7 +102,7 @@ export function EmployeeRatesTable() {
       perDiemRate: rate.perDiemRate.toString(),
       weekendMultiplier: rate.weekendMultiplier.toString(),
       holidayMultiplier: rate.holidayMultiplier.toString(),
-      effectiveDate: rate.effectiveDate,
+      effectiveDate: new Date().toISOString().slice(0, 10),
     });
   };
 
@@ -196,16 +209,28 @@ export function EmployeeRatesTable() {
                       {rate.effectiveDate}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="gap-2"
-                        onClick={() => openEdit(rate)}
-                        data-testid={`button-edit-employee-rate-${rate.id}`}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                        Edit
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="gap-2"
+                          onClick={() => setHistoryFor(rate)}
+                          data-testid={`button-history-employee-rate-${rate.id}`}
+                        >
+                          <History className="h-3.5 w-3.5" />
+                          History
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="gap-2"
+                          onClick={() => openEdit(rate)}
+                          data-testid={`button-edit-employee-rate-${rate.id}`}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -218,9 +243,11 @@ export function EmployeeRatesTable() {
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Pay Rate</DialogTitle>
+            <DialogTitle>Change Pay Rate</DialogTitle>
             <DialogDescription>
-              {editing ? `${editing.employeeName} (${editing.employeeRole})` : ''}
+              {editing
+                ? `${editing.employeeName} (${editing.employeeRole}). The new rates apply from the effective date; earlier entries keep the old rates.`
+                : ''}
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
@@ -263,6 +290,61 @@ export function EmployeeRatesTable() {
               Save
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!historyFor} onOpenChange={(open) => !open && setHistoryFor(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Pay Rate History</DialogTitle>
+            <DialogDescription>
+              {historyFor ? `${historyFor.employeeName} (${historyFor.employeeRole})` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {historyQuery.isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+          ) : historyQuery.isError ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              Couldn't load rate history.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Effective</TableHead>
+                    <TableHead className="text-right">Hourly</TableHead>
+                    <TableHead className="text-right">Visit</TableHead>
+                    <TableHead className="text-right">Mileage</TableHead>
+                    <TableHead className="text-right">Per Diem</TableHead>
+                    <TableHead className="text-right">Weekend</TableHead>
+                    <TableHead className="text-right">Holiday</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(historyQuery.data ?? []).map((row, index) => (
+                    <TableRow key={row.id} data-testid={`employee-rate-history-${row.id}`}>
+                      <TableCell className="font-mono text-sm">
+                        {row.effectiveDate}
+                        {index === 0 && (
+                          <span className="ml-2 text-xs text-muted-foreground">(current)</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">${row.hourlyRate.toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-mono">${row.visitRate.toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-mono">${row.mileageRate.toFixed(3)}</TableCell>
+                      <TableCell className="text-right font-mono">${row.perDiemRate.toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-mono">{row.weekendMultiplier}x</TableCell>
+                      <TableCell className="text-right font-mono">{row.holidayMultiplier}x</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </Card>

@@ -3,7 +3,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   useListClientRates,
   useUpdateClientRate,
+  useListClientRateHistory,
   getListClientRatesQueryKey,
+  getListClientRateHistoryQueryKey,
   type ClientRate,
 } from '@workspace/api-client-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,7 +23,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { visitTypeLabels, type VisitType } from '@/lib/data';
-import { Pencil, Loader2, AlertCircle } from 'lucide-react';
+import { Pencil, Loader2, AlertCircle, History } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export function ClientRatesTable() {
@@ -32,13 +34,24 @@ export function ClientRatesTable() {
   const [editing, setEditing] = useState<ClientRate | null>(null);
   const [rateValue, setRateValue] = useState('');
   const [effectiveDate, setEffectiveDate] = useState('');
+  const [historyFor, setHistoryFor] = useState<ClientRate | null>(null);
+
+  const historyQuery = useListClientRateHistory(historyFor?.id ?? '', {
+    query: {
+      enabled: !!historyFor,
+      queryKey: getListClientRateHistoryQueryKey(historyFor?.id ?? ''),
+    },
+  });
 
   const updateMutation = useUpdateClientRate({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListClientRatesQueryKey() });
         setEditing(null);
-        toast({ title: 'Rate updated', description: 'The client rate has been saved.' });
+        toast({
+          title: 'Rate updated',
+          description: 'The new rate was saved. Earlier entries keep the old rate.',
+        });
       },
       onError: () => {
         toast({
@@ -53,7 +66,7 @@ export function ClientRatesTable() {
   const openEdit = (rate: ClientRate) => {
     setEditing(rate);
     setRateValue(rate.rate.toString());
-    setEffectiveDate(rate.effectiveDate);
+    setEffectiveDate(new Date().toISOString().slice(0, 10));
   };
 
   const handleSave = () => {
@@ -137,16 +150,28 @@ export function ClientRatesTable() {
                             {rate.effectiveDate}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="gap-2"
-                              onClick={() => openEdit(rate)}
-                              data-testid={`button-edit-client-rate-${rate.id}`}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                              Edit
-                            </Button>
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="gap-2"
+                                onClick={() => setHistoryFor(rate)}
+                                data-testid={`button-history-client-rate-${rate.id}`}
+                              >
+                                <History className="h-3.5 w-3.5" />
+                                History
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="gap-2"
+                                onClick={() => openEdit(rate)}
+                                data-testid={`button-edit-client-rate-${rate.id}`}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                                Edit
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -162,10 +187,10 @@ export function ClientRatesTable() {
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Client Rate</DialogTitle>
+            <DialogTitle>Change Client Rate</DialogTitle>
             <DialogDescription>
               {editing
-                ? `${editing.clientName} — ${visitTypeLabels[editing.visitType as VisitType] ?? editing.visitType}`
+                ? `${editing.clientName} — ${visitTypeLabels[editing.visitType as VisitType] ?? editing.visitType}. The new rate applies from the effective date; earlier entries keep the old rate.`
                 : ''}
             </DialogDescription>
           </DialogHeader>
@@ -207,6 +232,51 @@ export function ClientRatesTable() {
               Save
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!historyFor} onOpenChange={(open) => !open && setHistoryFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rate History</DialogTitle>
+            <DialogDescription>
+              {historyFor
+                ? `${historyFor.clientName} — ${visitTypeLabels[historyFor.visitType as VisitType] ?? historyFor.visitType}`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {historyQuery.isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+          ) : historyQuery.isError ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              Couldn't load rate history.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Effective Date</TableHead>
+                  <TableHead className="text-right">Rate</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(historyQuery.data ?? []).map((row, index) => (
+                  <TableRow key={row.id} data-testid={`client-rate-history-${row.id}`}>
+                    <TableCell className="font-mono text-sm">
+                      {row.effectiveDate}
+                      {index === 0 && (
+                        <span className="ml-2 text-xs text-muted-foreground">(current)</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">${row.rate.toFixed(2)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </DialogContent>
       </Dialog>
     </Card>

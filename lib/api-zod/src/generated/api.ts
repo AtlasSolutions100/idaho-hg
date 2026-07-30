@@ -200,6 +200,24 @@ export const UpdateClientRateResponse = zod.object({
 
 
 /**
+ * @summary List all historical rates for the client/visit-type of the given rate row
+ */
+export const ListClientRateHistoryParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const ListClientRateHistoryResponseItem = zod.object({
+  "id": zod.string(),
+  "clientId": zod.string(),
+  "clientName": zod.string(),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy']),
+  "rate": zod.number(),
+  "effectiveDate": zod.string()
+})
+export const ListClientRateHistoryResponse = zod.array(ListClientRateHistoryResponseItem)
+
+
+/**
  * @summary List employee pay rates
  */
 export const ListEmployeeRatesResponseItem = zod.object({
@@ -260,5 +278,28 @@ export const UpdateEmployeeRateResponse = zod.object({
   "holidayMultiplier": zod.number(),
   "effectiveDate": zod.string()
 })
+
+
+/**
+ * @summary List all historical pay rates for the employee of the given rate row
+ */
+export const ListEmployeeRateHistoryParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const ListEmployeeRateHistoryResponseItem = zod.object({
+  "id": zod.string(),
+  "employeeId": zod.string(),
+  "employeeName": zod.string(),
+  "employeeRole": zod.string(),
+  "hourlyRate": zod.number(),
+  "visitRate": zod.number(),
+  "mileageRate": zod.number(),
+  "perDiemRate": zod.number(),
+  "weekendMultiplier": zod.number(),
+  "holidayMultiplier": zod.number(),
+  "effectiveDate": zod.string()
+})
+export const ListEmployeeRateHistoryResponse = zod.array(ListEmployeeRateHistoryResponseItem)
 
 
