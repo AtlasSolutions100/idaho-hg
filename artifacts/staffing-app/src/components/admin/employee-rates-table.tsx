@@ -73,6 +73,7 @@ export function EmployeeRatesTable() {
   const [newName, setNewName] = useState('');
   const [newRole, setNewRole] = useState('');
   const [newRates, setNewRates] = useState<Record<string, string>>({});
+  const [addError, setAddError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<{ employeeId: string; employeeName: string } | null>(null);
 
   const historyQuery = useListEmployeeRateHistory(historyFor?.id ?? '', {
@@ -117,12 +118,14 @@ export function EmployeeRatesTable() {
           description: `${employee.name} was added with their starting pay rates.`,
         });
       },
-      onError: () => {
-        toast({
-          title: 'Could not add employee',
-          description: 'Please check the details and try again.',
-          variant: 'destructive',
-        });
+      onError: (error) => {
+        const serverMessage =
+          error && typeof error === 'object' && 'data' in error &&
+          error.data && typeof error.data === 'object' && 'message' in error.data &&
+          typeof (error.data as { message?: unknown }).message === 'string'
+            ? (error.data as { message: string }).message
+            : null;
+        setAddError(serverMessage ?? 'Could not add the employee. Please check the details and try again.');
       },
     },
   });
@@ -158,10 +161,12 @@ export function EmployeeRatesTable() {
       weekendMultiplier: '1.5',
       holidayMultiplier: '2',
     });
+    setAddError(null);
     setAddOpen(true);
   };
 
   const handleAdd = () => {
+    setAddError(null);
     if (!newName.trim()) {
       toast({ title: 'Missing name', description: 'Enter the employee name.', variant: 'destructive' });
       return;
@@ -403,6 +408,15 @@ export function EmployeeRatesTable() {
                 />
               </div>
             ))}
+            {addError && (
+              <div
+                className="col-span-2 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+                data-testid="error-add-employee"
+              >
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>{addError}</span>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)} data-testid="button-cancel-add-employee">

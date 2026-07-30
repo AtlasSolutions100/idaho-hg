@@ -87,6 +87,18 @@ router.post("/clients", async (req, res, next) => {
       res.status(400).json({ message: "Client name is required" });
       return;
     }
+    const existing = await db.select().from(clientsTable);
+    const match = existing.find(
+      (c) => c.name.trim().toLowerCase() === name.toLowerCase(),
+    );
+    if (match) {
+      res.status(409).json({
+        message: match.active
+          ? `A client named "${match.name}" already exists.`
+          : `A removed client named "${match.name}" already exists. Restore it instead of adding a duplicate.`,
+      });
+      return;
+    }
     const id = randomUUID();
     const [row] = await db
       .insert(clientsTable)
@@ -150,6 +162,18 @@ router.post("/employees", async (req, res, next) => {
     const role = body.role.trim();
     if (!name || !role) {
       res.status(400).json({ message: "Employee name and role are required" });
+      return;
+    }
+    const existing = await db.select().from(employeesTable);
+    const match = existing.find(
+      (e) => e.name.trim().toLowerCase() === name.toLowerCase(),
+    );
+    if (match) {
+      res.status(409).json({
+        message: match.active
+          ? `An employee named "${match.name}" already exists.`
+          : `A removed employee named "${match.name}" already exists. Restore them instead of adding a duplicate.`,
+      });
       return;
     }
     const id = randomUUID();

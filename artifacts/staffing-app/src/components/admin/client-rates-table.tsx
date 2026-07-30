@@ -44,6 +44,7 @@ export function ClientRatesTable() {
   const [newName, setNewName] = useState('');
   const [newVisitType, setNewVisitType] = useState<VisitType | ''>('');
   const [newRate, setNewRate] = useState('');
+  const [addError, setAddError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<{ clientId: string; clientName: string } | null>(null);
 
   const historyQuery = useListClientRateHistory(historyFor?.id ?? '', {
@@ -88,12 +89,14 @@ export function ClientRatesTable() {
           description: `${client.name} is now available for logging hours.`,
         });
       },
-      onError: () => {
-        toast({
-          title: 'Could not add client',
-          description: 'Please check the details and try again.',
-          variant: 'destructive',
-        });
+      onError: (error) => {
+        const serverMessage =
+          error && typeof error === 'object' && 'data' in error &&
+          error.data && typeof error.data === 'object' && 'message' in error.data &&
+          typeof (error.data as { message?: unknown }).message === 'string'
+            ? (error.data as { message: string }).message
+            : null;
+        setAddError(serverMessage ?? 'Could not add the client. Please check the details and try again.');
       },
     },
   });
@@ -122,10 +125,12 @@ export function ClientRatesTable() {
     setNewName('');
     setNewVisitType('');
     setNewRate('');
+    setAddError(null);
     setAddOpen(true);
   };
 
   const handleAdd = () => {
+    setAddError(null);
     const parsedRate = Number(newRate);
     if (!newName.trim()) {
       toast({ title: 'Missing name', description: 'Enter the client name.', variant: 'destructive' });
@@ -330,6 +335,15 @@ export function ClientRatesTable() {
                 data-testid="input-new-client-rate"
               />
             </div>
+            {addError && (
+              <div
+                className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+                data-testid="error-add-client"
+              >
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>{addError}</span>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)} data-testid="button-cancel-add-client">
