@@ -1,0 +1,63 @@
+Project Brief
+Client / Goal
+Molly Hodge runs a healthcare staffing company serving St. Luke’s, Weiser Memorial Hospital, Idaho Youth Ranch, and local outpatient clinics across the Treasure Valley and western Idaho. The goal is to replace her current manual process (employees text/email hours → Molly transcribes into Excel + QuickBooks + client reconciliation spreadsheets) with a clean employee time-entry app and an admin dashboard so she can approve everything in roughly one hour per week instead of eight.
+Who will use it
+
+Employees (nurses, PTs, etc.): mostly mobile, need a simple way to log hours, visit types, mileage, per-diem, and occasional notes for a specific client.
+Molly (and later her business partner Adrian): desktop or tablet admin view to review/approve submissions, manage rates, and generate the three weekly outputs (Pezwise payroll, client invoices, reconciliation reports).
+
+Full Project Vision
+A focused web app (mobile-friendly) where employees select the client they worked for, choose visit type or hourly entry, add mileage/per-diem/weekend/holiday flags and free-text notes when needed, then submit. Molly receives a weekly summary, reviews each line, approves or edits, and the system produces:
+
+A clean export she can email to Pezwise for payroll.
+Itemized invoices ready for QuickBooks (later via API).
+Client-specific reconciliation reports that include the descriptive notes.
+She can also edit all client rates and employee pay rates herself, and push simple onboarding task lists to new hires.
+
+Build Phases
+Phase 1 – Shell
+Goal: Create a clean, visual, clickable foundation so we can see and feel the app early.
+Include only:
+
+Basic layout and navigation
+Main screens (even if mostly visual)
+Simple placeholder content
+Smooth, intentional interface feel
+
+Do not add complex features or backend logic yet.
+Phase 2 – Core Functionality
+
+Employee time-entry form (client dropdown, visit-type or hourly, mileage, per-diem, weekend/holiday toggle, free-text note)
+Admin review/approval dashboard with weekly view
+Editable master rate tables (client rates + employee rates)
+Generation of three placeholder exports: Pezwise payroll list, invoice-style summary, reconciliation report
+
+Phase 3 – Strengthening & Polish
+
+Real data persistence and multi-employee support
+Approval workflow with status (pending / approved / needs attention)
+Better mobile experience and notifications
+Simple onboarding task checklist that admins can assign
+
+Later Phases (if needed)
+
+QuickBooks API integration for actual invoice creation
+More sophisticated reporting or historical views
+Any additional features Molly requests after living with the core product
+
+What success looks like for Phase 1
+Molly (and the team) can open the app, click through both the employee side and the admin side, see every main screen, and feel that the layout, navigation, and overall interface already look calm, professional, and trustworthy—even though nothing is functional yet.
+Out of Scope for Phase 1
+
+Complex features
+User accounts (unless absolutely required)
+Anything that can wait until the shell feels right
+Real data, calculations, exports, or backend logic
+
+Special notes
+
+Tone should feel calm, clear, and professional (healthcare staffing, not flashy startup).
+Prefer clean typography, generous spacing, and mobile-first employee views.
+Naming: keep language simple (“Log Hours”, “Approve Payroll”, “Client Rates”).
+Molly must be able to edit rates herself later—design the rate screens with that in mind even in the shell.
+Avoid any appearance of storing sensitive personal documents; the onboarding section is just a task checklist.
