@@ -31,10 +31,12 @@ import type {
   EmployeeRate,
   GetInvoiceReportParams,
   GetPayrollReportParams,
+  GetReconciliationReportParams,
   HealthStatus,
   InvoiceReport,
   ListTimeEntriesParams,
   PayrollReport,
+  ReconciliationReport,
   TimeEntry,
   UpdateClientRate,
   UpdateEmployeeRate
@@ -1560,6 +1562,90 @@ export function useGetInvoiceReport<TData = Awaited<ReturnType<typeof getInvoice
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetInvoiceReportQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetReconciliationReportUrl = (params: GetReconciliationReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reports/reconciliation?${stringifiedParams}` : `/api/reports/reconciliation`
+}
+
+/**
+ * @summary Per-visit reconciliation report with employee notes for a client
+ */
+export const getReconciliationReport = async (params: GetReconciliationReportParams, options?: Parameters<typeof customFetch>[1]): Promise<ReconciliationReport> => {
+
+  return customFetch<ReconciliationReport>(getGetReconciliationReportUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetReconciliationReportQueryKey = (params?: GetReconciliationReportParams,) => {
+    return [
+    `/api/reports/reconciliation`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetReconciliationReportQueryOptions = <TData = Awaited<ReturnType<typeof getReconciliationReport>>, TError = ErrorType<ApiError>>(params: GetReconciliationReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReconciliationReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetReconciliationReportQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReconciliationReport>>> = ({ signal }) => getReconciliationReport(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReconciliationReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetReconciliationReportQueryResult = NonNullable<Awaited<ReturnType<typeof getReconciliationReport>>>
+export type GetReconciliationReportQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Per-visit reconciliation report with employee notes for a client
+ */
+
+export function useGetReconciliationReport<TData = Awaited<ReturnType<typeof getReconciliationReport>>, TError = ErrorType<ApiError>>(
+ params: GetReconciliationReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReconciliationReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetReconciliationReportQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

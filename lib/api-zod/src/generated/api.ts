@@ -491,3 +491,30 @@ export const GetInvoiceReportResponse = zod.object({
 })
 
 
+/**
+ * @summary Per-visit reconciliation report with employee notes for a client
+ */
+export const GetReconciliationReportQueryParams = zod.object({
+  "clientId": zod.coerce.string(),
+  "start": zod.coerce.string(),
+  "end": zod.coerce.string()
+})
+
+export const GetReconciliationReportResponse = zod.object({
+  "clientId": zod.string(),
+  "clientName": zod.string(),
+  "start": zod.string(),
+  "end": zod.string(),
+  "lines": zod.array(zod.object({
+  "entryId": zod.string(),
+  "date": zod.string(),
+  "employeeName": zod.string(),
+  "employeeRole": zod.string(),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy']).optional(),
+  "hours": zod.number().optional(),
+  "note": zod.string()
+})),
+  "entryCount": zod.number()
+})
+
+

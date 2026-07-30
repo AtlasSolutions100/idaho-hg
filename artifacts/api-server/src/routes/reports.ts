@@ -231,4 +231,49 @@ router.get("/reports/invoice", async (req, res, next) => {
   }
 });
 
+router.get("/reports/reconciliation", async (req, res, next) => {
+  try {
+    const range = parseRange(req.query.start, req.query.end);
+    const clientId = req.query.clientId;
+    if (typeof clientId !== "string" || clientId.length === 0) {
+      res.status(400).json({ message: "Provide a clientId" });
+      return;
+    }
+    if (!range) {
+      res.status(400).json({ message: "Provide a valid date range (start <= end, YYYY-MM-DD)" });
+      return;
+    }
+    const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
+    if (!client) {
+      res.status(404).json({ message: "Client not found" });
+      return;
+    }
+
+    const entries = (await approvedEntriesInRange(range.start, range.end)).filter(
+      (e) => e.clientId === clientId,
+    );
+
+    const lines = entries.map((entry) => ({
+      entryId: String(entry.id),
+      date: entry.date,
+      employeeName: entry.employeeName,
+      employeeRole: entry.employeeRole,
+      ...(entry.visitType ? { visitType: entry.visitType } : {}),
+      ...(entry.hours != null ? { hours: entry.hours } : {}),
+      note: entry.note ?? "",
+    }));
+
+    res.json({
+      clientId,
+      clientName: client.name,
+      start: range.start,
+      end: range.end,
+      lines,
+      entryCount: entries.length,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

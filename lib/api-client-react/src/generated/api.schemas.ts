@@ -81,6 +81,25 @@ export interface InvoiceReport {
   unbilledCount: number;
 }
 
+export interface ReconciliationReportLine {
+  entryId: string;
+  date: string;
+  employeeName: string;
+  employeeRole: string;
+  visitType?: VisitType;
+  hours?: number;
+  note: string;
+}
+
+export interface ReconciliationReport {
+  clientId: string;
+  clientName: string;
+  start: string;
+  end: string;
+  lines: ReconciliationReportLine[];
+  entryCount: number;
+}
+
 export interface Client {
   id: string;
   name: string;
@@ -240,6 +259,12 @@ end: string;
 };
 
 export type GetInvoiceReportParams = {
+clientId: string;
+start: string;
+end: string;
+};
+
+export type GetReconciliationReportParams = {
 clientId: string;
 start: string;
 end: string;
