@@ -1,6 +1,8 @@
 import { Link } from 'wouter';
+import { useListEmployees, useListTimeEntries } from '@workspace/api-client-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { 
   CheckSquare, 
   DollarSign, 
@@ -10,14 +12,45 @@ import {
   ChevronRight 
 } from 'lucide-react';
 
+// Monday–Sunday week containing today, as YYYY-MM-DD bounds
+function currentWeekRange() {
+  const now = new Date();
+  const day = now.getDay(); // 0 = Sunday
+  const diffToMonday = day === 0 ? 6 : day - 1;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - diffToMonday);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const fmt = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return { start: fmt(monday), end: fmt(sunday) };
+}
+
 export default function AdminDashboard() {
+  const employeesQuery = useListEmployees();
+  const entriesQuery = useListTimeEntries();
+
+  const entries = entriesQuery.data ?? [];
+  const pendingCount = entries.filter((e) => e.status === 'submitted').length;
+
+  const { start, end } = currentWeekRange();
+  const weekEntries = entries.filter((e) => e.date >= start && e.date <= end);
+  const weekHours = weekEntries.reduce((sum, e) => sum + (e.hours ?? 0), 0);
+  const weekVisits = weekEntries.filter((e) => e.visitType).length;
+  const weekLabel =
+    weekVisits > 0
+      ? `${weekHours % 1 === 0 ? weekHours : weekHours.toFixed(1)} hrs · ${weekVisits} visit${weekVisits === 1 ? '' : 's'}`
+      : `${weekHours % 1 === 0 ? weekHours : weekHours.toFixed(1)}`;
+
+  const statsLoading = entriesQuery.isLoading || employeesQuery.isLoading;
+
   const quickActions = [
     {
       title: 'Approve Payroll',
       description: 'Review and approve pending time entries',
       icon: CheckSquare,
       href: '/admin/approve-payroll',
-      count: 5,
+      count: entriesQuery.isLoading ? undefined : pendingCount,
       testId: 'link-approve-payroll',
     },
     {
@@ -103,17 +136,31 @@ export default function AdminDashboard() {
           <Card>
             <CardHeader className="pb-3">
               <CardDescription>This Week</CardDescription>
-              <CardTitle className="text-3xl font-mono">127.5</CardTitle>
+              {statsLoading ? (
+                <Skeleton className="h-9 w-24" />
+              ) : (
+                <CardTitle className="text-3xl font-mono" data-testid="stat-week">
+                  {weekLabel}
+                </CardTitle>
+              )}
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">Hours submitted</p>
+              <p className="text-sm text-muted-foreground">
+                {weekVisits > 0 ? 'Submitted this week' : 'Hours submitted'}
+              </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-3">
               <CardDescription>Pending Review</CardDescription>
-              <CardTitle className="text-3xl font-mono">5</CardTitle>
+              {statsLoading ? (
+                <Skeleton className="h-9 w-16" />
+              ) : (
+                <CardTitle className="text-3xl font-mono" data-testid="stat-pending">
+                  {pendingCount}
+                </CardTitle>
+              )}
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">Time entries</p>
@@ -123,7 +170,13 @@ export default function AdminDashboard() {
           <Card>
             <CardHeader className="pb-3">
               <CardDescription>Active Employees</CardDescription>
-              <CardTitle className="text-3xl font-mono">6</CardTitle>
+              {statsLoading ? (
+                <Skeleton className="h-9 w-16" />
+              ) : (
+                <CardTitle className="text-3xl font-mono" data-testid="stat-active-employees">
+                  {employeesQuery.data?.length ?? 0}
+                </CardTitle>
+              )}
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">Currently staffing</p>
