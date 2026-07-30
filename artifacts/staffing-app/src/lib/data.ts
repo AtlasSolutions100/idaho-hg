@@ -59,13 +59,6 @@ export interface EmployeeRate {
   effectiveDate: string;
 }
 
-export interface OnboardingTask {
-  id: string;
-  title: string;
-  description: string;
-  required: boolean;
-  completed: boolean;
-}
 
 // Mock data
 export const mockClients: Client[] = [
@@ -190,64 +183,6 @@ export const mockTimeEntries: TimeEntry[] = [
   },
 ];
 
-export const mockOnboardingTasks: OnboardingTask[] = [
-  {
-    id: '1',
-    title: 'Complete I-9 Employment Eligibility Verification',
-    description: 'Verify identity and employment authorization',
-    required: true,
-    completed: false,
-  },
-  {
-    id: '2',
-    title: 'Submit Professional License Copy',
-    description: 'Current RN, PT, OT, or ST license for Idaho',
-    required: true,
-    completed: false,
-  },
-  {
-    id: '3',
-    title: 'Complete Background Check Authorization',
-    description: 'Required for all healthcare placements',
-    required: true,
-    completed: false,
-  },
-  {
-    id: '4',
-    title: 'Provide Proof of Malpractice Insurance',
-    description: 'Minimum $1M/$3M coverage',
-    required: true,
-    completed: false,
-  },
-  {
-    id: '5',
-    title: 'Submit CPR Certification',
-    description: 'Current BLS or ACLS certification',
-    required: true,
-    completed: false,
-  },
-  {
-    id: '6',
-    title: 'Complete HIPAA Training',
-    description: 'Online training module provided',
-    required: true,
-    completed: false,
-  },
-  {
-    id: '7',
-    title: 'Set Up Direct Deposit',
-    description: 'Banking information for payroll',
-    required: true,
-    completed: false,
-  },
-  {
-    id: '8',
-    title: 'Review Time Entry Guidelines',
-    description: 'How to log hours, mileage, and per diem',
-    required: false,
-    completed: false,
-  },
-];
 
 export const visitTypeLabels: Record<VisitType, string> = {
   'skilled-nursing': 'Skilled Nursing',

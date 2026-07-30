@@ -5,6 +5,18 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface OnboardingItem {
+  itemKey: string;
+  label: string;
+  note?: string;
+  completed: boolean;
+  completedAt?: string;
+}
+
+export interface UpdateOnboardingItem {
+  completed: boolean;
+}
+
 export type VisitType = typeof VisitType[keyof typeof VisitType];
 
 

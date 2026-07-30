@@ -518,3 +518,41 @@ export const GetReconciliationReportResponse = zod.object({
 })
 
 
+/**
+ * @summary List the onboarding checklist for an employee
+ */
+export const ListOnboardingItemsParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const ListOnboardingItemsResponseItem = zod.object({
+  "itemKey": zod.string(),
+  "label": zod.string(),
+  "note": zod.string().optional(),
+  "completed": zod.boolean(),
+  "completedAt": zod.string().optional()
+})
+export const ListOnboardingItemsResponse = zod.array(ListOnboardingItemsResponseItem)
+
+
+/**
+ * @summary Mark an onboarding checklist item complete or not complete
+ */
+export const UpdateOnboardingItemParams = zod.object({
+  "id": zod.coerce.string(),
+  "itemKey": zod.coerce.string()
+})
+
+export const UpdateOnboardingItemBody = zod.object({
+  "completed": zod.boolean()
+})
+
+export const UpdateOnboardingItemResponse = zod.object({
+  "itemKey": zod.string(),
+  "label": zod.string(),
+  "note": zod.string().optional(),
+  "completed": zod.boolean(),
+  "completedAt": zod.string().optional()
+})
+
+

@@ -35,11 +35,13 @@ import type {
   HealthStatus,
   InvoiceReport,
   ListTimeEntriesParams,
+  OnboardingItem,
   PayrollReport,
   ReconciliationReport,
   TimeEntry,
   UpdateClientRate,
-  UpdateEmployeeRate
+  UpdateEmployeeRate,
+  UpdateOnboardingItem
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -1657,4 +1659,155 @@ export function useGetReconciliationReport<TData = Awaited<ReturnType<typeof get
 
 
 
+
+export const getListOnboardingItemsUrl = (id: string,) => {
+
+
+
+
+  return `/api/employees/${id}/onboarding`
+}
+
+/**
+ * @summary List the onboarding checklist for an employee
+ */
+export const listOnboardingItems = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<OnboardingItem[]> => {
+
+  return customFetch<OnboardingItem[]>(getListOnboardingItemsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOnboardingItemsQueryKey = (id: string,) => {
+    return [
+    `/api/employees/${id}/onboarding`
+    ] as const;
+    }
+
+
+export const getListOnboardingItemsQueryOptions = <TData = Awaited<ReturnType<typeof listOnboardingItems>>, TError = ErrorType<ApiError>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOnboardingItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOnboardingItemsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOnboardingItems>>> = ({ signal }) => listOnboardingItems(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOnboardingItems>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOnboardingItemsQueryResult = NonNullable<Awaited<ReturnType<typeof listOnboardingItems>>>
+export type ListOnboardingItemsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List the onboarding checklist for an employee
+ */
+
+export function useListOnboardingItems<TData = Awaited<ReturnType<typeof listOnboardingItems>>, TError = ErrorType<ApiError>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOnboardingItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOnboardingItemsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateOnboardingItemUrl = (id: string,
+    itemKey: string,) => {
+
+
+
+
+  return `/api/employees/${id}/onboarding/${itemKey}`
+}
+
+/**
+ * @summary Mark an onboarding checklist item complete or not complete
+ */
+export const updateOnboardingItem = async (id: string,
+    itemKey: string,
+    updateOnboardingItem: UpdateOnboardingItem, options?: Parameters<typeof customFetch>[1]): Promise<OnboardingItem> => {
+
+  return customFetch<OnboardingItem>(getUpdateOnboardingItemUrl(id,itemKey),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateOnboardingItem)
+  }
+);}
+
+
+
+
+
+export const getUpdateOnboardingItemMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOnboardingItem>>, TError,{id: string;itemKey: string;data: BodyType<UpdateOnboardingItem>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateOnboardingItem>>, TError,{id: string;itemKey: string;data: BodyType<UpdateOnboardingItem>}, TContext> => {
+
+const mutationKey = ['updateOnboardingItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateOnboardingItem>>, {id: string;itemKey: string;data: BodyType<UpdateOnboardingItem>}> = (props) => {
+          const {id,itemKey,data} = props ?? {};
+
+          return  updateOnboardingItem(id,itemKey,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateOnboardingItemMutationResult = NonNullable<Awaited<ReturnType<typeof updateOnboardingItem>>>
+    export type UpdateOnboardingItemMutationBody = BodyType<UpdateOnboardingItem>
+    export type UpdateOnboardingItemMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Mark an onboarding checklist item complete or not complete
+ */
+export const useUpdateOnboardingItem = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOnboardingItem>>, TError,{id: string;itemKey: string;data: BodyType<UpdateOnboardingItem>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateOnboardingItem>>,
+        TError,
+        {id: string;itemKey: string;data: BodyType<UpdateOnboardingItem>},
+        TContext
+      > => {
+      return useMutation(getUpdateOnboardingItemMutationOptions(options));
+    }
 

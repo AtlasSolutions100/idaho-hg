@@ -14,6 +14,8 @@ tags:
     description: Time entry operations
   - name: rates
     description: Client and employee rate operations
+  - name: onboarding
+    description: Per-employee onboarding checklist tracking
   - name: roster
     description: Client and employee roster operations
   - name: reports
@@ -524,8 +526,99 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /employees/{id}/onboarding:
+    get:
+      operationId: listOnboardingItems
+      tags: [onboarding]
+      summary: List the onboarding checklist for an employee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The employee's onboarding checklist items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OnboardingItem"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /employees/{id}/onboarding/{itemKey}:
+    patch:
+      operationId: updateOnboardingItem
+      tags: [onboarding]
+      summary: Mark an onboarding checklist item complete or not complete
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: itemKey
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOnboardingItem"
+      responses:
+        "200":
+          description: Updated checklist item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingItem"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee or item not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 components:
   schemas:
+    OnboardingItem:
+      type: object
+      properties:
+        itemKey:
+          type: string
+        label:
+          type: string
+        note:
+          type: string
+        completed:
+          type: boolean
+        completedAt:
+          type: string
+      required:
+        - itemKey
+        - label
+        - completed
+    UpdateOnboardingItem:
+      type: object
+      properties:
+        completed:
+          type: boolean
+      required:
+        - completed
     PayrollReportLine:
       type: object
       properties:
