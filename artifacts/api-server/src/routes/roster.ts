@@ -25,12 +25,22 @@ const seedClients = [
 ];
 
 const seedEmployees = [
-  { id: "1", name: "Sarah Martinez", role: "RN" },
-  { id: "2", name: "James Chen", role: "PT" },
-  { id: "3", name: "Emily Rodriguez", role: "RN" },
-  { id: "4", name: "Michael Thompson", role: "OT" },
-  { id: "5", name: "Jessica Park", role: "PT" },
-  { id: "6", name: "David Williams", role: "RN" },
+  { id: "1", name: "Molly Hodge", role: "PT" },
+  { id: "2", name: "Dale Gibbs", role: "PT" },
+  { id: "3", name: "Emily Greer", role: "PT" },
+  { id: "4", name: "Quinton Erhard", role: "PT" },
+  { id: "5", name: "Adrian Eddins", role: "RN" },
+  { id: "6", name: "Ronda Stewart", role: "RN" },
+  { id: "7", name: "Amber Edwards", role: "RN" },
+  { id: "8", name: "Sandy Clayton", role: "RN" },
+  { id: "9", name: "Bree Whiting", role: "RN" },
+  { id: "10", name: "Brandon Whiting", role: "OT" },
+  { id: "11", name: "Joshua Johansen", role: "OT" },
+  { id: "12", name: "Lee Hamilton", role: "OT" },
+  { id: "13", name: "Lee Ormsby", role: "PTA" },
+  { id: "14", name: "Ameliana Samarin", role: "SLP" },
+  { id: "15", name: "Mel Plourde", role: "LCSW" },
+  { id: "16", name: "Paige Barbero", role: "PT" },
 ];
 
 let seeded = false;

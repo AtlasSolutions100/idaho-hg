@@ -80,14 +80,48 @@ const seedClientRates = [
   { clientId: "4", clientName: "Treasure Valley Outpatient Clinic", visitType: "occupational-therapy", rate: 90, effectiveDate: "2024-01-01" },
 ];
 
-const seedEmployeeRates = [
-  { employeeId: "1", employeeName: "Sarah Martinez", employeeRole: "RN", hourlyRate: 48.5, visitRate: 75, mileageRate: 0.655, perDiemRate: 45, weekendMultiplier: 1.5, holidayMultiplier: 2, effectiveDate: "2024-01-01" },
-  { employeeId: "2", employeeName: "James Chen", employeeRole: "PT", hourlyRate: 52, visitRate: 82, mileageRate: 0.655, perDiemRate: 45, weekendMultiplier: 1.5, holidayMultiplier: 2, effectiveDate: "2024-01-01" },
-  { employeeId: "3", employeeName: "Emily Rodriguez", employeeRole: "RN", hourlyRate: 46, visitRate: 72, mileageRate: 0.655, perDiemRate: 45, weekendMultiplier: 1.5, holidayMultiplier: 2, effectiveDate: "2024-01-01" },
-  { employeeId: "4", employeeName: "Michael Thompson", employeeRole: "OT", hourlyRate: 50, visitRate: 78, mileageRate: 0.655, perDiemRate: 45, weekendMultiplier: 1.5, holidayMultiplier: 2, effectiveDate: "2024-01-01" },
-  { employeeId: "5", employeeName: "Jessica Park", employeeRole: "PT", hourlyRate: 51, visitRate: 80, mileageRate: 0.655, perDiemRate: 45, weekendMultiplier: 1.5, holidayMultiplier: 2, effectiveDate: "2024-01-01" },
-  { employeeId: "6", employeeName: "David Williams", employeeRole: "RN", hourlyRate: 49, visitRate: 76, mileageRate: 0.655, perDiemRate: 45, weekendMultiplier: 1.5, holidayMultiplier: 2, effectiveDate: "2024-01-01" },
+// Placeholder starting pay rates per discipline — Molly sets real numbers on
+// the Employee Rates page (each change is tracked with an effective date).
+const roleDefaultRates: Record<string, { hourlyRate: number; visitRate: number }> = {
+  PT: { hourlyRate: 52, visitRate: 82 },
+  RN: { hourlyRate: 48, visitRate: 75 },
+  OT: { hourlyRate: 50, visitRate: 78 },
+  PTA: { hourlyRate: 40, visitRate: 60 },
+  SLP: { hourlyRate: 52, visitRate: 82 },
+  LCSW: { hourlyRate: 50, visitRate: 75 },
+};
+
+const seedEmployeeRoster: Array<{ employeeId: string; employeeName: string; employeeRole: string }> = [
+  { employeeId: "1", employeeName: "Molly Hodge", employeeRole: "PT" },
+  { employeeId: "2", employeeName: "Dale Gibbs", employeeRole: "PT" },
+  { employeeId: "3", employeeName: "Emily Greer", employeeRole: "PT" },
+  { employeeId: "4", employeeName: "Quinton Erhard", employeeRole: "PT" },
+  { employeeId: "5", employeeName: "Adrian Eddins", employeeRole: "RN" },
+  { employeeId: "6", employeeName: "Ronda Stewart", employeeRole: "RN" },
+  { employeeId: "7", employeeName: "Amber Edwards", employeeRole: "RN" },
+  { employeeId: "8", employeeName: "Sandy Clayton", employeeRole: "RN" },
+  { employeeId: "9", employeeName: "Bree Whiting", employeeRole: "RN" },
+  { employeeId: "10", employeeName: "Brandon Whiting", employeeRole: "OT" },
+  { employeeId: "11", employeeName: "Joshua Johansen", employeeRole: "OT" },
+  { employeeId: "12", employeeName: "Lee Hamilton", employeeRole: "OT" },
+  { employeeId: "13", employeeName: "Lee Ormsby", employeeRole: "PTA" },
+  { employeeId: "14", employeeName: "Ameliana Samarin", employeeRole: "SLP" },
+  { employeeId: "15", employeeName: "Mel Plourde", employeeRole: "LCSW" },
+  { employeeId: "16", employeeName: "Paige Barbero", employeeRole: "PT" },
 ];
+
+const seedEmployeeRates = seedEmployeeRoster.map((emp) => {
+  const defaults = roleDefaultRates[emp.employeeRole] ?? { hourlyRate: 45, visitRate: 70 };
+  return {
+    ...emp,
+    ...defaults,
+    mileageRate: 0.655,
+    perDiemRate: 45,
+    weekendMultiplier: 1.5,
+    holidayMultiplier: 2,
+    effectiveDate: "2024-01-01",
+  };
+});
 
 let seeded = false;
 async function ensureSeeded() {
