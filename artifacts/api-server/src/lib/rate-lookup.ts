@@ -12,7 +12,7 @@ import {
 // latest effectiveDate <= entryDate. If every row is dated after the entry
 // (e.g. seed data added late), the earliest known rate is used so math never
 // silently returns nothing.
-function pickForDate<T extends { effectiveDate: string; id: number }>(
+export function pickForDate<T extends { effectiveDate: string; id: number }>(
   rows: T[],
   entryDate: string,
 ): T | undefined {

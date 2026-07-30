@@ -7,6 +7,7 @@ import {
   type TimeEntryRow,
 } from "@workspace/db";
 import { getClientRateForDate, getEmployeeRateForDate } from "../lib/rate-lookup";
+import { computeInvoiceAmount, computePayrollAmounts, round2 } from "../lib/payroll-calc";
 
 const router: IRouter = Router();
 
@@ -18,8 +19,6 @@ function parseRange(start: unknown, end: unknown): { start: string; end: string 
   if (start > end) return null;
   return { start, end };
 }
-
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 async function approvedEntriesInRange(start: string, end: string): Promise<TimeEntryRow[]> {
   return db
@@ -61,34 +60,11 @@ router.get("/reports/payroll", async (req, res, next) => {
 
     for (const entry of entries) {
       const rate = await getEmployeeRateForDate(entry.employeeId, entry.date);
-      const missingRate = !rate;
+      // Weekend/holiday multiplier rule and all pay math live in
+      // lib/payroll-calc.ts (pure + unit tested).
+      const { multiplier, basePay, mileagePay, perDiemPay, total, missingRate } =
+        computePayrollAmounts(entry, rate);
       if (missingRate) missingRateCount += 1;
-
-      // Weekend/holiday rule: if an entry is flagged as both weekend AND
-      // holiday, we apply only the HIGHER of the two multipliers (they do
-      // not stack). Normal entries use multiplier 1.
-      let multiplier = 1;
-      if (rate) {
-        if (entry.isWeekend && entry.isHoliday) {
-          multiplier = Math.max(rate.weekendMultiplier, rate.holidayMultiplier);
-        } else if (entry.isWeekend) {
-          multiplier = rate.weekendMultiplier;
-        } else if (entry.isHoliday) {
-          multiplier = rate.holidayMultiplier;
-        }
-      }
-
-      let basePay = 0;
-      if (rate) {
-        if (entry.visitType) {
-          basePay = rate.visitRate * multiplier;
-        } else if (entry.hours != null) {
-          basePay = entry.hours * rate.hourlyRate * multiplier;
-        }
-      }
-      const mileagePay = rate && entry.mileage != null ? entry.mileage * rate.mileageRate : 0;
-      const perDiemPay = rate && entry.perDiem != null ? entry.perDiem * rate.perDiemRate : 0;
-      const total = round2(basePay + mileagePay + perDiemPay);
 
       let group = groups.get(entry.employeeId);
       if (!group) {
@@ -182,9 +158,8 @@ router.get("/reports/invoice", async (req, res, next) => {
       // listed as unbilled with a note instead of being silently dropped.
       if (entry.visitType) {
         const rate = await getClientRateForDate(clientId, entry.visitType, entry.date);
-        const missingRate = !rate;
+        const { amount, missingRate } = computeInvoiceAmount(entry, rate);
         if (missingRate) missingRateCount += 1;
-        const amount = rate ? round2(rate.rate) : 0;
         total = round2(total + amount);
         lines.push({
           entryId: String(entry.id),
