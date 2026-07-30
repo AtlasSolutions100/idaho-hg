@@ -1,0 +1,46 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from '@/components/ui/toaster';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import NotFound from '@/pages/not-found';
+import Home from '@/pages/home';
+import EmployeeDashboard from '@/pages/employee-dashboard';
+import AdminDashboard from '@/pages/admin-dashboard';
+import ApprovePayrollPage from '@/pages/admin/approve-payroll';
+import ClientRatesPage from '@/pages/admin/client-rates';
+import EmployeeRatesPage from '@/pages/admin/employee-rates';
+import ReportsPage from '@/pages/admin/reports';
+import OnboardingPage from '@/pages/admin/onboarding';
+import { Route, Switch, Router as WouterRouter } from 'wouter';
+
+const queryClient = new QueryClient();
+
+function Router() {
+  return (
+    <Switch>
+      <Route path="/" component={Home} />
+      <Route path="/employee" component={EmployeeDashboard} />
+      <Route path="/admin" component={AdminDashboard} />
+      <Route path="/admin/approve-payroll" component={ApprovePayrollPage} />
+      <Route path="/admin/client-rates" component={ClientRatesPage} />
+      <Route path="/admin/employee-rates" component={EmployeeRatesPage} />
+      <Route path="/admin/reports" component={ReportsPage} />
+      <Route path="/admin/onboarding" component={OnboardingPage} />
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+          <Router />
+        </WouterRouter>
+        <Toaster />
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
+
+export default App;

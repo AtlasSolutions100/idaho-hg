@@ -1,6 +1,6 @@
-# [Project name]
+# Hodge Staffing Time App
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Time-entry and payroll-approval app for Molly Hodge's healthcare staffing company: employees log hours on mobile, Molly approves payroll and manages rates from an admin dashboard.
 
 ## Run & Operate
 
@@ -22,7 +22,9 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/staffing-app/` — the web app (served at `/`); pages in `src/pages/`, mock data + types in `src/lib/data.ts`, theme in `src/index.css`
+- `lib/api-spec/openapi.yaml` — API contract (still health-check only; Phase 2 adds real endpoints)
+- `lib/db/src/schema/` — DB schema (empty until Phase 2)
 
 ## Architecture decisions
 
@@ -30,7 +32,14 @@ _Populate as you build — non-obvious choices a reader couldn't infer from the 
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+Phase 1 (done): clickable visual shell, no backend. Role switcher at `/`; employee side (`/employee`, mobile-first Log Hours flow + entries list); admin side (`/admin` dashboard, Approve Payroll, Client Rates, Employee Rates, Reports placeholders — Pezwise payroll / invoices / reconciliation — and Onboarding checklist). All data is hardcoded placeholder content.
+
+## User preferences
+
+- Tone: calm, clear, professional (healthcare staffing, not flashy startup); clean typography, generous spacing, mobile-first employee views
+- Simple naming: "Log Hours", "Approve Payroll", "Client Rates"
+- Rate screens must look editable by Molly herself (she manages rates later)
+- Onboarding is a task checklist only — never store sensitive personal documents
 
 ## User preferences
 
