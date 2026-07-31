@@ -11,6 +11,7 @@ import ClientRatesPage from '@/pages/admin/client-rates';
 import EmployeeRatesPage from '@/pages/admin/employee-rates';
 import ReportsPage from '@/pages/admin/reports';
 import OnboardingPage from '@/pages/admin/onboarding';
+import FeedbackPage from '@/pages/admin/feedback';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { FeedbackDialog } from '@/components/feedback-dialog';
 
@@ -27,6 +28,7 @@ function Router() {
       <Route path="/admin/employee-rates" component={EmployeeRatesPage} />
       <Route path="/admin/reports" component={ReportsPage} />
       <Route path="/admin/onboarding" component={OnboardingPage} />
+      <Route path="/admin/feedback" component={FeedbackPage} />
       <Route component={NotFound} />
     </Switch>
   );

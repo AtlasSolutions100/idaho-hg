@@ -12,6 +12,7 @@ import {
   Users, 
   FileSpreadsheet, 
   ClipboardList,
+  MessageSquare,
   ChevronRight,
   LogOut,
 } from 'lucide-react';
@@ -86,6 +87,13 @@ export default function AdminDashboard() {
       icon: ClipboardList,
       href: '/admin/onboarding',
       testId: 'link-onboarding',
+    },
+    {
+      title: 'Team Feedback',
+      description: 'Read feedback your team has sent',
+      icon: MessageSquare,
+      href: '/admin/feedback',
+      testId: 'link-feedback',
     },
   ];
 
