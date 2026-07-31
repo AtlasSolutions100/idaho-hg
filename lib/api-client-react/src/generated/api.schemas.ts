@@ -149,10 +149,18 @@ export interface ReconciliationReport {
   entryCount: number;
 }
 
+export interface DemoDataStatus {
+  loaded: boolean;
+  clientCount: number;
+  employeeCount: number;
+  entryCount: number;
+}
+
 export interface Client {
   id: string;
   name: string;
   active: boolean;
+  isDemo: boolean;
 }
 
 export interface ClientInput {
@@ -168,6 +176,7 @@ export interface Employee {
   name: string;
   role: string;
   active: boolean;
+  isDemo: boolean;
 }
 
 export interface EmployeeInput {
@@ -283,6 +292,7 @@ export interface TimeEntry {
   isHoliday: boolean;
   note?: string;
   status: EntryStatus;
+  isDemo?: boolean;
   submittedAt: string;
   approvedAt?: string;
 }

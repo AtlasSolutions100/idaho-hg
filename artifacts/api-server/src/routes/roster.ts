@@ -90,11 +90,17 @@ export async function ensureRosterSeeded() {
 }
 
 function serializeClient(row: ClientRow) {
-  return { id: row.id, name: row.name, active: row.active };
+  return { id: row.id, name: row.name, active: row.active, isDemo: row.isDemo };
 }
 
 function serializeEmployee(row: EmployeeRow) {
-  return { id: row.id, name: row.name, role: row.role, active: row.active };
+  return {
+    id: row.id,
+    name: row.name,
+    role: row.role,
+    active: row.active,
+    isDemo: row.isDemo,
+  };
 }
 
 function today() {

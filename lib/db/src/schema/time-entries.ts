@@ -25,6 +25,7 @@ export const timeEntriesTable = pgTable("time_entries", {
   isHoliday: boolean("is_holiday").notNull().default(false),
   note: text("note"),
   status: text("status").notNull().default("submitted"),
+  isDemo: boolean("is_demo").notNull().default(false),
   submittedAt: timestamp("submitted_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

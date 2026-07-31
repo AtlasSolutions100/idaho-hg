@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { PracticeDataCard } from '@/components/admin/practice-data-card';
 import { 
   CheckSquare, 
   DollarSign, 
@@ -202,6 +203,11 @@ export default function AdminDashboard() {
               <p className="text-sm text-muted-foreground">Currently staffing</p>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Practice data */}
+        <div className="mt-8">
+          <PracticeDataCard />
         </div>
       </div>
     </div>

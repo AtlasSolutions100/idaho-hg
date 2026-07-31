@@ -15,6 +15,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+import { isDemoId } from '@/lib/demo';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -299,7 +301,12 @@ export function EmployeeRatesTable() {
                 {(rates ?? []).map(rate => (
                   <TableRow key={rate.id} data-testid={`employee-rate-${rate.id}`}>
                     <TableCell className="font-medium">
-                      <div>{rate.employeeName}</div>
+                      <div className="flex items-center gap-2">
+                        {rate.employeeName}
+                        {isDemoId(rate.employeeId) && (
+                          <Badge variant="outline" className="text-xs font-normal">Demo</Badge>
+                        )}
+                      </div>
                       <div className="text-xs text-muted-foreground">{rate.employeeRole}</div>
                     </TableCell>
                     <TableCell className="text-right font-mono">

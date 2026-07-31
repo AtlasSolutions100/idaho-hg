@@ -4,6 +4,7 @@ export const clientsTable = pgTable("clients", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   active: boolean("active").notNull().default(true),
+  isDemo: boolean("is_demo").notNull().default(false),
 });
 
 export const employeesTable = pgTable("employees", {
@@ -11,6 +12,7 @@ export const employeesTable = pgTable("employees", {
   name: text("name").notNull(),
   role: text("role").notNull(),
   active: boolean("active").notNull().default(true),
+  isDemo: boolean("is_demo").notNull().default(false),
 });
 
 export type ClientRow = typeof clientsTable.$inferSelect;

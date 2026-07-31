@@ -42,6 +42,7 @@ export const ListTimeEntriesResponseItem = zod.object({
   "isHoliday": zod.boolean(),
   "note": zod.string().optional(),
   "status": zod.enum(['submitted', 'approved', 'rejected']),
+  "isDemo": zod.boolean().optional(),
   "submittedAt": zod.string(),
   "approvedAt": zod.string().optional()
 })
@@ -90,6 +91,7 @@ export const CreateTimeEntryResponse = zod.object({
   "isHoliday": zod.boolean(),
   "note": zod.string().optional(),
   "status": zod.enum(['submitted', 'approved', 'rejected']),
+  "isDemo": zod.boolean().optional(),
   "submittedAt": zod.string(),
   "approvedAt": zod.string().optional()
 })
@@ -118,6 +120,7 @@ export const ApproveTimeEntryResponse = zod.object({
   "isHoliday": zod.boolean(),
   "note": zod.string().optional(),
   "status": zod.enum(['submitted', 'approved', 'rejected']),
+  "isDemo": zod.boolean().optional(),
   "submittedAt": zod.string(),
   "approvedAt": zod.string().optional()
 })
@@ -146,6 +149,7 @@ export const RejectTimeEntryResponse = zod.object({
   "isHoliday": zod.boolean(),
   "note": zod.string().optional(),
   "status": zod.enum(['submitted', 'approved', 'rejected']),
+  "isDemo": zod.boolean().optional(),
   "submittedAt": zod.string(),
   "approvedAt": zod.string().optional()
 })
@@ -334,7 +338,8 @@ export const ListEmployeeRateHistoryResponse = zod.array(ListEmployeeRateHistory
 export const ListClientsResponseItem = zod.object({
   "id": zod.string(),
   "name": zod.string(),
-  "active": zod.boolean()
+  "active": zod.boolean(),
+  "isDemo": zod.boolean()
 })
 export const ListClientsResponse = zod.array(ListClientsResponseItem)
 
@@ -356,7 +361,8 @@ export const CreateClientBody = zod.object({
 export const CreateClientResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
-  "active": zod.boolean()
+  "active": zod.boolean(),
+  "isDemo": zod.boolean()
 })
 
 
@@ -370,7 +376,8 @@ export const RemoveClientParams = zod.object({
 export const RemoveClientResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
-  "active": zod.boolean()
+  "active": zod.boolean(),
+  "isDemo": zod.boolean()
 })
 
 
@@ -381,7 +388,8 @@ export const ListEmployeesResponseItem = zod.object({
   "id": zod.string(),
   "name": zod.string(),
   "role": zod.string(),
-  "active": zod.boolean()
+  "active": zod.boolean(),
+  "isDemo": zod.boolean()
 })
 export const ListEmployeesResponse = zod.array(ListEmployeesResponseItem)
 
@@ -418,7 +426,8 @@ export const CreateEmployeeResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
   "role": zod.string(),
-  "active": zod.boolean()
+  "active": zod.boolean(),
+  "isDemo": zod.boolean()
 })
 
 
@@ -433,7 +442,41 @@ export const RemoveEmployeeResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
   "role": zod.string(),
-  "active": zod.boolean()
+  "active": zod.boolean(),
+  "isDemo": zod.boolean()
+})
+
+
+/**
+ * @summary Report whether demo data is loaded and how much exists
+ */
+export const GetDemoDataStatusResponse = zod.object({
+  "loaded": zod.boolean(),
+  "clientCount": zod.number(),
+  "employeeCount": zod.number(),
+  "entryCount": zod.number()
+})
+
+
+/**
+ * @summary Load the demo dataset (idempotent; never duplicates)
+ */
+export const LoadDemoDataResponse = zod.object({
+  "loaded": zod.boolean(),
+  "clientCount": zod.number(),
+  "employeeCount": zod.number(),
+  "entryCount": zod.number()
+})
+
+
+/**
+ * @summary Remove every demo-tagged record and all data keyed to it
+ */
+export const RemoveDemoDataResponse = zod.object({
+  "loaded": zod.boolean(),
+  "clientCount": zod.number(),
+  "employeeCount": zod.number(),
+  "entryCount": zod.number()
 })
 
 

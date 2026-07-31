@@ -11,4 +11,5 @@ export interface Employee {
   name: string;
   role: string;
   active: boolean;
+  isDemo: boolean;
 }

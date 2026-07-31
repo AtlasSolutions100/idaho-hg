@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import {
   db,
   timeEntriesTable,
@@ -8,6 +8,7 @@ import {
   type TimeEntryRow,
 } from "@workspace/db";
 import { ensureRosterSeeded } from "./roster";
+import { DEMO_LOCK_KEY } from "./demo-data";
 import {
   CreateTimeEntryBody,
   ListTimeEntriesQueryParams,
@@ -32,6 +33,7 @@ function serialize(row: TimeEntryRow) {
     isHoliday: row.isHoliday,
     ...(row.note ? { note: row.note } : {}),
     status: row.status,
+    isDemo: row.isDemo,
     submittedAt: row.submittedAt.toISOString(),
     ...(row.approvedAt ? { approvedAt: row.approvedAt.toISOString() } : {}),
   };
@@ -85,25 +87,49 @@ router.post("/time-entries", async (req, res, next) => {
       res.status(400).json({ message: "Provide a visit type or hours" });
       return;
     }
-    const [row] = await db
-      .insert(timeEntriesTable)
-      .values({
-        employeeId: body.employeeId,
-        employeeName: employee.name,
-        employeeRole: employee.role,
-        clientId: body.clientId,
-        clientName: client.name,
-        date: body.date,
-        visitType: body.visitType ?? null,
-        hours: body.hours ?? null,
-        mileage: body.mileage ?? null,
-        perDiem: body.perDiem ?? null,
-        isWeekend: body.isWeekend,
-        isHoliday: body.isHoliday,
-        note: body.note ?? null,
-        status: "submitted",
-      })
-      .returning();
+    const isDemo = employee.isDemo || client.isDemo;
+    const row = await db.transaction(async (tx) => {
+      if (isDemo) {
+        // Serialize against demo-data removal (same advisory lock) and
+        // re-verify the demo records still exist, so a practice entry can
+        // never slip in while the wipe is running.
+        await tx.execute(sql`select pg_advisory_xact_lock(${DEMO_LOCK_KEY})`);
+        const [emp] = await tx
+          .select({ id: employeesTable.id })
+          .from(employeesTable)
+          .where(and(eq(employeesTable.id, body.employeeId), eq(employeesTable.active, true)));
+        const [cli] = await tx
+          .select({ id: clientsTable.id })
+          .from(clientsTable)
+          .where(and(eq(clientsTable.id, body.clientId), eq(clientsTable.active, true)));
+        if (!emp || !cli) return null;
+      }
+      const [inserted] = await tx
+        .insert(timeEntriesTable)
+        .values({
+          employeeId: body.employeeId,
+          employeeName: employee.name,
+          employeeRole: employee.role,
+          clientId: body.clientId,
+          clientName: client.name,
+          date: body.date,
+          visitType: body.visitType ?? null,
+          hours: body.hours ?? null,
+          mileage: body.mileage ?? null,
+          perDiem: body.perDiem ?? null,
+          isWeekend: body.isWeekend,
+          isHoliday: body.isHoliday,
+          note: body.note ?? null,
+          status: "submitted",
+          isDemo,
+        })
+        .returning();
+      return inserted ?? null;
+    });
+    if (row === null) {
+      res.status(400).json({ message: "Unknown employee" });
+      return;
+    }
     if (!row) {
       res.status(500).json({ message: "Failed to create entry" });
       return;

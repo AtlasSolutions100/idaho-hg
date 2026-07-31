@@ -14,6 +14,7 @@ export * from './clientRate';
 export * from './clientRateType';
 export * from './createClientRate';
 export * from './createTimeEntry';
+export * from './demoDataStatus';
 export * from './employee';
 export * from './employeeInput';
 export * from './employeeRate';

@@ -152,7 +152,12 @@ export function ApprovePayrollTable() {
                 {pendingEntries.map(entry => (
                   <TableRow key={entry.id} data-testid={`payroll-entry-${entry.id}`}>
                     <TableCell className="font-medium">
-                      <div>{entry.employeeName}</div>
+                      <div className="flex items-center gap-2">
+                        {entry.employeeName}
+                        {entry.isDemo && (
+                          <Badge variant="outline" className="text-xs font-normal">Demo</Badge>
+                        )}
+                      </div>
                       <div className="text-xs text-muted-foreground">{entry.employeeRole}</div>
                     </TableCell>
                     <TableCell className="max-w-[180px]">

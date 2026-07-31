@@ -16,6 +16,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+import { isDemoId } from '@/lib/demo';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -289,7 +291,12 @@ export function ClientRatesTable() {
             {Object.entries(clientGroups).map(([clientId, clientRates]) => (
               <div key={clientId}>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-medium">{clientRates[0].clientName}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-medium">{clientRates[0].clientName}</h3>
+                    {isDemoId(clientId) && (
+                      <Badge variant="outline" className="text-xs font-normal">Demo</Badge>
+                    )}
+                  </div>
                   <div className="flex items-center gap-1">
                     {!clientRates.some((r) => r.visitType === 'hourly') && (
                       <Button

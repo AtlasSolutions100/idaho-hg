@@ -10,4 +10,5 @@ export interface Client {
   id: string;
   name: string;
   active: boolean;
+  isDemo: boolean;
 }

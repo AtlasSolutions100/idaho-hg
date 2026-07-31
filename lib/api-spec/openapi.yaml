@@ -20,6 +20,8 @@ tags:
     description: Client and employee roster operations
   - name: reports
     description: Payroll and invoice reports computed from approved time entries
+  - name: demo
+    description: Load and remove clearly-labeled practice (demo) data
 paths:
   /healthz:
     get:
@@ -452,6 +454,40 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /demo-data:
+    get:
+      operationId: getDemoDataStatus
+      tags: [demo]
+      summary: Report whether demo data is loaded and how much exists
+      responses:
+        "200":
+          description: Demo data status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoDataStatus"
+    post:
+      operationId: loadDemoData
+      tags: [demo]
+      summary: Load the demo dataset (idempotent; never duplicates)
+      responses:
+        "200":
+          description: Demo data status after loading
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoDataStatus"
+    delete:
+      operationId: removeDemoData
+      tags: [demo]
+      summary: Remove every demo-tagged record and all data keyed to it
+      responses:
+        "200":
+          description: Demo data status after removal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoDataStatus"
   /reports/payroll:
     get:
       operationId: getPayrollReport
@@ -947,6 +983,22 @@ components:
         - employees
         - totals
         - entryCount
+    DemoDataStatus:
+      type: object
+      properties:
+        loaded:
+          type: boolean
+        clientCount:
+          type: number
+        employeeCount:
+          type: number
+        entryCount:
+          type: number
+      required:
+        - loaded
+        - clientCount
+        - employeeCount
+        - entryCount
     Client:
       type: object
       properties:
@@ -956,10 +1008,13 @@ components:
           type: string
         active:
           type: boolean
+        isDemo:
+          type: boolean
       required:
         - id
         - name
         - active
+        - isDemo
     ClientInput:
       type: object
       properties:
@@ -986,11 +1041,14 @@ components:
           type: string
         active:
           type: boolean
+        isDemo:
+          type: boolean
       required:
         - id
         - name
         - role
         - active
+        - isDemo
     EmployeeInput:
       type: object
       properties:
@@ -1195,6 +1253,8 @@ components:
           type: string
         status:
           $ref: "#/components/schemas/EntryStatus"
+        isDemo:
+          type: boolean
         submittedAt:
           type: string
         approvedAt:

@@ -24,6 +24,7 @@ export interface TimeEntry {
   isHoliday: boolean;
   note?: string;
   status: EntryStatus;
+  isDemo?: boolean;
   submittedAt: string;
   approvedAt?: string;
 }
