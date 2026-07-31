@@ -1,1 +1,2 @@
 - [Task rebase pitfalls](task-rebase-pitfalls.md) — rebases onto main can scramble route handlers and leave the task DB missing new tables; re-run typecheck, `pnpm install`, and `lib/db push` after every rebase.
+- [Seed backfill concurrency](seed-backfill-concurrency.md) — backfills into unconstrained (append-only) tables need pg_advisory_xact_lock; exists-checks alone double-insert under parallel processes.

@@ -28,6 +28,15 @@ const seedClients = [
   // Meridian Senior Care (id 5) was seeded as a placeholder — confirmed not a
   // real client, so it is seeded inactive to keep legacy IDs stable.
   { id: "5", name: "Meridian Senior Care", active: false },
+  { id: "6", name: "Current PT" },
+  { id: "7", name: "Thrive" },
+];
+
+// Clients added after the original seed. Existing (non-empty) databases skip
+// the full seed, so these are backfilled idempotently on every startup.
+const backfillClients = [
+  { id: "6", name: "Current PT" },
+  { id: "7", name: "Thrive" },
 ];
 
 const seedEmployees = [
@@ -68,6 +77,9 @@ export async function ensureRosterSeeded() {
   if (!employeeRow) {
     await db.insert(employeesTable).values(seedEmployees);
   }
+  // Backfill later-added clients into already-populated databases (no-op when
+  // the row already exists, so this is safe to run on every startup).
+  await db.insert(clientsTable).values(backfillClients).onConflictDoNothing();
   seeded = true;
 }
 

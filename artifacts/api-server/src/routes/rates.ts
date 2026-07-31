@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import {
   db,
   clientRatesTable,
@@ -100,6 +100,10 @@ const seedClientRates = [
   { clientId: "4", clientName: "Treasure Valley Outpatient Clinic", visitType: "occupational-therapy", rate: 90, effectiveDate: "2024-01-01" },
   { clientId: "4", clientName: "Treasure Valley Outpatient Clinic", visitType: "hourly", rate: 69, effectiveDate: "2024-01-01" },
   // Meridian Senior Care (id 5) is not a real client — no rates seeded.
+  // Current PT — hourly PT billing
+  { clientId: "6", clientName: "Current PT", visitType: "hourly-PT", rate: 69, effectiveDate: "2024-01-01" },
+  // Thrive — hourly PT billing
+  { clientId: "7", clientName: "Thrive", visitType: "hourly-PT", rate: 69.98, effectiveDate: "2024-01-01" },
 ];
 
 // Placeholder starting pay rates per discipline — Molly sets real numbers on
@@ -145,6 +149,40 @@ const seedEmployeeRates = seedEmployeeRoster.map((emp) => {
   };
 });
 
+// Rates for clients added after the original seed. Existing (non-empty)
+// databases skip the full seed, so these are backfilled idempotently: a rate
+// is inserted only if the client has no history rows for that rate type.
+const backfillClientRates = [
+  { clientId: "6", clientName: "Current PT", visitType: "hourly-PT", rate: 69, effectiveDate: "2024-01-01" },
+  { clientId: "7", clientName: "Thrive", visitType: "hourly-PT", rate: 69.98, effectiveDate: "2024-01-01" },
+];
+
+// Advisory lock key so concurrent server instances (or parallel test
+// processes) can't both pass the exists-check and double-insert a backfill
+// rate — the rates table has no unique constraint (it's append-only history).
+const BACKFILL_LOCK_KEY = 727_301_632;
+
+async function backfillMissingClientRates() {
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(${BACKFILL_LOCK_KEY})`);
+    for (const seed of backfillClientRates) {
+      const [existing] = await tx
+        .select()
+        .from(clientRatesTable)
+        .where(
+          and(
+            eq(clientRatesTable.clientId, seed.clientId),
+            eq(clientRatesTable.visitType, seed.visitType),
+          ),
+        )
+        .limit(1);
+      if (!existing) {
+        await tx.insert(clientRatesTable).values(seed);
+      }
+    }
+  });
+}
+
 let seeded = false;
 async function ensureSeeded() {
   if (seeded) return;
@@ -164,6 +202,7 @@ async function ensureSeeded() {
   if (!employeeRow) {
     await db.insert(employeeRatesTable).values(seedEmployeeRates);
   }
+  await backfillMissingClientRates();
   seeded = true;
 }
 
