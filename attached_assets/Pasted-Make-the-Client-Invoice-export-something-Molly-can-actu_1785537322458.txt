@@ -1,0 +1,45 @@
+Make the Client Invoice export something Molly can actually use and send with minimal rework. It must follow the structure and style of the real QuickBooks invoices she provided as closely as possible.
+
+### Real invoice pattern to match (from her PDFs)
+
+**Columns (in this order):**
+Date | Product or service | Description | Qty | Rate | Amount
+
+**Product or service format:**
+- Use the employee’s name + discipline
+- Follow her real style as closely as possible  
+  Examples from her invoices:
+  - “Contract PT Hodge, Molly”
+  - “Eddins, Adrian BSN”
+  - “RN contract Edwards, Amber”
+  - “Clayton, Sandy RN”
+
+**Description format:**
+- Visit type + useful date range (and location code when relevant)
+- Examples from her invoices:
+  - “TV SOC 7/12-7/25/26”
+  - “MC SNV 7/12-7/25/26”
+  - “MC mileage 7/12-7/25/26”
+  - “MC Per diem 7/12-7/25/26”
+  - “RN hours 7/12/26 (8am-8pm)” (for simpler hourly clients)
+
+**Line rules:**
+- One line per employee + visit type (aggregated across the period when appropriate)
+- Mileage gets its own line
+- Per diem gets its own line
+- Special items (MI&E, etc.) get their own lines when present
+- Hourly work gets clean hourly lines
+- If a rate changed mid-period, split the line so amounts stay correct
+
+**Output requirements:**
+- On-screen table must use the exact column order above
+- CSV download must use the exact same columns and order so she can open it and use it
+- Clear grand total
+- Missing-rate lines must still be visibly flagged (never silently $0)
+
+### Guidance
+Prioritize making the exported file feel familiar and usable to Molly when she compares it side-by-side with her real QuickBooks invoices. 
+Match the spirit and structure of her PDFs as closely as the current data model allows. 
+You have freedom on exact abbreviation style and minor formatting choices, but the result should feel like something she could actually work from or lightly adapt.
+
+Do not build full PDF generation or QuickBooks API integration yet — focus on making the current invoice report + CSV export genuinely usable.
