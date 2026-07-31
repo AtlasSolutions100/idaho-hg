@@ -7,7 +7,6 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Check, Clock } from 'lucide-react';
 
 export interface ReadyClient {
   clientId: string;
@@ -17,6 +16,7 @@ export interface ReadyClient {
 
 export interface WorkflowSnapshot {
   isLoading: boolean;
+  isError: boolean;
   pendingCount: number;
   approvedCount: number;
   readyClients: ReadyClient[];
@@ -51,6 +51,7 @@ export function useWorkflowSnapshot(range?: { start: string; end: string }): Wor
 
   return {
     isLoading: entriesQuery.isLoading,
+    isError: entriesQuery.isError,
     pendingCount,
     approvedCount: approvedEntries.length,
     readyClients,
@@ -84,6 +85,7 @@ export function useWorkflowCheckoffs() {
 
   return {
     isLoading: statusQuery.isLoading,
+    isError: statusQuery.isError,
     exportDone,
     invoicesDone,
     // Partial updates: only the toggled flag is sent, so rapid toggles of
@@ -94,47 +96,18 @@ export function useWorkflowCheckoffs() {
 }
 
 /**
- * Calm, non-linear weekly checklist. Approval state comes from real data;
- * export and invoices are manual check-offs; reconciliation is informational.
- * Nothing is gated.
+ * The two manual check-offs for the current week. Checking them clears the
+ * matching items from the dashboard's "Needs Attention" list. Nothing is gated.
  */
-export function WeeklyChecklist({
-  snapshot,
+export function WeeklyCheckoffs({
   checkoffs,
   className,
 }: {
-  snapshot: WorkflowSnapshot;
   checkoffs: ReturnType<typeof useWorkflowCheckoffs>;
   className?: string;
 }) {
-  const { pendingCount, approvedCount } = snapshot;
-  const approvalDone = pendingCount === 0 && approvedCount > 0;
-
   return (
     <ul className={cn('space-y-2', className)} data-testid="workflow-progress">
-      {/* Approval: derived from data, not checkable */}
-      <li className="flex items-center gap-3 text-sm" data-testid="checklist-approve">
-        <span
-          className={cn(
-            'flex h-5 w-5 shrink-0 items-center justify-center rounded-full',
-            approvalDone ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
-          )}
-          aria-hidden="true"
-        >
-          {approvalDone ? <Check className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
-        </span>
-        <span className={cn(approvalDone && 'text-muted-foreground')}>
-          Approve payroll
-          {pendingCount > 0 && (
-            <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
-              {pendingCount} waiting
-            </span>
-          )}
-          {approvalDone && <span className="sr-only"> (done)</span>}
-        </span>
-      </li>
-
-      {/* Manual check-offs */}
       <li className="flex items-center gap-3 text-sm" data-testid="checklist-export">
         <Checkbox
           id="checkoff-export"
@@ -146,7 +119,7 @@ export function WeeklyChecklist({
           htmlFor="checkoff-export"
           className={cn('cursor-pointer', checkoffs.exportDone && 'text-muted-foreground line-through decoration-muted-foreground/40')}
         >
-          Payroll Export (Pezwise)
+          Payroll Export (Pezwise) done
         </label>
       </li>
       <li className="flex items-center gap-3 text-sm" data-testid="checklist-invoices">
@@ -160,16 +133,8 @@ export function WeeklyChecklist({
           htmlFor="checkoff-invoices"
           className={cn('cursor-pointer', checkoffs.invoicesDone && 'text-muted-foreground line-through decoration-muted-foreground/40')}
         >
-          Client Invoices
+          Client Invoices done
         </label>
-      </li>
-
-      {/* Informational — generated per client as needed */}
-      <li className="flex items-center gap-3 text-sm text-muted-foreground" data-testid="checklist-reconciliation">
-        <span className="flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden="true">
-          <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
-        </span>
-        Reconciliation reports — per client, as needed
       </li>
     </ul>
   );

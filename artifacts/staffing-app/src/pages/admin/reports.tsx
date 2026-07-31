@@ -7,7 +7,7 @@ import { MissingRatesNotice } from '@/components/admin/missing-rates-notice';
 import {
   useWorkflowSnapshot,
   useWorkflowCheckoffs,
-  WeeklyChecklist,
+  WeeklyCheckoffs,
 } from '@/components/admin/workflow-progress';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -77,8 +77,8 @@ export default function ReportsPage() {
                   )}
                 </div>
                 <div>
-                  <p className="text-sm font-medium mb-2">This week</p>
-                  <WeeklyChecklist snapshot={workflow} checkoffs={checkoffs} />
+                  <p className="text-sm font-medium mb-2">Mark done for this week</p>
+                  <WeeklyCheckoffs checkoffs={checkoffs} />
                 </div>
               </div>
             </CardContent>
