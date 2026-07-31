@@ -31,9 +31,11 @@ async function post(path: string, body?: unknown) {
 }
 
 // Seeded roster (stable IDs — see routes/roster.ts and routes/rates.ts seeds)
+const ST_LUKES = "1";
 const WEISER = "2";
 const IDAHO_YOUTH_RANCH = "3";
 const TREASURE_VALLEY = "4";
+const CURRENT_PT = "6";
 const RN_EMPLOYEE = "e2ae91e4-d3d8-4447-b4ce-85de035b6700"; // Adrian Eddins, RN
 const PT_EMPLOYEE = "70a76167-a476-4268-a2fc-d89c7ed15e6e"; // Dale Gibbs, PT
 
@@ -164,5 +166,60 @@ describe("hourly invoice rate resolution (seeded clients)", () => {
     expect(line.rate).toBe(expectedRate);
     expect(line.amount).toBe(6 * expectedRate);
     expect(line.amount).toBeGreaterThan(0);
+  });
+});
+
+describe("hourly invoice missing-rate flagging (seeded clients)", () => {
+  it("St. Luke's (no hourly rates at all) flags RN hours as a $0 missing-rate line", async () => {
+    // St. Luke's bills per-visit only — it has neither role-specific nor
+    // generic hourly rates, so hourly time must surface flagged, never dropped.
+    expect(
+      clientRates.find(
+        (r: any) => r.clientId === ST_LUKES && r.visitType.startsWith("hourly"),
+      ),
+    ).toBeUndefined();
+    await submitApprovedHourlyEntry(ST_LUKES, RN_EMPLOYEE, "2026-06-16", 7);
+
+    const body = await invoiceHourlyLines(ST_LUKES);
+    expect(body.missingRateCount).toBe(1);
+    expect(body.unbilledCount).toBe(0);
+    const line = body.lines.find((l: any) => l.kind === "hourly");
+    expect(line).toBeTruthy();
+    expect(line.qty).toBe(7);
+    expect(line.rate).toBeUndefined();
+    expect(line.amount).toBe(0);
+    expect(line.missingRate).toBe(true);
+    expect(line.note).toBe(
+      "No hourly billing rate on file — add one on the Client Rates page",
+    );
+    // The flagged line still counts toward the invoice's entry total.
+    expect(body.entryCount).toBe(1);
+  });
+
+  it("Current PT flags RN hours: no hourly-RN key and no generic hourly fallback", async () => {
+    // Current PT bills only hourly-PT — an RN entry misses the role-specific
+    // lookup AND the generic "hourly" fallback, so it must come back flagged.
+    expect(
+      clientRates.find((r: any) => r.clientId === CURRENT_PT && r.visitType === "hourly-RN"),
+    ).toBeUndefined();
+    expect(
+      clientRates.find((r: any) => r.clientId === CURRENT_PT && r.visitType === "hourly"),
+    ).toBeUndefined();
+    expect(
+      clientRates.find((r: any) => r.clientId === CURRENT_PT && r.visitType === "hourly-PT"),
+    ).toBeTruthy();
+    await submitApprovedHourlyEntry(CURRENT_PT, RN_EMPLOYEE, "2026-06-17", 2.5);
+
+    const body = await invoiceHourlyLines(CURRENT_PT);
+    expect(body.missingRateCount).toBe(1);
+    const line = body.lines.find((l: any) => l.kind === "hourly");
+    expect(line).toBeTruthy();
+    expect(line.qty).toBe(2.5);
+    expect(line.rate).toBeUndefined();
+    expect(line.amount).toBe(0);
+    expect(line.missingRate).toBe(true);
+    expect(line.note).toBe(
+      "No hourly billing rate on file — add one on the Client Rates page",
+    );
   });
 });
