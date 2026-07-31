@@ -10,8 +10,10 @@ import {
   Users, 
   FileSpreadsheet, 
   ClipboardList,
-  ChevronRight 
+  ChevronRight,
+  LogOut,
 } from 'lucide-react';
+import { useLocation } from 'wouter';
 
 // Monday–Sunday week containing today, as YYYY-MM-DD bounds
 function currentWeekRange() {
@@ -28,6 +30,7 @@ function currentWeekRange() {
 }
 
 export default function AdminDashboard() {
+  const [, setLocation] = useLocation();
   const employeesQuery = useListEmployees();
   const entriesQuery = useListTimeEntries();
 
@@ -94,7 +97,20 @@ export default function AdminDashboard() {
               <h1 className="text-2xl font-semibold">Admin Dashboard</h1>
               <p className="text-sm text-muted-foreground mt-1">Hodge Staffing Management</p>
             </div>
-            <ThemeToggle />
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setLocation('/')}
+                className="gap-1.5 text-muted-foreground"
+                aria-label="Exit to welcome screen"
+                data-testid="button-exit"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Exit</span>
+              </Button>
+            </div>
           </div>
         </div>
       </div>

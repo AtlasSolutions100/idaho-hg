@@ -3,12 +3,14 @@ import { useListTimeEntries } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
 import { LogHoursForm } from '@/components/employee/log-hours-form';
 import { TimeEntriesList } from '@/components/employee/time-entries-list';
-import { Plus, Clock, CheckCircle } from 'lucide-react';
+import { Plus, Clock, CheckCircle, LogOut } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { useLocation } from 'wouter';
 
 export default function EmployeeDashboard() {
   const [showForm, setShowForm] = useState(false);
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { data: entries } = useListTimeEntries({ employeeId: '1' });
   const submittedCount = (entries ?? []).filter(e => e.status === 'submitted').length;
@@ -37,6 +39,17 @@ export default function EmployeeDashboard() {
                 <span className="font-mono font-medium">{submittedCount} submitted</span>
               </div>
               <ThemeToggle />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setLocation('/')}
+                className="gap-1.5 text-muted-foreground"
+                aria-label="Exit to welcome screen"
+                data-testid="button-exit"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Exit</span>
+              </Button>
             </div>
           </div>
         </div>
