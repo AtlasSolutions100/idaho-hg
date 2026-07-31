@@ -12,6 +12,7 @@ import EmployeeRatesPage from '@/pages/admin/employee-rates';
 import ReportsPage from '@/pages/admin/reports';
 import OnboardingPage from '@/pages/admin/onboarding';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
+import { FeedbackDialog } from '@/components/feedback-dialog';
 
 const queryClient = new QueryClient();
 
@@ -38,6 +39,7 @@ function App() {
         <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
           <Router />
+          <FeedbackDialog />
         </WouterRouter>
           <Toaster />
         </TooltipProvider>

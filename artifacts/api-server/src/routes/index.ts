@@ -7,6 +7,7 @@ import rosterRouter from "./roster";
 import reportsRouter from "./reports";
 import demoDataRouter from "./demo-data";
 import workflowStatusRouter from "./workflow-status";
+import feedbackRouter from "./feedback";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(rosterRouter);
 router.use(reportsRouter);
 router.use(demoDataRouter);
 router.use(workflowStatusRouter);
+router.use(feedbackRouter);
 
 export default router;

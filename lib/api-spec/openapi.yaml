@@ -24,6 +24,8 @@ tags:
     description: Load and remove clearly-labeled practice (demo) data
   - name: workflow
     description: Lightweight per-period check-offs for the weekly guide
+  - name: feedback
+    description: In-app feedback from users to the developers
 paths:
   /healthz:
     get:
@@ -525,6 +527,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WorkflowStatus"
+  /feedback:
+    get:
+      operationId: listFeedback
+      tags: [feedback]
+      summary: List submitted feedback, newest first
+      responses:
+        "200":
+          description: All feedback submissions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Feedback"
+    post:
+      operationId: createFeedback
+      tags: [feedback]
+      summary: Submit feedback to the developers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedbackCreate"
+      responses:
+        "201":
+          description: Feedback saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Feedback"
   /reports/payroll:
     get:
       operationId: getPayrollReport
@@ -1044,6 +1077,42 @@ components:
           type: boolean
       required:
         - period
+    Feedback:
+      type: object
+      properties:
+        id:
+          type: number
+        type:
+          type: string
+          enum: [problem, idea, other]
+        message:
+          type: string
+        name:
+          type: string
+        page:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - type
+        - message
+        - createdAt
+    FeedbackCreate:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [problem, idea, other]
+        message:
+          type: string
+        name:
+          type: string
+        page:
+          type: string
+      required:
+        - type
+        - message
     DemoDataStatus:
       type: object
       properties:

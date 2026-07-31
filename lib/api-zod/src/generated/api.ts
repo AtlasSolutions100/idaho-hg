@@ -511,6 +511,40 @@ export const UpdateWorkflowStatusResponse = zod.object({
 
 
 /**
+ * @summary List submitted feedback, newest first
+ */
+export const ListFeedbackResponseItem = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['problem', 'idea', 'other']),
+  "message": zod.string(),
+  "name": zod.string().optional(),
+  "page": zod.string().optional(),
+  "createdAt": zod.string()
+})
+export const ListFeedbackResponse = zod.array(ListFeedbackResponseItem)
+
+
+/**
+ * @summary Submit feedback to the developers
+ */
+export const CreateFeedbackBody = zod.object({
+  "type": zod.enum(['problem', 'idea', 'other']),
+  "message": zod.string(),
+  "name": zod.string().optional(),
+  "page": zod.string().optional()
+})
+
+export const CreateFeedbackResponse = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['problem', 'idea', 'other']),
+  "message": zod.string(),
+  "name": zod.string().optional(),
+  "page": zod.string().optional(),
+  "createdAt": zod.string()
+})
+
+
+/**
  * @summary Payroll report from approved entries in a date range
  */
 export const GetPayrollReportQueryParams = zod.object({

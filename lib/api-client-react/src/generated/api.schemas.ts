@@ -161,6 +161,40 @@ export interface WorkflowStatusUpdate {
   invoicesDone?: boolean;
 }
 
+export type FeedbackType = typeof FeedbackType[keyof typeof FeedbackType];
+
+
+export const FeedbackType = {
+  problem: 'problem',
+  idea: 'idea',
+  other: 'other',
+} as const;
+
+export interface Feedback {
+  id: number;
+  type: FeedbackType;
+  message: string;
+  name?: string;
+  page?: string;
+  createdAt: string;
+}
+
+export type FeedbackCreateType = typeof FeedbackCreateType[keyof typeof FeedbackCreateType];
+
+
+export const FeedbackCreateType = {
+  problem: 'problem',
+  idea: 'idea',
+  other: 'other',
+} as const;
+
+export interface FeedbackCreate {
+  type: FeedbackCreateType;
+  message: string;
+  name?: string;
+  page?: string;
+}
+
 export interface DemoDataStatus {
   loaded: boolean;
   clientCount: number;
