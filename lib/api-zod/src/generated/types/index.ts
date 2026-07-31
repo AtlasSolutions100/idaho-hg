@@ -6,8 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './allocatedInvoiceNumber';
 export * from './apiError';
 export * from './approveAllResult';
+export * from './businessSettings';
 export * from './client';
 export * from './clientInput';
 export * from './clientRate';
@@ -41,6 +43,7 @@ export * from './reconciliationReport';
 export * from './reconciliationReportLine';
 export * from './reconciliationTotals';
 export * from './timeEntry';
+export * from './updateBusinessSettings';
 export * from './updateClientRate';
 export * from './updateEmployeeRate';
 export * from './updateOnboardingItem';

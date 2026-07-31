@@ -26,6 +26,8 @@ tags:
     description: Lightweight per-period check-offs for the weekly guide
   - name: feedback
     description: In-app feedback from users to the developers
+  - name: settings
+    description: Business details and invoice numbering for PDF invoices
 paths:
   /healthz:
     get:
@@ -734,8 +736,96 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /business-settings:
+    get:
+      operationId: getBusinessSettings
+      tags: [settings]
+      summary: Get the business details used on PDF invoices
+      responses:
+        "200":
+          description: Current business settings (defaults when never saved)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessSettings"
+    put:
+      operationId: updateBusinessSettings
+      tags: [settings]
+      summary: Update the business details used on PDF invoices
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBusinessSettings"
+      responses:
+        "200":
+          description: Saved business settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessSettings"
+        "400":
+          description: Invalid settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /business-settings/next-invoice-number:
+    post:
+      operationId: allocateInvoiceNumber
+      tags: [settings]
+      summary: Atomically allocate the next invoice number
+      description: Returns the next invoice number and increments the stored counter
+      responses:
+        "200":
+          description: The allocated invoice number
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AllocatedInvoiceNumber"
 components:
   schemas:
+    BusinessSettings:
+      type: object
+      properties:
+        address:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        paymentTerms:
+          type: string
+        nextInvoiceNumber:
+          type: number
+      required:
+        - address
+        - phone
+        - email
+        - paymentTerms
+        - nextInvoiceNumber
+    UpdateBusinessSettings:
+      type: object
+      properties:
+        address:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        paymentTerms:
+          type: string
+        nextInvoiceNumber:
+          type: number
+          minimum: 1
+    AllocatedInvoiceNumber:
+      type: object
+      properties:
+        invoiceNumber:
+          type: number
+      required:
+        - invoiceNumber
     OnboardingItem:
       type: object
       properties:

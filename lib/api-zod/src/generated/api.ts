@@ -712,3 +712,47 @@ export const UpdateOnboardingItemResponse = zod.object({
 })
 
 
+/**
+ * @summary Get the business details used on PDF invoices
+ */
+export const GetBusinessSettingsResponse = zod.object({
+  "address": zod.string(),
+  "phone": zod.string(),
+  "email": zod.string(),
+  "paymentTerms": zod.string(),
+  "nextInvoiceNumber": zod.number()
+})
+
+
+/**
+ * @summary Update the business details used on PDF invoices
+ */
+
+
+
+export const UpdateBusinessSettingsBody = zod.object({
+  "address": zod.string().optional(),
+  "phone": zod.string().optional(),
+  "email": zod.string().optional(),
+  "paymentTerms": zod.string().optional(),
+  "nextInvoiceNumber": zod.number().min(1).optional()
+})
+
+export const UpdateBusinessSettingsResponse = zod.object({
+  "address": zod.string(),
+  "phone": zod.string(),
+  "email": zod.string(),
+  "paymentTerms": zod.string(),
+  "nextInvoiceNumber": zod.number()
+})
+
+
+/**
+ * Returns the next invoice number and increments the stored counter
+ * @summary Atomically allocate the next invoice number
+ */
+export const AllocateInvoiceNumberResponse = zod.object({
+  "invoiceNumber": zod.number()
+})
+
+

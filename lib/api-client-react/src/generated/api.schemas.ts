@@ -5,6 +5,27 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface BusinessSettings {
+  address: string;
+  phone: string;
+  email: string;
+  paymentTerms: string;
+  nextInvoiceNumber: number;
+}
+
+export interface UpdateBusinessSettings {
+  address?: string;
+  phone?: string;
+  email?: string;
+  paymentTerms?: string;
+  /** @minimum 1 */
+  nextInvoiceNumber?: number;
+}
+
+export interface AllocatedInvoiceNumber {
+  invoiceNumber: number;
+}
+
 export interface OnboardingItem {
   itemKey: string;
   label: string;

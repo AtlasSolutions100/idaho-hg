@@ -8,6 +8,7 @@ import reportsRouter from "./reports";
 import demoDataRouter from "./demo-data";
 import workflowStatusRouter from "./workflow-status";
 import feedbackRouter from "./feedback";
+import businessSettingsRouter from "./business-settings";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(reportsRouter);
 router.use(demoDataRouter);
 router.use(workflowStatusRouter);
 router.use(feedbackRouter);
+router.use(businessSettingsRouter);
 
 export default router;

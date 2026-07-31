@@ -20,8 +20,10 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AllocatedInvoiceNumber,
   ApiError,
   ApproveAllResult,
+  BusinessSettings,
   Client,
   ClientInput,
   ClientRate,
@@ -44,6 +46,7 @@ import type {
   PayrollReport,
   ReconciliationReport,
   TimeEntry,
+  UpdateBusinessSettings,
   UpdateClientRate,
   UpdateEmployeeRate,
   UpdateOnboardingItem,
@@ -2409,5 +2412,225 @@ export const useUpdateOnboardingItem = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getUpdateOnboardingItemMutationOptions(options));
+    }
+
+export const getGetBusinessSettingsUrl = () => {
+
+
+
+
+  return `/api/business-settings`
+}
+
+/**
+ * @summary Get the business details used on PDF invoices
+ */
+export const getBusinessSettings = async ( options?: Parameters<typeof customFetch>[1]): Promise<BusinessSettings> => {
+
+  return customFetch<BusinessSettings>(getGetBusinessSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBusinessSettingsQueryKey = () => {
+    return [
+    `/api/business-settings`
+    ] as const;
+    }
+
+
+export const getGetBusinessSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getBusinessSettings>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBusinessSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBusinessSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBusinessSettings>>> = ({ signal }) => getBusinessSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBusinessSettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBusinessSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getBusinessSettings>>>
+export type GetBusinessSettingsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the business details used on PDF invoices
+ */
+
+export function useGetBusinessSettings<TData = Awaited<ReturnType<typeof getBusinessSettings>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBusinessSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBusinessSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateBusinessSettingsUrl = () => {
+
+
+
+
+  return `/api/business-settings`
+}
+
+/**
+ * @summary Update the business details used on PDF invoices
+ */
+export const updateBusinessSettings = async (updateBusinessSettings: UpdateBusinessSettings, options?: Parameters<typeof customFetch>[1]): Promise<BusinessSettings> => {
+
+  return customFetch<BusinessSettings>(getUpdateBusinessSettingsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateBusinessSettings)
+  }
+);}
+
+
+
+
+
+export const getUpdateBusinessSettingsMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateBusinessSettings>>, TError,{data: BodyType<UpdateBusinessSettings>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateBusinessSettings>>, TError,{data: BodyType<UpdateBusinessSettings>}, TContext> => {
+
+const mutationKey = ['updateBusinessSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateBusinessSettings>>, {data: BodyType<UpdateBusinessSettings>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateBusinessSettings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateBusinessSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateBusinessSettings>>>
+    export type UpdateBusinessSettingsMutationBody = BodyType<UpdateBusinessSettings>
+    export type UpdateBusinessSettingsMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update the business details used on PDF invoices
+ */
+export const useUpdateBusinessSettings = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateBusinessSettings>>, TError,{data: BodyType<UpdateBusinessSettings>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateBusinessSettings>>,
+        TError,
+        {data: BodyType<UpdateBusinessSettings>},
+        TContext
+      > => {
+      return useMutation(getUpdateBusinessSettingsMutationOptions(options));
+    }
+
+export const getAllocateInvoiceNumberUrl = () => {
+
+
+
+
+  return `/api/business-settings/next-invoice-number`
+}
+
+/**
+ * Returns the next invoice number and increments the stored counter
+ * @summary Atomically allocate the next invoice number
+ */
+export const allocateInvoiceNumber = async ( options?: Parameters<typeof customFetch>[1]): Promise<AllocatedInvoiceNumber> => {
+
+  return customFetch<AllocatedInvoiceNumber>(getAllocateInvoiceNumberUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAllocateInvoiceNumberMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof allocateInvoiceNumber>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof allocateInvoiceNumber>>, TError,void, TContext> => {
+
+const mutationKey = ['allocateInvoiceNumber'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof allocateInvoiceNumber>>, void> = () => {
+
+
+          return  allocateInvoiceNumber(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AllocateInvoiceNumberMutationResult = NonNullable<Awaited<ReturnType<typeof allocateInvoiceNumber>>>
+
+    export type AllocateInvoiceNumberMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Atomically allocate the next invoice number
+ */
+export const useAllocateInvoiceNumber = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof allocateInvoiceNumber>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof allocateInvoiceNumber>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getAllocateInvoiceNumberMutationOptions(options));
     }
 

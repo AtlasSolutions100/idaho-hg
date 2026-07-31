@@ -3,6 +3,8 @@ import {
   useGetInvoiceReport,
   getGetInvoiceReportQueryKey,
   useListClients,
+  useGetBusinessSettings,
+  allocateInvoiceNumber,
   type InvoiceReport,
 } from '@workspace/api-client-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +21,7 @@ import {
 } from '@/components/ui/table';
 import { downloadCsv, formatMoney } from '@/lib/report-csv';
 import { downloadInvoicePdf } from '@/lib/invoice-pdf';
+import { useToast } from '@/hooks/use-toast';
 import { useWorkflowSnapshot } from '@/components/admin/workflow-progress';
 import { format } from 'date-fns';
 import { FileSpreadsheet, FileText, Download, Loader2, AlertCircle, AlertTriangle, Inbox } from 'lucide-react';
@@ -56,6 +59,29 @@ export function InvoiceReportCard() {
   const [params, setParams] = useState<{ clientId: string; start: string; end: string } | null>(null);
 
   const { data: clients } = useListClients();
+  const { data: businessSettings } = useGetBusinessSettings();
+  const { toast } = useToast();
+  const [pdfBusy, setPdfBusy] = useState(false);
+
+  // Each PDF download claims the next invoice number from the server so
+  // numbers never repeat. If numbering fails, the PDF still downloads
+  // (without a number) and Molly is told explicitly.
+  const handleDownloadPdf = async (invoiceReport: InvoiceReport) => {
+    setPdfBusy(true);
+    try {
+      const { invoiceNumber } = await allocateInvoiceNumber();
+      downloadInvoicePdf(invoiceReport, businessSettings, invoiceNumber);
+    } catch {
+      downloadInvoicePdf(invoiceReport, businessSettings);
+      toast({
+        title: 'PDF downloaded without an invoice number',
+        description: "Couldn't reach the server to get the next invoice number. Check your connection and try again if you need a numbered invoice.",
+        variant: 'destructive',
+      });
+    } finally {
+      setPdfBusy(false);
+    }
+  };
   // Highlight clients with approved entries ready — scoped to the chosen
   // period once both dates are set, otherwise across all approved entries.
   const rangeSelected = start !== '' && end !== '' && start <= end;
@@ -155,11 +181,11 @@ export function InvoiceReportCard() {
           </Button>
           <Button
             variant="outline" className="gap-2"
-            disabled={!report || report.entryCount === 0}
-            onClick={() => report && downloadInvoicePdf(report)}
+            disabled={!report || report.entryCount === 0 || pdfBusy}
+            onClick={() => report && handleDownloadPdf(report)}
             data-testid="button-download-client-invoice-pdf"
           >
-            <FileText className="h-4 w-4" />
+            {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
             Download PDF
           </Button>
         </div>

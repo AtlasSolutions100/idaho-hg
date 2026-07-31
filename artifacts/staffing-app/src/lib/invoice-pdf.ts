@@ -24,7 +24,17 @@ function shortDate(iso: string): string {
   return `${Number(m)}/${Number(d)}/${y!.slice(2)}`;
 }
 
-export function downloadInvoicePdf(report: InvoiceReport) {
+export interface InvoiceBusinessDetails {
+  address: string;
+  phone: string;
+  email: string;
+  paymentTerms: string;
+}
+export function downloadInvoicePdf(
+  report: InvoiceReport,
+  details?: InvoiceBusinessDetails,
+  invoiceNumber?: number,
+) {
   const doc = new jsPDF({ unit: 'pt', format: 'letter' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 48;
@@ -37,23 +47,54 @@ export function downloadInvoicePdf(report: InvoiceReport) {
   doc.setTextColor(100);
   doc.text('INVOICE', pageWidth - margin, 64, { align: 'right' });
 
+  // Business contact lines under the name (only the ones Molly filled in).
+  let leftY = 64;
+  const contactLines = [
+    ...(details?.address ?? '').split(/\r?\n/),
+    details?.phone ?? '',
+    details?.email ?? '',
+  ].map((s) => s.trim()).filter((s) => s !== '');
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(100);
+  for (const line of contactLines) {
+    leftY += 13;
+    doc.text(line, margin, leftY);
+  }
+
+  // Invoice number under the INVOICE label.
+  let rightY = 64;
+  if (invoiceNumber != null) {
+    rightY += 18;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(0);
+    doc.text(`Invoice #${invoiceNumber}`, pageWidth - margin, rightY, { align: 'right' });
+  }
+
+  const metaTop = Math.max(leftY, rightY) + 32;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   doc.setTextColor(60);
-  doc.text('Bill to:', margin, 96);
+  doc.text('Bill to:', margin, metaTop);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0);
-  doc.text(report.clientName, margin, 110);
+  doc.text(report.clientName, margin, metaTop + 14);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(60);
   doc.text(
     `Invoice period: ${longDate(report.start)} – ${longDate(report.end)}`,
-    pageWidth - margin, 96, { align: 'right' },
+    pageWidth - margin, metaTop, { align: 'right' },
   );
   doc.text(
     `Generated: ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`,
-    pageWidth - margin, 110, { align: 'right' },
+    pageWidth - margin, metaTop + 14, { align: 'right' },
   );
+  const paymentTerms = details?.paymentTerms.trim() ?? '';
+  if (paymentTerms !== '') {
+    doc.text(`Payment terms: ${paymentTerms}`, pageWidth - margin, metaTop + 28, { align: 'right' });
+  }
+  const tableStartY = metaTop + (paymentTerms !== '' ? 28 : 14) + 22;
 
   // Line table — same columns and content as the CSV export. Missing-rate
   // lines keep the explicit "NO RATE ON FILE" flag and are tinted amber.
@@ -71,7 +112,7 @@ export function downloadInvoicePdf(report: InvoiceReport) {
   );
 
   autoTable(doc, {
-    startY: 132,
+    startY: tableStartY,
     margin: { left: margin, right: margin },
     head: [['Date', 'Product or service', 'Description', 'Qty', 'Rate', 'Amount']],
     body,
@@ -96,7 +137,7 @@ export function downloadInvoicePdf(report: InvoiceReport) {
   });
 
   // Missing-rate warning below the table, so the PDF never hides $0 billing.
-  const afterTableY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 132;
+  const afterTableY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? tableStartY;
   if (report.missingRateCount > 0) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);

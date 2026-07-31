@@ -13,6 +13,7 @@ import {
   FileSpreadsheet, 
   ClipboardList,
   MessageSquare,
+  Building2,
   ChevronRight,
   LogOut,
 } from 'lucide-react';
@@ -87,6 +88,13 @@ export default function AdminDashboard() {
       icon: ClipboardList,
       href: '/admin/onboarding',
       testId: 'link-onboarding',
+    },
+    {
+      title: 'Business Settings',
+      description: 'Invoice details and numbering',
+      icon: Building2,
+      href: '/admin/business-settings',
+      testId: 'link-business-settings',
     },
     {
       title: 'Team Feedback',

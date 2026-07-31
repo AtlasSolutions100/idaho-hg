@@ -12,6 +12,7 @@ import EmployeeRatesPage from '@/pages/admin/employee-rates';
 import ReportsPage from '@/pages/admin/reports';
 import OnboardingPage from '@/pages/admin/onboarding';
 import FeedbackPage from '@/pages/admin/feedback';
+import BusinessSettingsPage from '@/pages/admin/business-settings';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { FeedbackDialog } from '@/components/feedback-dialog';
 
@@ -29,6 +30,7 @@ function Router() {
       <Route path="/admin/reports" component={ReportsPage} />
       <Route path="/admin/onboarding" component={OnboardingPage} />
       <Route path="/admin/feedback" component={FeedbackPage} />
+      <Route path="/admin/business-settings" component={BusinessSettingsPage} />
       <Route component={NotFound} />
     </Switch>
   );
