@@ -31,6 +31,17 @@ import { visitTypeLabels, clientRateTypeLabels, type VisitType } from '@/lib/dat
 import { Pencil, Loader2, AlertCircle, History, Plus, Trash2, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
+function rateTypeLabel(visitType: string): string {
+  if (visitType.startsWith('hourly-')) {
+    return `Hourly – ${visitType.slice('hourly-'.length)}`;
+  }
+  return clientRateTypeLabels[visitType] ?? visitType;
+}
+
+function isHourlyRateType(visitType: string): boolean {
+  return visitType === 'hourly' || visitType.startsWith('hourly-');
+}
+
 export function ClientRatesTable() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -317,11 +328,11 @@ export function ClientRatesTable() {
                     <TableBody>
                       {clientRates.map(rate => (
                         <TableRow key={rate.id} data-testid={`client-rate-${rate.id}`}>
-                          <TableCell>{clientRateTypeLabels[rate.visitType] ?? rate.visitType}</TableCell>
+                          <TableCell>{rateTypeLabel(rate.visitType)}</TableCell>
                           <TableCell className="text-right font-mono font-medium">
                             ${rate.rate.toFixed(2)}
                             <span className="text-xs text-muted-foreground font-sans">
-                              {rate.visitType === 'hourly' ? ' /hour' : ' /visit'}
+                              {isHourlyRateType(rate.visitType) ? ' /hr' : ' /visit'}
                             </span>
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm text-muted-foreground">
@@ -470,14 +481,14 @@ export function ClientRatesTable() {
             <DialogTitle>Change Client Rate</DialogTitle>
             <DialogDescription>
               {editing
-                ? `${editing.clientName} — ${clientRateTypeLabels[editing.visitType] ?? editing.visitType}. The new rate applies from the effective date; earlier entries keep the old rate.`
+                ? `${editing.clientName} — ${rateTypeLabel(editing.visitType)}. The new rate applies from the effective date; earlier entries keep the old rate.`
                 : ''}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="client-rate">
-                {editing?.visitType === 'hourly' ? 'Rate ($ per hour)' : 'Rate ($ per visit)'}
+                {editing && isHourlyRateType(editing.visitType) ? 'Rate ($ per hour)' : 'Rate ($ per visit)'}
               </Label>
               <Input
                 id="client-rate"
