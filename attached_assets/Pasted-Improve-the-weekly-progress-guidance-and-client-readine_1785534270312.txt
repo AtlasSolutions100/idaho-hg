@@ -1,0 +1,38 @@
+Improve the weekly progress guidance and client readiness system so it feels natural and useful, especially since Payroll Export, Client Invoices, and Reconciliation all live on the same Reports page.
+
+### Core problem to solve
+A strict linear 4-step progress strip feels awkward when three of the steps are on one screen. The guidance should help Molly understand:
+1. Whether there are approved entries ready
+2. Which clients are ready
+3. What she still needs to do (without forcing a rigid sequence)
+
+### Desired behavior
+
+**1. Smarter progress / status model**
+- Move away from a rigid sequential strip as the main interaction.
+- Show clear period-level status based on real data:
+  - Pending approval
+  - Approved and ready for export / invoicing / reconciliation
+- Allow Molly to manually mark “Payroll Export done” and “Invoices done” for the current period so the guide reflects real-world progress (not just that reports exist).
+- Keep everything lightweight — no heavy history system.
+
+**2. Strong client readiness signals**
+- On the Reports page, clearly highlight or badge clients that have approved entries for the selected date range.
+- Make it obvious which hospitals/clients still need an invoice or reconciliation report generated.
+- Show simple counts where helpful (e.g. “3 clients ready”).
+
+**3. Dashboard support**
+- Update the Admin Dashboard “Next steps” area so it reflects:
+  - Current overall status for the period
+  - Which clients have approved data ready
+  - Any manual check-offs Molly has made
+- Link her cleanly into the Reports page.
+
+### Guidance
+Prefer clarity and calm over complexity. Use the existing soft-green visual language. 
+You have freedom on the exact UI pattern (status card, readiness badges, light progress indicator, check-offs, etc.) as long as:
+- It is obvious what is ready
+- It is obvious what Molly should do next
+- The fact that three report types live on one page feels natural rather than forced
+
+Do not add notifications, email sending, or full historical tracking.
