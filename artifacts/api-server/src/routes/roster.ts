@@ -25,7 +25,9 @@ const seedClients = [
   { id: "2", name: "Weiser Memorial Hospital" },
   { id: "3", name: "Idaho Youth Ranch" },
   { id: "4", name: "Treasure Valley Outpatient Clinic" },
-  { id: "5", name: "Meridian Senior Care" },
+  // Meridian Senior Care (id 5) was seeded as a placeholder — confirmed not a
+  // real client, so it is seeded inactive to keep legacy IDs stable.
+  { id: "5", name: "Meridian Senior Care", active: false },
 ];
 
 const seedEmployees = [

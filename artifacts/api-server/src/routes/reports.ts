@@ -170,7 +170,12 @@ router.get("/reports/invoice", async (req, res, next) => {
         const rate = await getClientRateForDate(clientId, entry.visitType, entry.date);
         if (rate) input.visitRate = rate.rate;
       } else if (entry.hours != null && entry.hours > 0) {
-        const rate = await getClientRateForDate(clientId, "hourly", entry.date);
+        // Try role-specific hourly rate first (e.g. "hourly-RN"), fall back to
+        // the generic "hourly" rate so clients with a single hourly rate still work.
+        const roleRate = entry.employeeRole
+          ? await getClientRateForDate(clientId, `hourly-${entry.employeeRole}`, entry.date)
+          : undefined;
+        const rate = roleRate ?? await getClientRateForDate(clientId, "hourly", entry.date);
         if (rate) input.hourlyRate = rate.rate;
       }
       if ((entry.mileage ?? 0) > 0 || (entry.perDiem ?? 0) > 0) {

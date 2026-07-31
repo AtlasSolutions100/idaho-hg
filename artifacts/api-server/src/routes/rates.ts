@@ -74,15 +74,32 @@ function latestPerGroup<T extends { effectiveDate: string; id: number }>(
   return [...latest.values()];
 }
 
-// Seed initial rates on first use so Molly starts from the current known rates
+// Seed initial rates on first use so Molly starts from the current known rates.
+// Per-visit rates use the visit type string. Hourly rates use "hourly" (generic)
+// or "hourly-{ROLE}" (role-specific, used for clients like Weiser that bill
+// differently by discipline). The invoice route tries the role-specific key first,
+// then falls back to "hourly", so both patterns work automatically.
 const seedClientRates = [
+  // St. Luke's — primarily per-visit
   { clientId: "1", clientName: "St. Luke's Health System", visitType: "skilled-nursing", rate: 95, effectiveDate: "2024-01-01" },
   { clientId: "1", clientName: "St. Luke's Health System", visitType: "physical-therapy", rate: 105, effectiveDate: "2024-01-01" },
+  // Weiser Memorial — per-visit + role-specific hourly billing
   { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "skilled-nursing", rate: 88, effectiveDate: "2024-01-01" },
   { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "physical-therapy", rate: 98, effectiveDate: "2024-01-01" },
+  { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-RN", rate: 81.5, effectiveDate: "2024-01-01" },
+  { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-PT", rate: 84, effectiveDate: "2024-01-01" },
+  { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-OT", rate: 77, effectiveDate: "2024-01-01" },
+  { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-SLP", rate: 88, effectiveDate: "2024-01-01" },
+  { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-PTA", rate: 58, effectiveDate: "2024-01-01" },
+  { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-LPN", rate: 55, effectiveDate: "2024-01-01" },
+  // Idaho Youth Ranch — skilled-nursing visits + RN hourly
   { clientId: "3", clientName: "Idaho Youth Ranch", visitType: "skilled-nursing", rate: 82, effectiveDate: "2024-01-01" },
+  { clientId: "3", clientName: "Idaho Youth Ranch", visitType: "hourly-RN", rate: 93, effectiveDate: "2024-01-01" },
+  // Treasure Valley Outpatient — visit rates + general hourly (PT-led)
   { clientId: "4", clientName: "Treasure Valley Outpatient Clinic", visitType: "physical-therapy", rate: 92, effectiveDate: "2024-01-01" },
   { clientId: "4", clientName: "Treasure Valley Outpatient Clinic", visitType: "occupational-therapy", rate: 90, effectiveDate: "2024-01-01" },
+  { clientId: "4", clientName: "Treasure Valley Outpatient Clinic", visitType: "hourly", rate: 69, effectiveDate: "2024-01-01" },
+  // Meridian Senior Care (id 5) is not a real client — no rates seeded.
 ];
 
 // Placeholder starting pay rates per discipline — Molly sets real numbers on

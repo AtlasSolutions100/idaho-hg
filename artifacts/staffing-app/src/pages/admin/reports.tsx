@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { PayrollReportCard } from '@/components/admin/payroll-report-card';
 import { InvoiceReportCard } from '@/components/admin/invoice-report-card';
 import { ReconciliationReportCard } from '@/components/admin/reconciliation-report-card';
+import { MissingRatesNotice } from '@/components/admin/missing-rates-notice';
 import { ChevronLeft } from 'lucide-react';
 
 export default function ReportsPage() {
@@ -28,6 +29,7 @@ export default function ReportsPage() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        <MissingRatesNotice />
         <PayrollReportCard />
         <InvoiceReportCard />
         <ReconciliationReportCard />
