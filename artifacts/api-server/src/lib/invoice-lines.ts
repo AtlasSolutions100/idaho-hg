@@ -4,7 +4,8 @@
 //
 // Output mirrors Molly's real QuickBooks invoices:
 //   Date | Product or service | Description | Qty | Rate | Amount
-// - Product/Service = "Employee Name Discipline" (e.g. "Jane Smith PT").
+// - Product/Service = "Last, First ROLE" (e.g. "Smith, Jane PT"), matching
+//   her real invoices ("Clayton, Sandy RN", "Eddins, Adrian BSN").
 //   ("Contract" appears on some of her real invoices, but nothing in the data
 //   model distinguishes contract work, so it is intentionally not emitted.)
 // - Description starts with the employee's initials, like her real invoices:
@@ -61,6 +62,22 @@ export const visitAbbreviations: Record<string, string> = {
 export function employeeInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   return parts.map((p) => p[0]!.toUpperCase()).join("");
+}
+
+/**
+ * "Molly Clark" -> "Clark, Molly" (QuickBooks name style on Molly's real
+ * invoices). The last word is treated as the surname; single names pass through.
+ *
+ * Known limitation (deliberate): suffixes ("John Smith Jr." -> "Jr., John Smith")
+ * and compound surnames ("Ana de la Cruz" -> "Cruz, Ana de la") are not parsed.
+ * Roster names here are simple First Last; Molly can adjust rare exceptions by
+ * editing the employee name.
+ */
+export function lastFirst(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return name.trim();
+  const last = parts[parts.length - 1]!;
+  return `${last}, ${parts.slice(0, -1).join(" ")}`;
 }
 
 /** "2026-07-12" -> "7/12/26" */
@@ -217,7 +234,7 @@ export function buildInvoiceLines(entries: InvoiceEntryInput[]): InvoiceLinesRes
     return {
       lineId: String(i + 1),
       date: b.lastDate,
-      productService: `${b.employeeName} ${b.employeeRole}`,
+      productService: `${lastFirst(b.employeeName)} ${b.employeeRole}`,
       description,
       qty: b.qty,
       ...(b.rate != null ? { rate: b.rate } : {}),

@@ -37,13 +37,14 @@ function invoiceCsv(report: InvoiceReport): string[][] {
     rows.push([
       line.date,
       line.productService,
-      line.description,
+      // Missing rates must stay visible in the file too — never a silent $0.
+      line.missingRate ? `${line.description} — NO RATE ON FILE` : line.description,
       String(line.qty),
       line.rate != null ? formatRate(line.rate) : '',
       line.amount.toFixed(2),
     ]);
   }
-  rows.push(['', '', 'Total', '', '', report.total.toFixed(2)]);
+  rows.push(['', '', 'Grand total', '', '', report.total.toFixed(2)]);
   return rows;
 }
 

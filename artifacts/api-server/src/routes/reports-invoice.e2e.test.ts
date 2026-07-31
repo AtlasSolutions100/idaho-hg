@@ -173,7 +173,8 @@ describe("GET /reports/invoice end-to-end (mid-month rate change)", () => {
       expect.objectContaining({
         qty: 2, rate: 80, amount: 160,
         description: `${initials} SNV 3/5-3/10/26`,
-        productService: `${employeeName} RN`,
+        // lastFirst(): the final word (the run tag) is treated as the surname.
+        productService: `${runTag}, E2E Invoice Nurse RN`,
         missingRate: false,
       }),
       expect.objectContaining({

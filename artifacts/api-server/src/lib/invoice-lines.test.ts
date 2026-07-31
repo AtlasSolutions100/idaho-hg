@@ -3,6 +3,7 @@ import {
   buildInvoiceLines,
   dateRangeLabel,
   employeeInitials,
+  lastFirst,
   shortDate,
   type InvoiceEntryInput,
 } from "./invoice-lines";
@@ -29,6 +30,20 @@ describe("date formatting", () => {
   });
 });
 
+describe("lastFirst", () => {
+  it("formats names QuickBooks-style like Molly's real invoices", () => {
+    expect(lastFirst("Molly Clark")).toBe("Clark, Molly");
+    expect(lastFirst("Mary Jo Baker")).toBe("Baker, Mary Jo");
+    expect(lastFirst("Cher")).toBe("Cher");
+    expect(lastFirst("  jane   smith  ")).toBe("smith, jane");
+  });
+
+  it("locks in the documented limitation: last word is always the surname", () => {
+    expect(lastFirst("John Smith Jr.")).toBe("Jr., John Smith");
+    expect(lastFirst("Ana de la Cruz")).toBe("Cruz, Ana de la");
+  });
+});
+
 describe("employeeInitials", () => {
   it("takes the first letter of each name part, uppercased", () => {
     expect(employeeInitials("Molly Clark")).toBe("MC");
@@ -52,7 +67,7 @@ describe("buildInvoiceLines", () => {
     ]);
     expect(lines).toHaveLength(1);
     expect(lines[0]).toMatchObject({
-      productService: "Jane Smith PT",
+      productService: "Smith, Jane PT",
       description: "JS SNV 7/12-7/25/26",
       qty: 3,
       rate: 120,
@@ -125,10 +140,10 @@ describe("buildInvoiceLines", () => {
       entry({ id: 3, date: "2026-07-11", visitType: "speech-therapy", visitRate: 100 }),
     ]);
     expect(lines.map((l) => [l.productService, l.kind])).toEqual([
-      ["Jane Smith PT", "visit"],
-      ["Jane Smith PT", "hourly"],
-      ["Jane Smith PT", "mileage"],
-      ["Zoe Adams RN", "visit"],
+      ["Smith, Jane PT", "visit"],
+      ["Smith, Jane PT", "hourly"],
+      ["Smith, Jane PT", "mileage"],
+      ["Adams, Zoe RN", "visit"],
     ]);
   });
 
