@@ -5,18 +5,17 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { VisitType } from './visitType';
+import type { InvoiceLineKind } from './invoiceLineKind';
 
 export interface InvoiceReportLine {
-  entryId: string;
+  lineId: string;
   date: string;
-  employeeName: string;
-  employeeRole: string;
-  visitType?: VisitType;
-  hours?: number;
+  productService: string;
+  description: string;
+  qty: number;
   rate?: number;
   amount: number;
-  billable: boolean;
+  kind: InvoiceLineKind;
   missingRate: boolean;
   note?: string;
 }

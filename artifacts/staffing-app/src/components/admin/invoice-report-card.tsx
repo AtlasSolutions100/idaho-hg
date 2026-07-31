@@ -17,29 +17,31 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { visitTypeLabels } from '@/lib/data';
 import { downloadCsv, formatMoney } from '@/lib/report-csv';
 import { format } from 'date-fns';
 import { FileSpreadsheet, Download, Loader2, AlertCircle, Inbox } from 'lucide-react';
 
+// Rates like mileage need 3 decimals (e.g. 0.655) so Qty × Rate matches Amount.
+function formatRate(rate: number): string {
+  return rate.toFixed(Number.isInteger(rate * 100) ? 2 : 3);
+}
+
+// QuickBooks-style columns, matching Molly's real invoices.
 function invoiceCsv(report: InvoiceReport): string[][] {
   const rows: string[][] = [
-    ['Client', 'Date', 'Employee', 'Role', 'Type', 'Hours', 'Rate', 'Amount', 'Note'],
+    ['Date', 'Product or service', 'Description', 'Qty', 'Rate', 'Amount'],
   ];
   for (const line of report.lines) {
     rows.push([
-      report.clientName,
       line.date,
-      line.employeeName,
-      line.employeeRole,
-      line.visitType ? visitTypeLabels[line.visitType] : 'Hourly',
-      line.hours != null ? String(line.hours) : '',
-      line.rate != null ? line.rate.toFixed(2) : '',
+      line.productService,
+      line.description,
+      String(line.qty),
+      line.rate != null ? formatRate(line.rate) : '',
       line.amount.toFixed(2),
-      line.note ?? '',
     ]);
   }
-  rows.push(['Total', '', '', '', '', '', '', report.total.toFixed(2), '']);
+  rows.push(['', '', 'Total', '', '', report.total.toFixed(2)]);
   return rows;
 }
 
@@ -167,7 +169,7 @@ export function InvoiceReportCard() {
             {report.unbilledCount > 0 && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <AlertCircle className="h-4 w-4" />
-                {report.unbilledCount} entr{report.unbilledCount === 1 ? 'y is' : 'ies are'} listed for reference but not billed — no visit type or hours recorded.
+                {report.unbilledCount} entr{report.unbilledCount === 1 ? 'y has' : 'ies have'} nothing billable (no visit, hours, mileage, or per diem) and {report.unbilledCount === 1 ? 'is' : 'are'} not shown.
               </div>
             )}
             <div className="overflow-x-auto border rounded-md">
@@ -175,36 +177,30 @@ export function InvoiceReportCard() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
-                    <TableHead>Employee</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead className="text-right">Hours</TableHead>
+                    <TableHead>Product or service</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead className="text-right">Qty</TableHead>
                     <TableHead className="text-right">Rate</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {report.lines.map((line) => (
-                    <TableRow key={line.entryId} data-testid={`invoice-line-${line.entryId}`}>
+                    <TableRow key={line.lineId} data-testid={`invoice-line-${line.lineId}`}>
                       <TableCell className="font-mono text-sm whitespace-nowrap">
-                        {format(new Date(line.date), 'MMM d, yyyy')}
+                        {format(new Date(`${line.date}T00:00:00`), 'M/d/yy')}
                       </TableCell>
-                      <TableCell>
-                        <div className="font-medium">{line.employeeName}</div>
-                        <div className="text-xs text-muted-foreground">{line.employeeRole}</div>
-                      </TableCell>
+                      <TableCell className="font-medium whitespace-nowrap">{line.productService}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1 flex-wrap">
-                          <span className="text-sm">{line.visitType ? visitTypeLabels[line.visitType] : 'Hourly'}</span>
+                          <span className="text-sm">{line.description}</span>
                           {line.missingRate && <Badge variant="destructive" className="text-xs">No rate</Badge>}
-                          {!line.billable && <Badge variant="outline" className="text-xs">Not billed</Badge>}
                         </div>
                         {line.note && <div className="text-xs text-muted-foreground mt-1">{line.note}</div>}
                       </TableCell>
-                      <TableCell className="text-right font-mono">{line.hours ?? '—'}</TableCell>
-                      <TableCell className="text-right font-mono">{line.rate != null ? formatMoney(line.rate) : '—'}</TableCell>
-                      <TableCell className="text-right font-mono font-medium">
-                        {line.billable ? formatMoney(line.amount) : '—'}
-                      </TableCell>
+                      <TableCell className="text-right font-mono">{line.qty}</TableCell>
+                      <TableCell className="text-right font-mono">{line.rate != null ? `$${formatRate(line.rate)}` : '—'}</TableCell>
+                      <TableCell className="text-right font-mono font-medium">{formatMoney(line.amount)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

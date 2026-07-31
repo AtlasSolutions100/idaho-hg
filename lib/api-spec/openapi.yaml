@@ -759,38 +759,40 @@ components:
         - grandTotal
         - entryCount
         - missingRateCount
+    InvoiceLineKind:
+      type: string
+      enum: [visit, hourly, mileage, per-diem]
     InvoiceReportLine:
       type: object
       properties:
-        entryId:
+        lineId:
           type: string
         date:
           type: string
-        employeeName:
+        productService:
           type: string
-        employeeRole:
+        description:
           type: string
-        visitType:
-          $ref: "#/components/schemas/VisitType"
-        hours:
+        qty:
           type: number
         rate:
           type: number
         amount:
           type: number
-        billable:
-          type: boolean
+        kind:
+          $ref: "#/components/schemas/InvoiceLineKind"
         missingRate:
           type: boolean
         note:
           type: string
       required:
-        - entryId
+        - lineId
         - date
-        - employeeName
-        - employeeRole
+        - productService
+        - description
+        - qty
         - amount
-        - billable
+        - kind
         - missingRate
     InvoiceReport:
       type: object

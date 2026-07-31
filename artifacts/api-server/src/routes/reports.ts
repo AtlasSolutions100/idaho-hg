@@ -7,7 +7,8 @@ import {
   type TimeEntryRow,
 } from "@workspace/db";
 import { getClientRateForDate, getEmployeeRateForDate } from "../lib/rate-lookup";
-import { computeInvoiceAmount, computePayrollAmounts, round2 } from "../lib/payroll-calc";
+import { computePayrollAmounts, round2 } from "../lib/payroll-calc";
+import { buildInvoiceLines, type InvoiceEntryInput } from "../lib/invoice-lines";
 
 const router: IRouter = Router();
 
@@ -146,69 +147,43 @@ router.get("/reports/invoice", async (req, res, next) => {
       (e) => e.clientId === clientId,
     );
 
-    const lines: Record<string, unknown>[] = [];
-    let total = 0;
-    let missingRateCount = 0;
-    let unbilledCount = 0;
-
+    // Annotate each approved entry with the rates in effect on its date:
+    // - visit entries bill the client's per-visit rate for that visit type
+    // - hourly entries bill the client's "hourly" billing rate
+    // - mileage and per diem are passed through at the employee's
+    //   reimbursement rates in effect on the entry date
+    // Missing rates produce $0 lines flagged "No rate" — never dropped.
+    const annotated: InvoiceEntryInput[] = [];
     for (const entry of entries) {
-      // Visit entries bill at the client's rate for that visit type on the
-      // entry date. Hourly-only entries (no visit type) bill hours × the
-      // client's "hourly" rate in effect on the entry date. Missing rates are
-      // shown as $0 with a "No rate" flag instead of being silently dropped.
+      const input: InvoiceEntryInput = {
+        id: entry.id,
+        date: entry.date,
+        employeeId: entry.employeeId,
+        employeeName: entry.employeeName,
+        employeeRole: entry.employeeRole,
+        visitType: entry.visitType,
+        hours: entry.hours,
+        mileage: entry.mileage,
+        perDiem: entry.perDiem,
+      };
       if (entry.visitType) {
         const rate = await getClientRateForDate(clientId, entry.visitType, entry.date);
-        const { amount, missingRate } = computeInvoiceAmount(entry, rate);
-        if (missingRate) missingRateCount += 1;
-        total = round2(total + amount);
-        lines.push({
-          entryId: String(entry.id),
-          date: entry.date,
-          employeeName: entry.employeeName,
-          employeeRole: entry.employeeRole,
-          visitType: entry.visitType,
-          ...(entry.hours != null ? { hours: entry.hours } : {}),
-          ...(rate ? { rate: rate.rate } : {}),
-          amount,
-          billable: true,
-          missingRate,
-          ...(missingRate ? { note: "No billing rate on file for this visit type/date" } : {}),
-        });
-      } else if (entry.hours != null) {
+        if (rate) input.visitRate = rate.rate;
+      } else if (entry.hours != null && entry.hours > 0) {
         const rate = await getClientRateForDate(clientId, "hourly", entry.date);
-        const missingRate = !rate;
-        if (missingRate) missingRateCount += 1;
-        const amount = rate ? round2(entry.hours * rate.rate) : 0;
-        total = round2(total + amount);
-        lines.push({
-          entryId: String(entry.id),
-          date: entry.date,
-          employeeName: entry.employeeName,
-          employeeRole: entry.employeeRole,
-          hours: entry.hours,
-          ...(rate ? { rate: rate.rate } : {}),
-          amount,
-          billable: true,
-          missingRate,
-          ...(missingRate
-            ? { note: "No hourly billing rate on file — add one on the Client Rates page" }
-            : {}),
-        });
-      } else {
-        // Entry has neither a visit type nor hours; nothing to bill.
-        unbilledCount += 1;
-        lines.push({
-          entryId: String(entry.id),
-          date: entry.date,
-          employeeName: entry.employeeName,
-          employeeRole: entry.employeeRole,
-          amount: 0,
-          billable: false,
-          missingRate: false,
-          note: "No visit type or hours recorded; not included in total",
-        });
+        if (rate) input.hourlyRate = rate.rate;
       }
+      if ((entry.mileage ?? 0) > 0 || (entry.perDiem ?? 0) > 0) {
+        const empRate = await getEmployeeRateForDate(entry.employeeId, entry.date);
+        if (empRate) {
+          input.mileageRate = empRate.mileageRate;
+          input.perDiemRate = empRate.perDiemRate;
+        }
+      }
+      annotated.push(input);
     }
+
+    const { lines, total, missingRateCount, unbilledCount } = buildInvoiceLines(annotated);
 
     res.json({
       clientId,

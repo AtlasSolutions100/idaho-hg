@@ -22,6 +22,7 @@ export * from './getInvoiceReportParams';
 export * from './getPayrollReportParams';
 export * from './getReconciliationReportParams';
 export * from './healthStatus';
+export * from './invoiceLineKind';
 export * from './invoiceReport';
 export * from './invoiceReportLine';
 export * from './listTimeEntriesParams';

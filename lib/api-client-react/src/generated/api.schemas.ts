@@ -67,16 +67,25 @@ export interface PayrollReport {
   missingRateCount: number;
 }
 
+export type InvoiceLineKind = typeof InvoiceLineKind[keyof typeof InvoiceLineKind];
+
+
+export const InvoiceLineKind = {
+  visit: 'visit',
+  hourly: 'hourly',
+  mileage: 'mileage',
+  'per-diem': 'per-diem',
+} as const;
+
 export interface InvoiceReportLine {
-  entryId: string;
+  lineId: string;
   date: string;
-  employeeName: string;
-  employeeRole: string;
-  visitType?: VisitType;
-  hours?: number;
+  productService: string;
+  description: string;
+  qty: number;
   rate?: number;
   amount: number;
-  billable: boolean;
+  kind: InvoiceLineKind;
   missingRate: boolean;
   note?: string;
 }
