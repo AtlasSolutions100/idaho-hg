@@ -7,6 +7,7 @@ import {
 } from '@workspace/api-client-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -21,21 +22,60 @@ import { downloadCsv } from '@/lib/report-csv';
 import { format } from 'date-fns';
 import { FileSpreadsheet, Download, Loader2, AlertCircle, Inbox } from 'lucide-react';
 
+function lineFlags(line: { isWeekend: boolean; isHoliday: boolean }): string {
+  const flags: string[] = [];
+  if (line.isWeekend) flags.push('Weekend');
+  if (line.isHoliday) flags.push('Holiday');
+  return flags.join(' + ');
+}
+
 function reconciliationCsv(report: ReconciliationReport): string[][] {
   const rows: string[][] = [
-    ['Client', 'Date', 'Employee', 'Role', 'Type', 'Hours', 'Note'],
+    ['Date', 'Employee', 'Role', 'Visit Type', 'Hours', 'Mileage', 'Per Diem', 'Flags', 'Notes'],
   ];
-  for (const line of report.lines) {
+  for (const emp of report.employees) {
+    for (const line of emp.lines) {
+      rows.push([
+        line.date,
+        emp.employeeName,
+        emp.employeeRole,
+        line.visitType ? visitTypeLabels[line.visitType] : line.hours != null ? 'Hourly' : '',
+        line.hours != null ? String(line.hours) : '',
+        line.mileage != null ? String(line.mileage) : '',
+        line.perDiem != null ? String(line.perDiem) : '',
+        lineFlags(line),
+        line.note,
+      ]);
+    }
+    const visitSummary = emp.visitCounts
+      .map((v) => `${visitTypeLabels[v.visitType]}: ${v.count}`)
+      .join('; ');
     rows.push([
-      report.clientName,
-      line.date,
-      line.employeeName,
-      line.employeeRole,
-      line.visitType ? visitTypeLabels[line.visitType] : 'Hourly',
-      line.hours != null ? String(line.hours) : '',
-      line.note,
+      '',
+      `${emp.employeeName} subtotal`,
+      '',
+      visitSummary,
+      String(emp.totalHours),
+      String(emp.totalMileage),
+      String(emp.totalPerDiem),
+      '',
+      '',
     ]);
   }
+  const totalVisitSummary = report.totals.visitCounts
+    .map((v) => `${visitTypeLabels[v.visitType]}: ${v.count}`)
+    .join('; ');
+  rows.push([
+    '',
+    'Grand total',
+    '',
+    totalVisitSummary,
+    String(report.totals.totalHours),
+    String(report.totals.totalMileage),
+    String(report.totals.totalPerDiem),
+    '',
+    '',
+  ]);
   return rows;
 }
 
@@ -153,42 +193,73 @@ export function ReconciliationReportCard() {
           </div>
         )}
         {report && report.entryCount > 0 && (
-          <div className="space-y-4 pt-2" data-testid="reconciliation-results">
-            <div className="overflow-x-auto border rounded-md">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Employee</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead className="text-right">Hours</TableHead>
-                    <TableHead>Note</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {report.lines.map((line) => (
-                    <TableRow key={line.entryId} data-testid={`reconciliation-line-${line.entryId}`}>
-                      <TableCell className="font-mono text-sm whitespace-nowrap">
-                        {format(new Date(line.date), 'MMM d, yyyy')}
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium">{line.employeeName}</div>
-                        <div className="text-xs text-muted-foreground">{line.employeeRole}</div>
-                      </TableCell>
-                      <TableCell className="text-sm whitespace-nowrap">
-                        {line.visitType ? visitTypeLabels[line.visitType] : 'Hourly'}
-                      </TableCell>
-                      <TableCell className="text-right font-mono">{line.hours ?? '—'}</TableCell>
-                      <TableCell className="text-sm max-w-md">
-                        {line.note !== '' ? line.note : <span className="text-muted-foreground">No note</span>}
-                      </TableCell>
-                    </TableRow>
+          <div className="space-y-6 pt-2" data-testid="reconciliation-results">
+            {report.employees.map((emp) => (
+              <div key={emp.employeeId} className="border rounded-md overflow-hidden" data-testid={`reconciliation-employee-${emp.employeeId}`}>
+                <div className="bg-muted/50 px-4 py-3 flex flex-wrap items-center gap-2 border-b">
+                  <div className="mr-auto">
+                    <span className="font-semibold">{emp.employeeName}</span>{' '}
+                    <span className="text-sm text-muted-foreground">{emp.employeeRole}</span>
+                  </div>
+                  {emp.visitCounts.map((v) => (
+                    <Badge key={v.visitType} variant="secondary" className="font-normal">
+                      {visitTypeLabels[v.visitType]}: {v.count}
+                    </Badge>
                   ))}
-                </TableBody>
-              </Table>
-            </div>
-            <div className="text-sm text-muted-foreground text-right">
-              {report.entryCount} visit{report.entryCount === 1 ? '' : 's'} for {report.clientName}
+                  <Badge variant="secondary" className="font-normal">{emp.totalHours} hrs</Badge>
+                  <Badge variant="secondary" className="font-normal">{emp.totalMileage} mi</Badge>
+                  <Badge variant="secondary" className="font-normal">Per diem: {emp.totalPerDiem}</Badge>
+                </div>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead className="text-right">Hours</TableHead>
+                        <TableHead className="text-right">Mileage</TableHead>
+                        <TableHead className="text-right">Per Diem</TableHead>
+                        <TableHead className="min-w-[16rem]">Notes</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {emp.lines.map((line) => (
+                        <TableRow key={line.entryId} data-testid={`reconciliation-line-${line.entryId}`}>
+                          <TableCell className="font-mono text-sm whitespace-nowrap">
+                            {format(new Date(`${line.date}T00:00:00`), 'MMM d, yyyy')}
+                          </TableCell>
+                          <TableCell className="text-sm whitespace-nowrap">
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <span>{line.visitType ? visitTypeLabels[line.visitType] : line.hours != null ? 'Hourly' : '—'}</span>
+                              {line.isWeekend && <Badge variant="outline" className="text-xs">Weekend</Badge>}
+                              {line.isHoliday && <Badge variant="outline" className="text-xs">Holiday</Badge>}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-mono">{line.hours ?? '—'}</TableCell>
+                          <TableCell className="text-right font-mono">{line.mileage ?? '—'}</TableCell>
+                          <TableCell className="text-right font-mono">{line.perDiem ?? '—'}</TableCell>
+                          <TableCell className="text-sm max-w-md">
+                            {line.note !== '' ? line.note : <span className="text-muted-foreground">—</span>}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            ))}
+            <div className="border rounded-md bg-muted/30 px-4 py-3 flex flex-wrap items-center gap-2" data-testid="reconciliation-totals">
+              <span className="font-semibold mr-auto">
+                Totals for {report.clientName} ({report.entryCount} entr{report.entryCount === 1 ? 'y' : 'ies'})
+              </span>
+              {report.totals.visitCounts.map((v) => (
+                <Badge key={v.visitType} variant="secondary" className="font-normal">
+                  {visitTypeLabels[v.visitType]}: {v.count}
+                </Badge>
+              ))}
+              <Badge variant="secondary" className="font-normal">{report.totals.totalHours} hrs</Badge>
+              <Badge variant="secondary" className="font-normal">{report.totals.totalMileage} mi</Badge>
+              <Badge variant="secondary" className="font-normal">Per diem: {report.totals.totalPerDiem}</Badge>
             </div>
           </div>
         )}

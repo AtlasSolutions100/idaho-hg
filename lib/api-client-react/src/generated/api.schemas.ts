@@ -105,11 +105,38 @@ export interface InvoiceReport {
 export interface ReconciliationReportLine {
   entryId: string;
   date: string;
-  employeeName: string;
-  employeeRole: string;
   visitType?: VisitType;
   hours?: number;
+  mileage?: number;
+  perDiem?: number;
+  isWeekend: boolean;
+  isHoliday: boolean;
   note: string;
+}
+
+export interface VisitTypeCount {
+  visitType: VisitType;
+  count: number;
+}
+
+export interface ReconciliationEmployeeGroup {
+  employeeId: string;
+  employeeName: string;
+  employeeRole: string;
+  lines: ReconciliationReportLine[];
+  visitCounts: VisitTypeCount[];
+  totalVisits: number;
+  totalHours: number;
+  totalMileage: number;
+  totalPerDiem: number;
+}
+
+export interface ReconciliationTotals {
+  visitCounts: VisitTypeCount[];
+  totalVisits: number;
+  totalHours: number;
+  totalMileage: number;
+  totalPerDiem: number;
 }
 
 export interface ReconciliationReport {
@@ -117,7 +144,8 @@ export interface ReconciliationReport {
   clientName: string;
   start: string;
   end: string;
-  lines: ReconciliationReportLine[];
+  employees: ReconciliationEmployeeGroup[];
+  totals: ReconciliationTotals;
   entryCount: number;
 }
 

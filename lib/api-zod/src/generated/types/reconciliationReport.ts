@@ -5,13 +5,15 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { ReconciliationReportLine } from './reconciliationReportLine';
+import type { ReconciliationEmployeeGroup } from './reconciliationEmployeeGroup';
+import type { ReconciliationTotals } from './reconciliationTotals';
 
 export interface ReconciliationReport {
   clientId: string;
   clientName: string;
   start: string;
   end: string;
-  lines: ReconciliationReportLine[];
+  employees: ReconciliationEmployeeGroup[];
+  totals: ReconciliationTotals;
   entryCount: number;
 }

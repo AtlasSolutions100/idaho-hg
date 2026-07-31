@@ -529,15 +529,40 @@ export const GetReconciliationReportResponse = zod.object({
   "clientName": zod.string(),
   "start": zod.string(),
   "end": zod.string(),
+  "employees": zod.array(zod.object({
+  "employeeId": zod.string(),
+  "employeeName": zod.string(),
+  "employeeRole": zod.string(),
   "lines": zod.array(zod.object({
   "entryId": zod.string(),
   "date": zod.string(),
-  "employeeName": zod.string(),
-  "employeeRole": zod.string(),
   "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy']).optional(),
   "hours": zod.number().optional(),
+  "mileage": zod.number().optional(),
+  "perDiem": zod.number().optional(),
+  "isWeekend": zod.boolean(),
+  "isHoliday": zod.boolean(),
   "note": zod.string()
 })),
+  "visitCounts": zod.array(zod.object({
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy']),
+  "count": zod.number()
+})),
+  "totalVisits": zod.number(),
+  "totalHours": zod.number(),
+  "totalMileage": zod.number(),
+  "totalPerDiem": zod.number()
+})),
+  "totals": zod.object({
+  "visitCounts": zod.array(zod.object({
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy']),
+  "count": zod.number()
+})),
+  "totalVisits": zod.number(),
+  "totalHours": zod.number(),
+  "totalMileage": zod.number(),
+  "totalPerDiem": zod.number()
+}),
   "entryCount": zod.number()
 })
 

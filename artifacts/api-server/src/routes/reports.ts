@@ -9,6 +9,7 @@ import {
 import { getClientRateForDate, getEmployeeRateForDate } from "../lib/rate-lookup";
 import { computePayrollAmounts, round2 } from "../lib/payroll-calc";
 import { buildInvoiceLines, type InvoiceEntryInput } from "../lib/invoice-lines";
+import { buildReconciliationReport } from "../lib/reconciliation-lines";
 
 const router: IRouter = Router();
 
@@ -228,22 +229,15 @@ router.get("/reports/reconciliation", async (req, res, next) => {
       (e) => e.clientId === clientId,
     );
 
-    const lines = entries.map((entry) => ({
-      entryId: String(entry.id),
-      date: entry.date,
-      employeeName: entry.employeeName,
-      employeeRole: entry.employeeRole,
-      ...(entry.visitType ? { visitType: entry.visitType } : {}),
-      ...(entry.hours != null ? { hours: entry.hours } : {}),
-      note: entry.note ?? "",
-    }));
+    const { employees, totals } = buildReconciliationReport(entries);
 
     res.json({
       clientId,
       clientName: client.name,
       start: range.start,
       end: range.end,
-      lines,
+      employees,
+      totals,
       entryCount: entries.length,
     });
   } catch (err) {

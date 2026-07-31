@@ -10,9 +10,11 @@ import type { VisitType } from './visitType';
 export interface ReconciliationReportLine {
   entryId: string;
   date: string;
-  employeeName: string;
-  employeeRole: string;
   visitType?: VisitType;
   hours?: number;
+  mileage?: number;
+  perDiem?: number;
+  isWeekend: boolean;
+  isHoliday: boolean;
   note: string;
 }

@@ -834,22 +834,92 @@ components:
           type: string
         date:
           type: string
-        employeeName:
-          type: string
-        employeeRole:
-          type: string
         visitType:
           $ref: "#/components/schemas/VisitType"
         hours:
           type: number
+        mileage:
+          type: number
+        perDiem:
+          type: number
+        isWeekend:
+          type: boolean
+        isHoliday:
+          type: boolean
         note:
           type: string
       required:
         - entryId
         - date
+        - isWeekend
+        - isHoliday
+        - note
+    VisitTypeCount:
+      type: object
+      properties:
+        visitType:
+          $ref: "#/components/schemas/VisitType"
+        count:
+          type: number
+      required:
+        - visitType
+        - count
+    ReconciliationEmployeeGroup:
+      type: object
+      properties:
+        employeeId:
+          type: string
+        employeeName:
+          type: string
+        employeeRole:
+          type: string
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReconciliationReportLine"
+        visitCounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/VisitTypeCount"
+        totalVisits:
+          type: number
+        totalHours:
+          type: number
+        totalMileage:
+          type: number
+        totalPerDiem:
+          type: number
+      required:
+        - employeeId
         - employeeName
         - employeeRole
-        - note
+        - lines
+        - visitCounts
+        - totalVisits
+        - totalHours
+        - totalMileage
+        - totalPerDiem
+    ReconciliationTotals:
+      type: object
+      properties:
+        visitCounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/VisitTypeCount"
+        totalVisits:
+          type: number
+        totalHours:
+          type: number
+        totalMileage:
+          type: number
+        totalPerDiem:
+          type: number
+      required:
+        - visitCounts
+        - totalVisits
+        - totalHours
+        - totalMileage
+        - totalPerDiem
     ReconciliationReport:
       type: object
       properties:
@@ -861,10 +931,12 @@ components:
           type: string
         end:
           type: string
-        lines:
+        employees:
           type: array
           items:
-            $ref: "#/components/schemas/ReconciliationReportLine"
+            $ref: "#/components/schemas/ReconciliationEmployeeGroup"
+        totals:
+          $ref: "#/components/schemas/ReconciliationTotals"
         entryCount:
           type: number
       required:
@@ -872,7 +944,8 @@ components:
         - clientName
         - start
         - end
-        - lines
+        - employees
+        - totals
         - entryCount
     Client:
       type: object
