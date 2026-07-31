@@ -4,9 +4,12 @@
 //
 // Output mirrors Molly's real QuickBooks invoices:
 //   Date | Product or service | Description | Qty | Rate | Amount
-// - Product/Service = "Employee Name Discipline" (e.g. "Jane Smith PT")
-// - Description = visit abbreviation + date range (e.g. "SNV 7/12-7/25/26"),
-//   or "Hourly ...", "Mileage ...", "Per diem ..."
+// - Product/Service = "Employee Name Discipline" (e.g. "Jane Smith PT").
+//   ("Contract" appears on some of her real invoices, but nothing in the data
+//   model distinguishes contract work, so it is intentionally not emitted.)
+// - Description starts with the employee's initials, like her real invoices:
+//   "MC SNV 7/12-7/25/26", "MC hourly 7/6-7/8/26 (12 hrs)",
+//   "MC mileage 7/12-7/13/26", "MC Per diem 7/12/26"
 // - One aggregated line per employee + type; if the rate changed mid-range
 //   the line splits per rate so amounts stay honest.
 
@@ -53,6 +56,12 @@ export const visitAbbreviations: Record<string, string> = {
   "occupational-therapy": "OT visit",
   "speech-therapy": "ST visit",
 };
+
+/** "Molly Clark" -> "MC"; single names fall back to the first letter. */
+export function employeeInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return parts.map((p) => p[0]!.toUpperCase()).join("");
+}
 
 /** "2026-07-12" -> "7/12/26" */
 export function shortDate(iso: string): string {
@@ -185,19 +194,24 @@ export function buildInvoiceLines(entries: InvoiceEntryInput[]): InvoiceLinesRes
     if (missingRate) missingRateCount += 1;
     const amount = b.rate != null ? round2(b.qty * b.rate) : 0;
     total = round2(total + amount);
+    // Descriptions follow Molly's real invoices: initials first, then the
+    // item label and date info ("MC SNV 7/12-7/25/26", "MC mileage ...").
+    const initials = employeeInitials(b.employeeName);
     let description: string;
     switch (b.kind) {
       case "visit":
-        description = `${visitAbbreviations[b.visitType ?? ""] ?? b.visitType} ${range}`;
+        description = `${initials} ${visitAbbreviations[b.visitType ?? ""] ?? b.visitType} ${range}`;
         break;
-      case "hourly":
-        description = `Hourly ${range}`;
+      case "hourly": {
+        const hrs = `${b.qty} ${b.qty === 1 ? "hr" : "hrs"}`;
+        description = `${initials} hourly ${range} (${hrs})`;
         break;
+      }
       case "mileage":
-        description = `Mileage ${range}`;
+        description = `${initials} mileage ${range}`;
         break;
       case "per-diem":
-        description = `Per diem ${range}`;
+        description = `${initials} Per diem ${range}`;
         break;
     }
     return {

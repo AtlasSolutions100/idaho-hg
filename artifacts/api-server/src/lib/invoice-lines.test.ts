@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildInvoiceLines,
   dateRangeLabel,
+  employeeInitials,
   shortDate,
   type InvoiceEntryInput,
 } from "./invoice-lines";
@@ -28,6 +29,20 @@ describe("date formatting", () => {
   });
 });
 
+describe("employeeInitials", () => {
+  it("takes the first letter of each name part, uppercased", () => {
+    expect(employeeInitials("Molly Clark")).toBe("MC");
+    expect(employeeInitials("Tina Vasquez")).toBe("TV");
+    expect(employeeInitials("Mary Jo Ellen Baker")).toBe("MJEB");
+  });
+
+  it("handles single names, stray whitespace, and unicode", () => {
+    expect(employeeInitials("Cher")).toBe("C");
+    expect(employeeInitials("  jane   smith  ")).toBe("JS");
+    expect(employeeInitials("Élodie Núñez")).toBe("ÉN");
+  });
+});
+
 describe("buildInvoiceLines", () => {
   it("aggregates visits by employee + visit type with qty and range", () => {
     const { lines, total } = buildInvoiceLines([
@@ -38,7 +53,7 @@ describe("buildInvoiceLines", () => {
     expect(lines).toHaveLength(1);
     expect(lines[0]).toMatchObject({
       productService: "Jane Smith PT",
-      description: "SNV 7/12-7/25/26",
+      description: "JS SNV 7/12-7/25/26",
       qty: 3,
       rate: 120,
       amount: 360,
@@ -55,8 +70,8 @@ describe("buildInvoiceLines", () => {
       entry({ id: 2, date: "2026-07-20", visitType: "skilled-nursing", visitRate: 130 }),
     ]);
     expect(lines).toHaveLength(2);
-    expect(lines[0]).toMatchObject({ rate: 120, qty: 1, description: "SNV 7/2/26" });
-    expect(lines[1]).toMatchObject({ rate: 130, qty: 1, description: "SNV 7/20/26" });
+    expect(lines[0]).toMatchObject({ rate: 120, qty: 1, description: "JS SNV 7/2/26" });
+    expect(lines[1]).toMatchObject({ rate: 130, qty: 1, description: "JS SNV 7/20/26" });
     expect(total).toBe(250);
   });
 
@@ -67,7 +82,7 @@ describe("buildInvoiceLines", () => {
     ]);
     expect(lines).toHaveLength(1);
     expect(lines[0]).toMatchObject({
-      description: "Hourly 7/6-7/8/26",
+      description: "JS hourly 7/6-7/8/26 (7.5 hrs)",
       qty: 7.5,
       rate: 82,
       amount: 615,
@@ -94,12 +109,12 @@ describe("buildInvoiceLines", () => {
     expect(kinds).toEqual(["visit", "mileage", "per-diem"]);
     const mileage = lines[1];
     expect(mileage).toMatchObject({
-      description: "Mileage 7/12-7/13/26",
+      description: "JS mileage 7/12-7/13/26",
       qty: 50,
       rate: 0.655,
       amount: 32.75,
     });
-    expect(lines[2]).toMatchObject({ description: "Per diem 7/12/26", qty: 1, amount: 45 });
+    expect(lines[2]).toMatchObject({ description: "JS Per diem 7/12/26", qty: 1, amount: 45 });
     expect(total).toBe(110 + 32.75 + 45);
   });
 
@@ -156,9 +171,9 @@ describe("buildInvoiceLines", () => {
     ]);
     expect(lines).toHaveLength(3);
     expect(lines.map((l) => [l.rate, l.description])).toEqual([
-      [120, "SNV 7/1/26"],
-      [130, "SNV 7/10/26"],
-      [120, "SNV 7/20/26"],
+      [120, "JS SNV 7/1/26"],
+      [130, "JS SNV 7/10/26"],
+      [120, "JS SNV 7/20/26"],
     ]);
     expect(total).toBe(370);
   });
@@ -171,7 +186,7 @@ describe("buildInvoiceLines", () => {
     ]);
     expect(lines).toHaveLength(2);
     expect(lines[0]).toMatchObject({ rate: 120, qty: 1 });
-    expect(lines[1]).toMatchObject({ rate: 130, qty: 2, description: "SNV 7/10-7/12/26" });
+    expect(lines[1]).toMatchObject({ rate: 130, qty: 2, description: "JS SNV 7/10-7/12/26" });
   });
 
   it("rounds totals to cents across many fractional lines", () => {

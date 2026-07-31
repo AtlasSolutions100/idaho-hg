@@ -24,6 +24,8 @@ let baseUrl: string;
 const runTag = `e2e-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 const clientName = `E2E Invoice Client ${runTag}`;
 const employeeName = `E2E Invoice Nurse ${runTag}`;
+// Independent expectation: "E2E Invoice Nurse e2e-..." -> initials "EINE".
+const initials = "EINE";
 
 let clientId = "";
 let employeeId = "";
@@ -170,13 +172,13 @@ describe("GET /reports/invoice end-to-end (mid-month rate change)", () => {
     expect(visitLines).toEqual([
       expect.objectContaining({
         qty: 2, rate: 80, amount: 160,
-        description: "SNV 3/5-3/10/26",
+        description: `${initials} SNV 3/5-3/10/26`,
         productService: `${employeeName} RN`,
         missingRate: false,
       }),
       expect.objectContaining({
         qty: 2, rate: 100, amount: 200,
-        description: "SNV 3/16-3/20/26",
+        description: `${initials} SNV 3/16-3/20/26`,
         missingRate: false,
       }),
     ]);
@@ -184,18 +186,18 @@ describe("GET /reports/invoice end-to-end (mid-month rate change)", () => {
     // Hourly lines split too.
     const hourlyLines = lines.filter((l: any) => l.kind === "hourly");
     expect(hourlyLines).toEqual([
-      expect.objectContaining({ qty: 3, rate: 60, amount: 180, description: "Hourly 3/8/26" }),
-      expect.objectContaining({ qty: 2, rate: 75, amount: 150, description: "Hourly 3/18/26" }),
+      expect.objectContaining({ qty: 3, rate: 60, amount: 180, description: `${initials} hourly 3/8/26 (3 hrs)` }),
+      expect.objectContaining({ qty: 2, rate: 75, amount: 150, description: `${initials} hourly 3/18/26 (2 hrs)` }),
     ]);
 
     // Mileage and per-diem pass through at the employee's reimbursement rates.
     const mileageLines = lines.filter((l: any) => l.kind === "mileage");
     expect(mileageLines).toEqual([
-      expect.objectContaining({ qty: 10, rate: 0.7, amount: 7, description: "Mileage 3/10/26" }),
+      expect.objectContaining({ qty: 10, rate: 0.7, amount: 7, description: `${initials} mileage 3/10/26` }),
     ]);
     const perDiemLines = lines.filter((l: any) => l.kind === "per-diem");
     expect(perDiemLines).toEqual([
-      expect.objectContaining({ qty: 1, rate: 50, amount: 50, description: "Per diem 3/20/26" }),
+      expect.objectContaining({ qty: 1, rate: 50, amount: 50, description: `${initials} Per diem 3/20/26` }),
     ]);
 
     expect(lines).toHaveLength(6);
