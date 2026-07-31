@@ -30,8 +30,21 @@ function lineFlags(line: { isWeekend: boolean; isHoliday: boolean }): string {
   return flags.join(' + ');
 }
 
+/** Zero and null become blank cells — the CSV stays quiet where there's nothing to say. */
+function num(value: number | null | undefined): string {
+  return value != null && value !== 0 ? String(value) : '';
+}
+
+function visitSummary(counts: { visitType: string; count: number }[]): string {
+  return counts
+    .map((v) => `${visitTypeLabels[v.visitType as keyof typeof visitTypeLabels] ?? v.visitType}: ${v.count}`)
+    .join('; ');
+}
+
 function reconciliationCsv(report: ReconciliationReport): string[][] {
   const rows: string[][] = [
+    [`${report.clientName} — Reconciliation ${report.start} to ${report.end}`, '', '', '', '', '', '', '', ''],
+    [],
     ['Date', 'Employee', 'Role', 'Visit Type', 'Hours', 'Mileage', 'Per Diem', 'Flags', 'Notes'],
   ];
   for (const emp of report.employees) {
@@ -41,39 +54,35 @@ function reconciliationCsv(report: ReconciliationReport): string[][] {
         emp.employeeName,
         emp.employeeRole,
         line.visitType ? visitTypeLabels[line.visitType] : line.hours != null ? 'Hourly' : '',
-        line.hours != null ? String(line.hours) : '',
-        line.mileage != null ? String(line.mileage) : '',
-        line.perDiem != null ? String(line.perDiem) : '',
+        num(line.hours),
+        num(line.mileage),
+        num(line.perDiem),
         lineFlags(line),
         line.note,
       ]);
     }
-    const visitSummary = emp.visitCounts
-      .map((v) => `${visitTypeLabels[v.visitType]}: ${v.count}`)
-      .join('; ');
     rows.push([
       '',
-      `${emp.employeeName} subtotal`,
+      `${emp.employeeName} — subtotal`,
       '',
-      visitSummary,
-      String(emp.totalHours),
-      String(emp.totalMileage),
-      String(emp.totalPerDiem),
+      visitSummary(emp.visitCounts),
+      num(emp.totalHours),
+      num(emp.totalMileage),
+      num(emp.totalPerDiem),
       '',
       '',
     ]);
+    // Blank separator row between employee sections.
+    rows.push([]);
   }
-  const totalVisitSummary = report.totals.visitCounts
-    .map((v) => `${visitTypeLabels[v.visitType]}: ${v.count}`)
-    .join('; ');
   rows.push([
     '',
     'Grand total',
     '',
-    totalVisitSummary,
-    String(report.totals.totalHours),
-    String(report.totals.totalMileage),
-    String(report.totals.totalPerDiem),
+    visitSummary(report.totals.visitCounts),
+    num(report.totals.totalHours),
+    num(report.totals.totalMileage),
+    num(report.totals.totalPerDiem),
     '',
     '',
   ]);
@@ -208,23 +217,20 @@ export function ReconciliationReportCard() {
             <p className="text-sm mt-1">Approve entries on the Approve Payroll page first.</p>
           </div>
         )}
-        {report && report.entryCount > 0 && (
+        {report && report.entryCount > 0 && (() => {
+          // Which measures actually appear anywhere in this report? Columns
+          // with no data are dropped so a visit-heavy client (St. Luke's) and
+          // an hours-based client (Weiser) each get an uncluttered layout.
+          const hasHours = report.employees.some((e) => e.totalHours > 0);
+          const hasMileage = report.employees.some((e) => e.totalMileage > 0);
+          const hasPerDiem = report.employees.some((e) => e.totalPerDiem > 0);
+          return (
           <div className="space-y-6 pt-2" data-testid="reconciliation-results">
             {report.employees.map((emp) => (
               <div key={emp.employeeId} className="border rounded-md overflow-hidden" data-testid={`reconciliation-employee-${emp.employeeId}`}>
-                <div className="bg-muted/50 px-4 py-3 flex flex-wrap items-center gap-2 border-b">
-                  <div className="mr-auto">
-                    <span className="font-semibold">{emp.employeeName}</span>{' '}
-                    <span className="text-sm text-muted-foreground">{emp.employeeRole}</span>
-                  </div>
-                  {emp.visitCounts.map((v) => (
-                    <Badge key={v.visitType} variant="secondary" className="font-normal">
-                      {visitTypeLabels[v.visitType]}: {v.count}
-                    </Badge>
-                  ))}
-                  <Badge variant="secondary" className="font-normal">{emp.totalHours} hrs</Badge>
-                  <Badge variant="secondary" className="font-normal">{emp.totalMileage} mi</Badge>
-                  <Badge variant="secondary" className="font-normal">Per diem: {emp.totalPerDiem}</Badge>
+                <div className="bg-muted/50 px-4 py-3 border-b">
+                  <span className="font-semibold">{emp.employeeName}</span>{' '}
+                  <span className="text-sm text-muted-foreground">{emp.employeeRole}</span>
                 </div>
                 <div className="overflow-x-auto">
                   <Table>
@@ -232,9 +238,9 @@ export function ReconciliationReportCard() {
                       <TableRow>
                         <TableHead>Date</TableHead>
                         <TableHead>Type</TableHead>
-                        <TableHead className="text-right">Hours</TableHead>
-                        <TableHead className="text-right">Mileage</TableHead>
-                        <TableHead className="text-right">Per Diem</TableHead>
+                        {hasHours && <TableHead className="text-right">Hours</TableHead>}
+                        {hasMileage && <TableHead className="text-right">Mileage</TableHead>}
+                        {hasPerDiem && <TableHead className="text-right">Per Diem</TableHead>}
                         <TableHead className="min-w-[16rem]">Notes</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -246,21 +252,35 @@ export function ReconciliationReportCard() {
                           </TableCell>
                           <TableCell className="text-sm whitespace-nowrap">
                             <div className="flex items-center gap-1 flex-wrap">
-                              <span>{line.visitType ? visitTypeLabels[line.visitType] : line.hours != null ? 'Hourly' : '—'}</span>
+                              <span>{line.visitType ? visitTypeLabels[line.visitType] : line.hours != null ? 'Hourly' : ''}</span>
                               {line.isWeekend && <Badge variant="outline" className="text-xs">Weekend</Badge>}
                               {line.isHoliday && <Badge variant="outline" className="text-xs">Holiday</Badge>}
                             </div>
                           </TableCell>
-                          <TableCell className="text-right font-mono">{line.hours ?? '—'}</TableCell>
-                          <TableCell className="text-right font-mono">{line.mileage ?? '—'}</TableCell>
-                          <TableCell className="text-right font-mono">{line.perDiem ?? '—'}</TableCell>
-                          <TableCell className="text-sm max-w-md">
-                            {line.note !== '' ? line.note : <span className="text-muted-foreground">—</span>}
+                          {hasHours && <TableCell className="text-right font-mono">{line.hours || ''}</TableCell>}
+                          {hasMileage && <TableCell className="text-right font-mono">{line.mileage || ''}</TableCell>}
+                          {hasPerDiem && <TableCell className="text-right font-mono">{line.perDiem || ''}</TableCell>}
+                          <TableCell className="text-sm max-w-md whitespace-normal">
+                            {line.note !== '' && <span className="font-medium">{line.note}</span>}
                           </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
+                </div>
+                <div
+                  className="bg-muted/30 px-4 py-2.5 flex flex-wrap items-center gap-2 border-t text-sm"
+                  data-testid={`reconciliation-subtotal-${emp.employeeId}`}
+                >
+                  <span className="font-medium mr-auto">{emp.employeeName} — subtotal</span>
+                  {emp.visitCounts.map((v) => (
+                    <Badge key={v.visitType} variant="secondary" className="font-normal">
+                      {visitTypeLabels[v.visitType]}: {v.count}
+                    </Badge>
+                  ))}
+                  {emp.totalHours > 0 && <Badge variant="secondary" className="font-normal">{emp.totalHours} hrs</Badge>}
+                  {emp.totalMileage > 0 && <Badge variant="secondary" className="font-normal">{emp.totalMileage} mi</Badge>}
+                  {emp.totalPerDiem > 0 && <Badge variant="secondary" className="font-normal">Per diem: {emp.totalPerDiem}</Badge>}
                 </div>
               </div>
             ))}
@@ -273,12 +293,13 @@ export function ReconciliationReportCard() {
                   {visitTypeLabels[v.visitType]}: {v.count}
                 </Badge>
               ))}
-              <Badge variant="secondary" className="font-normal">{report.totals.totalHours} hrs</Badge>
-              <Badge variant="secondary" className="font-normal">{report.totals.totalMileage} mi</Badge>
-              <Badge variant="secondary" className="font-normal">Per diem: {report.totals.totalPerDiem}</Badge>
+              {hasHours && <Badge variant="secondary" className="font-normal">{report.totals.totalHours} hrs</Badge>}
+              {hasMileage && <Badge variant="secondary" className="font-normal">{report.totals.totalMileage} mi</Badge>}
+              {hasPerDiem && <Badge variant="secondary" className="font-normal">Per diem: {report.totals.totalPerDiem}</Badge>}
             </div>
           </div>
-        )}
+          );
+        })()}
       </CardContent>
     </Card>
   );
