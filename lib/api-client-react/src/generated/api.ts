@@ -34,6 +34,7 @@ import type {
   GetInvoiceReportParams,
   GetPayrollReportParams,
   GetReconciliationReportParams,
+  GetWorkflowStatusParams,
   HealthStatus,
   InvoiceReport,
   ListTimeEntriesParams,
@@ -43,7 +44,9 @@ import type {
   TimeEntry,
   UpdateClientRate,
   UpdateEmployeeRate,
-  UpdateOnboardingItem
+  UpdateOnboardingItem,
+  WorkflowStatus,
+  WorkflowStatusUpdate
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -1698,6 +1701,161 @@ export const useRemoveDemoData = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getRemoveDemoDataMutationOptions(options));
+    }
+
+export const getGetWorkflowStatusUrl = (params: GetWorkflowStatusParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/workflow-status?${stringifiedParams}` : `/api/workflow-status`
+}
+
+/**
+ * @summary Get manual check-offs for a period (defaults false when unset)
+ */
+export const getWorkflowStatus = async (params: GetWorkflowStatusParams, options?: Parameters<typeof customFetch>[1]): Promise<WorkflowStatus> => {
+
+  return customFetch<WorkflowStatus>(getGetWorkflowStatusUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWorkflowStatusQueryKey = (params?: GetWorkflowStatusParams,) => {
+    return [
+    `/api/workflow-status`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetWorkflowStatusQueryOptions = <TData = Awaited<ReturnType<typeof getWorkflowStatus>>, TError = ErrorType<unknown>>(params: GetWorkflowStatusParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWorkflowStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWorkflowStatusQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWorkflowStatus>>> = ({ signal }) => getWorkflowStatus(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWorkflowStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetWorkflowStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getWorkflowStatus>>>
+export type GetWorkflowStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get manual check-offs for a period (defaults false when unset)
+ */
+
+export function useGetWorkflowStatus<TData = Awaited<ReturnType<typeof getWorkflowStatus>>, TError = ErrorType<unknown>>(
+ params: GetWorkflowStatusParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getWorkflowStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetWorkflowStatusQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateWorkflowStatusUrl = () => {
+
+
+
+
+  return `/api/workflow-status`
+}
+
+/**
+ * @summary Update manual check-offs for a period (partial; omitted flags keep their value)
+ */
+export const updateWorkflowStatus = async (workflowStatusUpdate: WorkflowStatusUpdate, options?: Parameters<typeof customFetch>[1]): Promise<WorkflowStatus> => {
+
+  return customFetch<WorkflowStatus>(getUpdateWorkflowStatusUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(workflowStatusUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateWorkflowStatusMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateWorkflowStatus>>, TError,{data: BodyType<WorkflowStatusUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateWorkflowStatus>>, TError,{data: BodyType<WorkflowStatusUpdate>}, TContext> => {
+
+const mutationKey = ['updateWorkflowStatus'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateWorkflowStatus>>, {data: BodyType<WorkflowStatusUpdate>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateWorkflowStatus(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateWorkflowStatusMutationResult = NonNullable<Awaited<ReturnType<typeof updateWorkflowStatus>>>
+    export type UpdateWorkflowStatusMutationBody = BodyType<WorkflowStatusUpdate>
+    export type UpdateWorkflowStatusMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update manual check-offs for a period (partial; omitted flags keep their value)
+ */
+export const useUpdateWorkflowStatus = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateWorkflowStatus>>, TError,{data: BodyType<WorkflowStatusUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateWorkflowStatus>>,
+        TError,
+        {data: BodyType<WorkflowStatusUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateWorkflowStatusMutationOptions(options));
     }
 
 export const getGetPayrollReportUrl = (params: GetPayrollReportParams,) => {

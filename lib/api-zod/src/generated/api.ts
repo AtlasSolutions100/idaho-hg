@@ -481,6 +481,36 @@ export const RemoveDemoDataResponse = zod.object({
 
 
 /**
+ * @summary Get manual check-offs for a period (defaults false when unset)
+ */
+export const GetWorkflowStatusQueryParams = zod.object({
+  "period": zod.coerce.string()
+})
+
+export const GetWorkflowStatusResponse = zod.object({
+  "period": zod.string(),
+  "exportDone": zod.boolean(),
+  "invoicesDone": zod.boolean()
+})
+
+
+/**
+ * @summary Update manual check-offs for a period (partial; omitted flags keep their value)
+ */
+export const UpdateWorkflowStatusBody = zod.object({
+  "period": zod.string(),
+  "exportDone": zod.boolean().optional(),
+  "invoicesDone": zod.boolean().optional()
+})
+
+export const UpdateWorkflowStatusResponse = zod.object({
+  "period": zod.string(),
+  "exportDone": zod.boolean(),
+  "invoicesDone": zod.boolean()
+})
+
+
+/**
  * @summary Payroll report from approved entries in a date range
  */
 export const GetPayrollReportQueryParams = zod.object({

@@ -1,18 +1,13 @@
-import { useListTimeEntries } from '@workspace/api-client-react';
+import {
+  useListTimeEntries,
+  useGetWorkflowStatus,
+  useUpdateWorkflowStatus,
+  getGetWorkflowStatusQueryKey,
+} from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
-import { Check } from 'lucide-react';
-
-// The natural weekly sequence, in order. Steps after approval can't be
-// auto-detected as "done" (downloads are informational), so once approval is
-// complete the export step is recommended and the rest follow.
-export const WORKFLOW_STEPS = [
-  'Approve Payroll',
-  'Payroll Export (Pezwise)',
-  'Client Invoices',
-  'Reconciliation Reports',
-] as const;
-
-export type StepState = 'done' | 'next' | 'upcoming';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Check, Clock } from 'lucide-react';
 
 export interface ReadyClient {
   clientId: string;
@@ -25,11 +20,10 @@ export interface WorkflowSnapshot {
   pendingCount: number;
   approvedCount: number;
   readyClients: ReadyClient[];
-  stepStates: StepState[];
 }
 
 /**
- * Derives the current stage of the weekly workflow from time-entry data.
+ * Derives period status from time-entry data.
  * Optionally scoped to a date range (YYYY-MM-DD, inclusive).
  */
 export function useWorkflowSnapshot(range?: { start: string; end: string }): WorkflowSnapshot {
@@ -55,75 +49,128 @@ export function useWorkflowSnapshot(range?: { start: string; end: string }): Wor
     a.clientName.localeCompare(b.clientName),
   );
 
-  const approvedCount = approvedEntries.length;
-  const step1: StepState =
-    pendingCount > 0 ? 'next' : approvedCount > 0 ? 'done' : 'upcoming';
-  const step2: StepState = step1 === 'done' ? 'next' : 'upcoming';
-
   return {
     isLoading: entriesQuery.isLoading,
     pendingCount,
-    approvedCount,
+    approvedCount: approvedEntries.length,
     readyClients,
-    stepStates: [step1, step2, 'upcoming', 'upcoming'],
+  };
+}
+
+/** Monday of the current week (local time), YYYY-MM-DD — the check-off period key. */
+export function currentPeriodKey(): string {
+  const now = new Date();
+  const day = now.getDay(); // 0 = Sunday
+  const diff = day === 0 ? 6 : day - 1;
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff);
+  return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+}
+
+/** Manual check-offs for the current week. Fresh weeks start unchecked. */
+export function useWorkflowCheckoffs() {
+  const period = currentPeriodKey();
+  const queryClient = useQueryClient();
+  const statusQuery = useGetWorkflowStatus({ period });
+  const mutation = useUpdateWorkflowStatus({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetWorkflowStatusQueryKey({ period }) });
+      },
+    },
+  });
+
+  const exportDone = statusQuery.data?.exportDone ?? false;
+  const invoicesDone = statusQuery.data?.invoicesDone ?? false;
+
+  return {
+    isLoading: statusQuery.isLoading,
+    exportDone,
+    invoicesDone,
+    // Partial updates: only the toggled flag is sent, so rapid toggles of
+    // both boxes can't overwrite each other with stale values.
+    setExportDone: (v: boolean) => mutation.mutate({ data: { period, exportDone: v } }),
+    setInvoicesDone: (v: boolean) => mutation.mutate({ data: { period, invoicesDone: v } }),
   };
 }
 
 /**
- * Lightweight four-step progress strip. The recommended next step is
- * emphasized; completed steps show a check; the rest stay muted. Purely
- * informational — nothing is gated.
+ * Calm, non-linear weekly checklist. Approval state comes from real data;
+ * export and invoices are manual check-offs; reconciliation is informational.
+ * Nothing is gated.
  */
-export function WorkflowProgress({
-  stepStates,
+export function WeeklyChecklist({
+  snapshot,
+  checkoffs,
   className,
 }: {
-  stepStates: StepState[];
+  snapshot: WorkflowSnapshot;
+  checkoffs: ReturnType<typeof useWorkflowCheckoffs>;
   className?: string;
 }) {
+  const { pendingCount, approvedCount } = snapshot;
+  const approvalDone = pendingCount === 0 && approvedCount > 0;
+
   return (
-    <ol className={cn('flex flex-wrap items-center gap-y-2', className)} data-testid="workflow-progress">
-      {WORKFLOW_STEPS.map((label, i) => {
-        const state = stepStates[i] ?? 'upcoming';
-        return (
-          <li key={label} className="flex items-center">
-            {i > 0 && (
-              <div className="mx-2 h-px w-4 sm:w-8 bg-border" aria-hidden="true" />
-            )}
-            <div
-              aria-current={state === 'next' ? 'step' : undefined}
-              className={cn(
-                'flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-smooth',
-                state === 'next' && 'border-primary bg-primary/10 text-primary font-medium',
-                state === 'done' && 'border-transparent bg-muted text-muted-foreground',
-                state === 'upcoming' && 'border-transparent text-muted-foreground',
-              )}
-              data-testid={`workflow-step-${i + 1}`}
-            >
-              <span
-                className={cn(
-                  'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
-                  state === 'next' && 'bg-primary text-primary-foreground',
-                  state === 'done' && 'bg-primary/15 text-primary',
-                  state === 'upcoming' && 'bg-muted text-muted-foreground',
-                )}
-                aria-hidden="true"
-              >
-                {state === 'done' ? <Check className="h-3 w-3" /> : i + 1}
-              </span>
-              <span className="whitespace-nowrap">{label}</span>
-              <span className="sr-only">
-                {state === 'done' ? ' (done)' : state === 'next' ? ' (next step)' : ' (upcoming)'}
-              </span>
-              {state === 'next' && (
-                <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-foreground">
-                  Next
-                </span>
-              )}
-            </div>
-          </li>
-        );
-      })}
-    </ol>
+    <ul className={cn('space-y-2', className)} data-testid="workflow-progress">
+      {/* Approval: derived from data, not checkable */}
+      <li className="flex items-center gap-3 text-sm" data-testid="checklist-approve">
+        <span
+          className={cn(
+            'flex h-5 w-5 shrink-0 items-center justify-center rounded-full',
+            approvalDone ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+          )}
+          aria-hidden="true"
+        >
+          {approvalDone ? <Check className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+        </span>
+        <span className={cn(approvalDone && 'text-muted-foreground')}>
+          Approve payroll
+          {pendingCount > 0 && (
+            <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+              {pendingCount} waiting
+            </span>
+          )}
+          {approvalDone && <span className="sr-only"> (done)</span>}
+        </span>
+      </li>
+
+      {/* Manual check-offs */}
+      <li className="flex items-center gap-3 text-sm" data-testid="checklist-export">
+        <Checkbox
+          id="checkoff-export"
+          checked={checkoffs.exportDone}
+          onCheckedChange={(v) => checkoffs.setExportDone(v === true)}
+          data-testid="checkbox-export-done"
+        />
+        <label
+          htmlFor="checkoff-export"
+          className={cn('cursor-pointer', checkoffs.exportDone && 'text-muted-foreground line-through decoration-muted-foreground/40')}
+        >
+          Payroll Export (Pezwise)
+        </label>
+      </li>
+      <li className="flex items-center gap-3 text-sm" data-testid="checklist-invoices">
+        <Checkbox
+          id="checkoff-invoices"
+          checked={checkoffs.invoicesDone}
+          onCheckedChange={(v) => checkoffs.setInvoicesDone(v === true)}
+          data-testid="checkbox-invoices-done"
+        />
+        <label
+          htmlFor="checkoff-invoices"
+          className={cn('cursor-pointer', checkoffs.invoicesDone && 'text-muted-foreground line-through decoration-muted-foreground/40')}
+        >
+          Client Invoices
+        </label>
+      </li>
+
+      {/* Informational — generated per client as needed */}
+      <li className="flex items-center gap-3 text-sm text-muted-foreground" data-testid="checklist-reconciliation">
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden="true">
+          <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
+        </span>
+        Reconciliation reports — per client, as needed
+      </li>
+    </ul>
   );
 }

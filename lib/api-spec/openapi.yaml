@@ -22,6 +22,8 @@ tags:
     description: Payroll and invoice reports computed from approved time entries
   - name: demo
     description: Load and remove clearly-labeled practice (demo) data
+  - name: workflow
+    description: Lightweight per-period check-offs for the weekly guide
 paths:
   /healthz:
     get:
@@ -488,6 +490,41 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DemoDataStatus"
+  /workflow-status:
+    get:
+      operationId: getWorkflowStatus
+      tags: [workflow]
+      summary: Get manual check-offs for a period (defaults false when unset)
+      parameters:
+        - name: period
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Workflow status for the period
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowStatus"
+    put:
+      operationId: updateWorkflowStatus
+      tags: [workflow]
+      summary: Update manual check-offs for a period (partial; omitted flags keep their value)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowStatusUpdate"
+      responses:
+        "200":
+          description: Updated workflow status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowStatus"
   /reports/payroll:
     get:
       operationId: getPayrollReport
@@ -983,6 +1020,30 @@ components:
         - employees
         - totals
         - entryCount
+    WorkflowStatus:
+      type: object
+      properties:
+        period:
+          type: string
+        exportDone:
+          type: boolean
+        invoicesDone:
+          type: boolean
+      required:
+        - period
+        - exportDone
+        - invoicesDone
+    WorkflowStatusUpdate:
+      type: object
+      properties:
+        period:
+          type: string
+        exportDone:
+          type: boolean
+        invoicesDone:
+          type: boolean
+      required:
+        - period
     DemoDataStatus:
       type: object
       properties:

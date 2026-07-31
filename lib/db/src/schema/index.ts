@@ -3,3 +3,4 @@ export * from "./time-entries";
 export * from "./rates";
 export * from "./onboarding";
 export * from "./roster";
+export * from "./workflow-status";

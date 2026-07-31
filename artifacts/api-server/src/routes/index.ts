@@ -6,6 +6,7 @@ import onboardingRouter from "./onboarding";
 import rosterRouter from "./roster";
 import reportsRouter from "./reports";
 import demoDataRouter from "./demo-data";
+import workflowStatusRouter from "./workflow-status";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(onboardingRouter);
 router.use(rosterRouter);
 router.use(reportsRouter);
 router.use(demoDataRouter);
+router.use(workflowStatusRouter);
 
 export default router;

@@ -149,6 +149,18 @@ export interface ReconciliationReport {
   entryCount: number;
 }
 
+export interface WorkflowStatus {
+  period: string;
+  exportDone: boolean;
+  invoicesDone: boolean;
+}
+
+export interface WorkflowStatusUpdate {
+  period: string;
+  exportDone?: boolean;
+  invoicesDone?: boolean;
+}
+
 export interface DemoDataStatus {
   loaded: boolean;
   clientCount: number;
@@ -330,6 +342,10 @@ export interface ApiError {
 export type ListTimeEntriesParams = {
 employeeId?: string;
 status?: EntryStatus;
+};
+
+export type GetWorkflowStatusParams = {
+period: string;
 };
 
 export type GetPayrollReportParams = {
