@@ -157,6 +157,41 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/ClientRate"
+    post:
+      operationId: createClientRate
+      tags: [rates]
+      summary: Add a new billing rate type (e.g. hourly) for an existing client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateClientRate"
+      responses:
+        "201":
+          description: Created client rate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientRate"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: A rate of this type already exists for the client
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /client-rates/{id}:
     patch:
       operationId: updateClientRate
@@ -927,7 +962,7 @@ components:
         clientName:
           type: string
         visitType:
-          $ref: "#/components/schemas/VisitType"
+          $ref: "#/components/schemas/ClientRateType"
         rate:
           type: number
         effectiveDate:
@@ -948,6 +983,24 @@ components:
         effectiveDate:
           type: string
       required:
+        - rate
+        - effectiveDate
+    CreateClientRate:
+      type: object
+      properties:
+        clientId:
+          type: string
+          minLength: 1
+        rateType:
+          $ref: "#/components/schemas/ClientRateType"
+        rate:
+          type: number
+          minimum: 0
+        effectiveDate:
+          type: string
+      required:
+        - clientId
+        - rateType
         - rate
         - effectiveDate
     EmployeeRate:
@@ -1031,6 +1084,9 @@ components:
     VisitType:
       type: string
       enum: [skilled-nursing, physical-therapy, occupational-therapy, speech-therapy]
+    ClientRateType:
+      type: string
+      enum: [skilled-nursing, physical-therapy, occupational-therapy, speech-therapy, hourly]
     TimeEntry:
       type: object
       properties:

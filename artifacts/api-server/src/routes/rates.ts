@@ -10,6 +10,7 @@ import {
   type EmployeeRateRow,
 } from "@workspace/db";
 import {
+  CreateClientRateBody,
   UpdateClientRateBody,
   UpdateEmployeeRateBody,
 } from "@workspace/api-zod";
@@ -149,6 +150,7 @@ async function ensureSeeded() {
   seeded = true;
 }
 
+
 router.get("/client-rates", async (_req, res, next) => {
   try {
     await ensureSeeded();
@@ -162,6 +164,52 @@ router.get("/client-rates", async (_req, res, next) => {
         a.clientName.localeCompare(b.clientName) || a.visitType.localeCompare(b.visitType),
       );
     res.json(current.map(serializeClientRate));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Adds a new rate type for an existing client (e.g. an hourly rate). Rejects
+// duplicates: once a client has any history rows for a rate type, changes go
+// through PATCH so the history stays append-only.
+router.post("/client-rates", async (req, res, next) => {
+  try {
+    await ensureSeeded();
+    const parsed = CreateClientRateBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: parsed.error.issues[0]?.message ?? "Invalid rate" });
+      return;
+    }
+    const { clientId, rateType, rate, effectiveDate } = parsed.data;
+    const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
+    if (!client || !client.active) {
+      res.status(404).json({ message: "Client not found" });
+      return;
+    }
+    const [existing] = await db
+      .select()
+      .from(clientRatesTable)
+      .where(
+        and(eq(clientRatesTable.clientId, clientId), eq(clientRatesTable.visitType, rateType)),
+      )
+      .limit(1);
+    if (existing) {
+      res
+        .status(409)
+        .json({ message: "This client already has a rate of this type — edit it instead" });
+      return;
+    }
+    const [row] = await db
+      .insert(clientRatesTable)
+      .values({
+        clientId,
+        clientName: client.name,
+        visitType: rateType,
+        rate,
+        effectiveDate,
+      })
+      .returning();
+    res.status(201).json(serializeClientRate(row));
   } catch (err) {
     next(err);
   }

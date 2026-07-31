@@ -166,11 +166,36 @@ export const ListClientRatesResponseItem = zod.object({
   "id": zod.string(),
   "clientId": zod.string(),
   "clientName": zod.string(),
-  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy']),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'hourly']),
   "rate": zod.number(),
   "effectiveDate": zod.string()
 })
 export const ListClientRatesResponse = zod.array(ListClientRatesResponseItem)
+
+
+/**
+ * @summary Add a new billing rate type (e.g. hourly) for an existing client
+ */
+
+export const createClientRateBodyRateMin = 0;
+
+
+
+export const CreateClientRateBody = zod.object({
+  "clientId": zod.string().min(1),
+  "rateType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'hourly']),
+  "rate": zod.number().min(createClientRateBodyRateMin),
+  "effectiveDate": zod.string()
+})
+
+export const CreateClientRateResponse = zod.object({
+  "id": zod.string(),
+  "clientId": zod.string(),
+  "clientName": zod.string(),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'hourly']),
+  "rate": zod.number(),
+  "effectiveDate": zod.string()
+})
 
 
 /**
@@ -193,7 +218,7 @@ export const UpdateClientRateResponse = zod.object({
   "id": zod.string(),
   "clientId": zod.string(),
   "clientName": zod.string(),
-  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy']),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'hourly']),
   "rate": zod.number(),
   "effectiveDate": zod.string()
 })
@@ -210,7 +235,7 @@ export const ListClientRateHistoryResponseItem = zod.object({
   "id": zod.string(),
   "clientId": zod.string(),
   "clientName": zod.string(),
-  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy']),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'hourly']),
   "rate": zod.number(),
   "effectiveDate": zod.string()
 })

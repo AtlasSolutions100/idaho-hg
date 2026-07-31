@@ -152,16 +152,36 @@ export interface EmployeeInput {
   holidayMultiplier: number;
 }
 
+export type ClientRateType = typeof ClientRateType[keyof typeof ClientRateType];
+
+
+export const ClientRateType = {
+  'skilled-nursing': 'skilled-nursing',
+  'physical-therapy': 'physical-therapy',
+  'occupational-therapy': 'occupational-therapy',
+  'speech-therapy': 'speech-therapy',
+  hourly: 'hourly',
+} as const;
+
 export interface ClientRate {
   id: string;
   clientId: string;
   clientName: string;
-  visitType: VisitType;
+  visitType: ClientRateType;
   rate: number;
   effectiveDate: string;
 }
 
 export interface UpdateClientRate {
+  /** @minimum 0 */
+  rate: number;
+  effectiveDate: string;
+}
+
+export interface CreateClientRate {
+  /** @minLength 1 */
+  clientId: string;
+  rateType: ClientRateType;
   /** @minimum 0 */
   rate: number;
   effectiveDate: string;

@@ -5,6 +5,7 @@ import {
   useUpdateClientRate,
   useListClientRateHistory,
   useCreateClient,
+  useCreateClientRate,
   useRemoveClient,
   getListClientRatesQueryKey,
   getListClientRateHistoryQueryKey,
@@ -26,8 +27,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { visitTypeLabels, type VisitType } from '@/lib/data';
-import { Pencil, Loader2, AlertCircle, History, Plus, Trash2 } from 'lucide-react';
+import { visitTypeLabels, clientRateTypeLabels, type VisitType } from '@/lib/data';
+import { Pencil, Loader2, AlertCircle, History, Plus, Trash2, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export function ClientRatesTable() {
@@ -46,6 +47,11 @@ export function ClientRatesTable() {
   const [newRate, setNewRate] = useState('');
   const [addError, setAddError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<{ clientId: string; clientName: string } | null>(null);
+
+  const [hourlyFor, setHourlyFor] = useState<{ clientId: string; clientName: string } | null>(null);
+  const [hourlyRate, setHourlyRate] = useState('');
+  const [hourlyDate, setHourlyDate] = useState('');
+  const [hourlyError, setHourlyError] = useState<string | null>(null);
 
   const historyQuery = useListClientRateHistory(historyFor?.id ?? '', {
     query: {
@@ -120,6 +126,57 @@ export function ClientRatesTable() {
       },
     },
   });
+
+  const createRateMutation = useCreateClientRate({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListClientRatesQueryKey() });
+        setHourlyFor(null);
+        toast({
+          title: 'Hourly rate added',
+          description: 'Hourly time entries for this client will now be billed on invoices.',
+        });
+      },
+      onError: (error) => {
+        const serverMessage =
+          error && typeof error === 'object' && 'data' in error &&
+          error.data && typeof error.data === 'object' && 'message' in error.data &&
+          typeof (error.data as { message?: unknown }).message === 'string'
+            ? (error.data as { message: string }).message
+            : null;
+        setHourlyError(serverMessage ?? 'Could not save the hourly rate. Please try again.');
+      },
+    },
+  });
+
+  const openAddHourly = (clientId: string, clientName: string) => {
+    setHourlyRate('');
+    setHourlyDate(new Date().toISOString().slice(0, 10));
+    setHourlyError(null);
+    setHourlyFor({ clientId, clientName });
+  };
+
+  const handleAddHourly = () => {
+    if (!hourlyFor) return;
+    setHourlyError(null);
+    const parsedRate = Number(hourlyRate);
+    if (!hourlyRate || !Number.isFinite(parsedRate) || parsedRate < 0) {
+      setHourlyError('Enter a valid dollar amount.');
+      return;
+    }
+    if (!hourlyDate) {
+      setHourlyError('Choose an effective date.');
+      return;
+    }
+    createRateMutation.mutate({
+      data: {
+        clientId: hourlyFor.clientId,
+        rateType: 'hourly',
+        rate: parsedRate,
+        effectiveDate: hourlyDate,
+      },
+    });
+  };
 
   const openAdd = () => {
     setNewName('');
@@ -222,22 +279,36 @@ export function ClientRatesTable() {
               <div key={clientId}>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-medium">{clientRates[0].clientName}</h3>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="gap-2 text-destructive hover:text-destructive"
-                    onClick={() => setRemoving({ clientId, clientName: clientRates[0].clientName })}
-                    data-testid={`button-remove-client-${clientId}`}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Remove
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    {!clientRates.some((r) => r.visitType === 'hourly') && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="gap-2"
+                        onClick={() => openAddHourly(clientId, clientRates[0].clientName)}
+                        data-testid={`button-add-hourly-rate-${clientId}`}
+                      >
+                        <Clock className="h-3.5 w-3.5" />
+                        Add Hourly Rate
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="gap-2 text-destructive hover:text-destructive"
+                      onClick={() => setRemoving({ clientId, clientName: clientRates[0].clientName })}
+                      data-testid={`button-remove-client-${clientId}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Remove
+                    </Button>
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Visit Type</TableHead>
+                        <TableHead>Rate Type</TableHead>
                         <TableHead className="text-right">Rate</TableHead>
                         <TableHead className="text-right">Effective Date</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
@@ -246,9 +317,12 @@ export function ClientRatesTable() {
                     <TableBody>
                       {clientRates.map(rate => (
                         <TableRow key={rate.id} data-testid={`client-rate-${rate.id}`}>
-                          <TableCell>{visitTypeLabels[rate.visitType as VisitType] ?? rate.visitType}</TableCell>
+                          <TableCell>{clientRateTypeLabels[rate.visitType] ?? rate.visitType}</TableCell>
                           <TableCell className="text-right font-mono font-medium">
                             ${rate.rate.toFixed(2)}
+                            <span className="text-xs text-muted-foreground font-sans">
+                              {rate.visitType === 'hourly' ? ' /hour' : ' /visit'}
+                            </span>
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm text-muted-foreground">
                             {rate.effectiveDate}
@@ -396,13 +470,15 @@ export function ClientRatesTable() {
             <DialogTitle>Change Client Rate</DialogTitle>
             <DialogDescription>
               {editing
-                ? `${editing.clientName} — ${visitTypeLabels[editing.visitType as VisitType] ?? editing.visitType}. The new rate applies from the effective date; earlier entries keep the old rate.`
+                ? `${editing.clientName} — ${clientRateTypeLabels[editing.visitType] ?? editing.visitType}. The new rate applies from the effective date; earlier entries keep the old rate.`
                 : ''}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="client-rate">Rate ($ per visit)</Label>
+              <Label htmlFor="client-rate">
+                {editing?.visitType === 'hourly' ? 'Rate ($ per hour)' : 'Rate ($ per visit)'}
+              </Label>
               <Input
                 id="client-rate"
                 type="number"
@@ -441,13 +517,74 @@ export function ClientRatesTable() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!hourlyFor} onOpenChange={(open) => !open && setHourlyFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Hourly Rate</DialogTitle>
+            <DialogDescription>
+              {hourlyFor
+                ? `${hourlyFor.clientName} — hourly time entries will be billed at this rate on invoices from the effective date.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="hourly-rate">Rate ($ per hour)</Label>
+              <Input
+                id="hourly-rate"
+                type="number"
+                min="0"
+                step="0.01"
+                value={hourlyRate}
+                onChange={(e) => setHourlyRate(e.target.value)}
+                placeholder="65.00"
+                data-testid="input-hourly-rate"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="hourly-rate-date">Effective Date</Label>
+              <Input
+                id="hourly-rate-date"
+                type="date"
+                value={hourlyDate}
+                onChange={(e) => setHourlyDate(e.target.value)}
+                data-testid="input-hourly-rate-date"
+              />
+            </div>
+            {hourlyError && (
+              <div
+                className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+                data-testid="error-add-hourly-rate"
+              >
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>{hourlyError}</span>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHourlyFor(null)} data-testid="button-cancel-hourly-rate">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddHourly}
+              disabled={createRateMutation.isPending}
+              className="gap-2"
+              data-testid="button-save-hourly-rate"
+            >
+              {createRateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Add Rate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!historyFor} onOpenChange={(open) => !open && setHistoryFor(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Rate History</DialogTitle>
             <DialogDescription>
               {historyFor
-                ? `${historyFor.clientName} — ${visitTypeLabels[historyFor.visitType as VisitType] ?? historyFor.visitType}`
+                ? `${historyFor.clientName} — ${clientRateTypeLabels[historyFor.visitType] ?? historyFor.visitType}`
                 : ''}
             </DialogDescription>
           </DialogHeader>

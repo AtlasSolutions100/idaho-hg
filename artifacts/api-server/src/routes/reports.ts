@@ -152,10 +152,10 @@ router.get("/reports/invoice", async (req, res, next) => {
     let unbilledCount = 0;
 
     for (const entry of entries) {
-      // Client rates exist per visit type only. Visit entries bill at the
-      // client's rate for that visit type on the entry date. Hourly-only
-      // entries (no visit type) have no client rate concept, so they are
-      // listed as unbilled with a note instead of being silently dropped.
+      // Visit entries bill at the client's rate for that visit type on the
+      // entry date. Hourly-only entries (no visit type) bill hours × the
+      // client's "hourly" rate in effect on the entry date. Missing rates are
+      // shown as $0 with a "No rate" flag instead of being silently dropped.
       if (entry.visitType) {
         const rate = await getClientRateForDate(clientId, entry.visitType, entry.date);
         const { amount, missingRate } = computeInvoiceAmount(entry, rate);
@@ -174,18 +174,38 @@ router.get("/reports/invoice", async (req, res, next) => {
           missingRate,
           ...(missingRate ? { note: "No billing rate on file for this visit type/date" } : {}),
         });
+      } else if (entry.hours != null) {
+        const rate = await getClientRateForDate(clientId, "hourly", entry.date);
+        const missingRate = !rate;
+        if (missingRate) missingRateCount += 1;
+        const amount = rate ? round2(entry.hours * rate.rate) : 0;
+        total = round2(total + amount);
+        lines.push({
+          entryId: String(entry.id),
+          date: entry.date,
+          employeeName: entry.employeeName,
+          employeeRole: entry.employeeRole,
+          hours: entry.hours,
+          ...(rate ? { rate: rate.rate } : {}),
+          amount,
+          billable: true,
+          missingRate,
+          ...(missingRate
+            ? { note: "No hourly billing rate on file — add one on the Client Rates page" }
+            : {}),
+        });
       } else {
+        // Entry has neither a visit type nor hours; nothing to bill.
         unbilledCount += 1;
         lines.push({
           entryId: String(entry.id),
           date: entry.date,
           employeeName: entry.employeeName,
           employeeRole: entry.employeeRole,
-          ...(entry.hours != null ? { hours: entry.hours } : {}),
           amount: 0,
           billable: false,
           missingRate: false,
-          note: "Hourly entry — no per-hour billing rate; not included in total",
+          note: "No visit type or hours recorded; not included in total",
         });
       }
     }

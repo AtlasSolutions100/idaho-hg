@@ -191,6 +191,10 @@ export const visitTypeLabels: Record<VisitType, string> = {
   'speech-therapy': 'Speech Therapy',
 };
 
+export const clientRateTypeLabels: Record<string, string> = {
+  ...visitTypeLabels,
+  hourly: 'Hourly',
+};
 export const statusLabels: Record<EntryStatus, string> = {
   'draft': 'Draft',
   'submitted': 'Submitted',

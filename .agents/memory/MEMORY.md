@@ -1,0 +1,1 @@
+- [Task rebase pitfalls](task-rebase-pitfalls.md) — rebases onto main can scramble route handlers and leave the task DB missing new tables; re-run typecheck, `pnpm install`, and `lib/db push` after every rebase.

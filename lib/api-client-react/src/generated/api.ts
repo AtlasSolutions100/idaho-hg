@@ -25,6 +25,7 @@ import type {
   Client,
   ClientInput,
   ClientRate,
+  CreateClientRate,
   CreateTimeEntry,
   Employee,
   EmployeeInput,
@@ -594,6 +595,77 @@ export function useListClientRates<TData = Awaited<ReturnType<typeof listClientR
 
 
 
+
+export const getCreateClientRateUrl = () => {
+
+
+
+
+  return `/api/client-rates`
+}
+
+/**
+ * @summary Add a new billing rate type (e.g. hourly) for an existing client
+ */
+export const createClientRate = async (createClientRate: CreateClientRate, options?: Parameters<typeof customFetch>[1]): Promise<ClientRate> => {
+
+  return customFetch<ClientRate>(getCreateClientRateUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createClientRate)
+  }
+);}
+
+
+
+
+
+export const getCreateClientRateMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createClientRate>>, TError,{data: BodyType<CreateClientRate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createClientRate>>, TError,{data: BodyType<CreateClientRate>}, TContext> => {
+
+const mutationKey = ['createClientRate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createClientRate>>, {data: BodyType<CreateClientRate>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createClientRate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateClientRateMutationResult = NonNullable<Awaited<ReturnType<typeof createClientRate>>>
+    export type CreateClientRateMutationBody = BodyType<CreateClientRate>
+    export type CreateClientRateMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Add a new billing rate type (e.g. hourly) for an existing client
+ */
+export const useCreateClientRate = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createClientRate>>, TError,{data: BodyType<CreateClientRate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createClientRate>>,
+        TError,
+        {data: BodyType<CreateClientRate>},
+        TContext
+      > => {
+      return useMutation(getCreateClientRateMutationOptions(options));
+    }
 
 export const getUpdateClientRateUrl = (id: string,) => {
 

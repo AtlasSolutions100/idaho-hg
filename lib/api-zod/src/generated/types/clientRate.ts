@@ -5,13 +5,13 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { VisitType } from './visitType';
+import type { ClientRateType } from './clientRateType';
 
 export interface ClientRate {
   id: string;
   clientId: string;
   clientName: string;
-  visitType: VisitType;
+  visitType: ClientRateType;
   rate: number;
   effectiveDate: string;
 }

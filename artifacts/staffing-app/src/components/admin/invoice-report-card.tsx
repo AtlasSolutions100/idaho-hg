@@ -167,7 +167,7 @@ export function InvoiceReportCard() {
             {report.unbilledCount > 0 && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <AlertCircle className="h-4 w-4" />
-                {report.unbilledCount} hourly entr{report.unbilledCount === 1 ? 'y is' : 'ies are'} listed for reference but not billed — client rates are per visit type only.
+                {report.unbilledCount} entr{report.unbilledCount === 1 ? 'y is' : 'ies are'} listed for reference but not billed — no visit type or hours recorded.
               </div>
             )}
             <div className="overflow-x-auto border rounded-md">

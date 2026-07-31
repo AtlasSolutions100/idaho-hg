@@ -11,6 +11,8 @@ export * from './approveAllResult';
 export * from './client';
 export * from './clientInput';
 export * from './clientRate';
+export * from './clientRateType';
+export * from './createClientRate';
 export * from './createTimeEntry';
 export * from './employee';
 export * from './employeeInput';
