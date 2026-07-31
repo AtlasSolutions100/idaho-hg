@@ -14,8 +14,8 @@ import { CreateClientBody, CreateEmployeeBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
-// Seed the roster tables once from the original hardcoded roster so
-// existing time entries and rate rows (ids "1".."6") line up.
+// Seed the roster tables once so a fresh database starts with Molly's real
+// clients and employees (UUIDs match the live database).
 const seedClients = [
   { id: "1", name: "St. Luke's Health System" },
   { id: "2", name: "Weiser Memorial Hospital" },
@@ -25,22 +25,22 @@ const seedClients = [
 ];
 
 const seedEmployees = [
-  { id: "1", name: "Molly Hodge", role: "PT" },
-  { id: "2", name: "Dale Gibbs", role: "PT" },
-  { id: "3", name: "Emily Greer", role: "PT" },
-  { id: "4", name: "Quinton Erhard", role: "PT" },
-  { id: "5", name: "Adrian Eddins", role: "RN" },
-  { id: "6", name: "Ronda Stewart", role: "RN" },
-  { id: "7", name: "Amber Edwards", role: "RN" },
-  { id: "8", name: "Sandy Clayton", role: "RN" },
-  { id: "9", name: "Bree Whiting", role: "RN" },
-  { id: "10", name: "Brandon Whiting", role: "OT" },
-  { id: "11", name: "Joshua Johansen", role: "OT" },
-  { id: "12", name: "Lee Hamilton", role: "OT" },
-  { id: "13", name: "Lee Ormsby", role: "PTA" },
-  { id: "14", name: "Ameliana Samarin", role: "SLP" },
-  { id: "15", name: "Mel Plourde", role: "LCSW" },
-  { id: "16", name: "Paige Barbero", role: "PT" },
+  { id: "ed7ff5a6-408c-46ae-a6d1-f8fb6ec85b1b", name: "Molly Hodge", role: "PT" },
+  { id: "70a76167-a476-4268-a2fc-d89c7ed15e6e", name: "Dale Gibbs", role: "PT" },
+  { id: "149d3f0a-08dc-48e4-a2d5-5f74df82e9ba", name: "Emily Greer", role: "PT" },
+  { id: "c173f799-2391-4acb-b7d8-bd6c1f7811ca", name: "Quinton Erhard", role: "PT" },
+  { id: "e2ae91e4-d3d8-4447-b4ce-85de035b6700", name: "Adrian Eddins", role: "RN" },
+  { id: "671910f2-7fa0-4eae-8b61-717191a00bab", name: "Ronda Stewart", role: "RN" },
+  { id: "e0abb6d8-30a9-4cbd-a777-ac134f373872", name: "Amber Edwards", role: "RN" },
+  { id: "cdd04b02-8b43-4b1d-9da6-b394a67cfdfc", name: "Sandy Clayton", role: "RN" },
+  { id: "0b970f7e-1788-4b52-be50-811ad8ce9b9a", name: "Bree Whiting", role: "RN" },
+  { id: "42f630fa-1049-4a46-8a65-70ffcfbe98d5", name: "Brandon Whiting", role: "OT" },
+  { id: "782448f4-2acd-4ee1-a40f-80d930ebcd7f", name: "Joshua Johansen", role: "OT" },
+  { id: "5cc9fff2-5c2e-41cd-bd56-50cce1a5532d", name: "Lee Hamilton", role: "OT" },
+  { id: "1d2c2efe-bed4-4b2e-aba4-194130b0a0b7", name: "Lee Ormsby", role: "PTA" },
+  { id: "1da47ea1-da22-41f3-aef2-542c42d47a21", name: "Ameliana Samarin", role: "SLP" },
+  { id: "5f4d261e-28c3-4bea-a6e4-99e171ac07c0", name: "Mel Plourde", role: "LCSW" },
+  { id: "d324d661-8c8c-4414-be27-855f48d4ed26", name: "Paige Barbero", role: "PT" },
 ];
 
 let seeded = false;

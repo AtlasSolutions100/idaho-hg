@@ -92,22 +92,22 @@ const roleDefaultRates: Record<string, { hourlyRate: number; visitRate: number }
 };
 
 const seedEmployeeRoster: Array<{ employeeId: string; employeeName: string; employeeRole: string }> = [
-  { employeeId: "1", employeeName: "Molly Hodge", employeeRole: "PT" },
-  { employeeId: "2", employeeName: "Dale Gibbs", employeeRole: "PT" },
-  { employeeId: "3", employeeName: "Emily Greer", employeeRole: "PT" },
-  { employeeId: "4", employeeName: "Quinton Erhard", employeeRole: "PT" },
-  { employeeId: "5", employeeName: "Adrian Eddins", employeeRole: "RN" },
-  { employeeId: "6", employeeName: "Ronda Stewart", employeeRole: "RN" },
-  { employeeId: "7", employeeName: "Amber Edwards", employeeRole: "RN" },
-  { employeeId: "8", employeeName: "Sandy Clayton", employeeRole: "RN" },
-  { employeeId: "9", employeeName: "Bree Whiting", employeeRole: "RN" },
-  { employeeId: "10", employeeName: "Brandon Whiting", employeeRole: "OT" },
-  { employeeId: "11", employeeName: "Joshua Johansen", employeeRole: "OT" },
-  { employeeId: "12", employeeName: "Lee Hamilton", employeeRole: "OT" },
-  { employeeId: "13", employeeName: "Lee Ormsby", employeeRole: "PTA" },
-  { employeeId: "14", employeeName: "Ameliana Samarin", employeeRole: "SLP" },
-  { employeeId: "15", employeeName: "Mel Plourde", employeeRole: "LCSW" },
-  { employeeId: "16", employeeName: "Paige Barbero", employeeRole: "PT" },
+  { employeeId: "ed7ff5a6-408c-46ae-a6d1-f8fb6ec85b1b", employeeName: "Molly Hodge", employeeRole: "PT" },
+  { employeeId: "70a76167-a476-4268-a2fc-d89c7ed15e6e", employeeName: "Dale Gibbs", employeeRole: "PT" },
+  { employeeId: "149d3f0a-08dc-48e4-a2d5-5f74df82e9ba", employeeName: "Emily Greer", employeeRole: "PT" },
+  { employeeId: "c173f799-2391-4acb-b7d8-bd6c1f7811ca", employeeName: "Quinton Erhard", employeeRole: "PT" },
+  { employeeId: "e2ae91e4-d3d8-4447-b4ce-85de035b6700", employeeName: "Adrian Eddins", employeeRole: "RN" },
+  { employeeId: "671910f2-7fa0-4eae-8b61-717191a00bab", employeeName: "Ronda Stewart", employeeRole: "RN" },
+  { employeeId: "e0abb6d8-30a9-4cbd-a777-ac134f373872", employeeName: "Amber Edwards", employeeRole: "RN" },
+  { employeeId: "cdd04b02-8b43-4b1d-9da6-b394a67cfdfc", employeeName: "Sandy Clayton", employeeRole: "RN" },
+  { employeeId: "0b970f7e-1788-4b52-be50-811ad8ce9b9a", employeeName: "Bree Whiting", employeeRole: "RN" },
+  { employeeId: "42f630fa-1049-4a46-8a65-70ffcfbe98d5", employeeName: "Brandon Whiting", employeeRole: "OT" },
+  { employeeId: "782448f4-2acd-4ee1-a40f-80d930ebcd7f", employeeName: "Joshua Johansen", employeeRole: "OT" },
+  { employeeId: "5cc9fff2-5c2e-41cd-bd56-50cce1a5532d", employeeName: "Lee Hamilton", employeeRole: "OT" },
+  { employeeId: "1d2c2efe-bed4-4b2e-aba4-194130b0a0b7", employeeName: "Lee Ormsby", employeeRole: "PTA" },
+  { employeeId: "1da47ea1-da22-41f3-aef2-542c42d47a21", employeeName: "Ameliana Samarin", employeeRole: "SLP" },
+  { employeeId: "5f4d261e-28c3-4bea-a6e4-99e171ac07c0", employeeName: "Mel Plourde", employeeRole: "LCSW" },
+  { employeeId: "d324d661-8c8c-4414-be27-855f48d4ed26", employeeName: "Paige Barbero", employeeRole: "PT" },
 ];
 
 const seedEmployeeRates = seedEmployeeRoster.map((emp) => {
