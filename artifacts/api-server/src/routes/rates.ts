@@ -155,6 +155,17 @@ const seedEmployeeRates = seedEmployeeRoster.map((emp) => {
 const backfillClientRates = [
   { clientId: "6", clientName: "Current PT", visitType: "hourly-PT", rate: 69, effectiveDate: "2024-01-01" },
   { clientId: "7", clientName: "Thrive", visitType: "hourly-PT", rate: 69.98, effectiveDate: "2024-01-01" },
+  // Weiser Memorial role-specific hourly rates (confirmed by Molly)
+  { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-RN", rate: 81.5, effectiveDate: "2024-01-01" },
+  { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-PT", rate: 84, effectiveDate: "2024-01-01" },
+  { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-OT", rate: 77, effectiveDate: "2024-01-01" },
+  { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-SLP", rate: 88, effectiveDate: "2024-01-01" },
+  { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-PTA", rate: 58, effectiveDate: "2024-01-01" },
+  { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-LPN", rate: 55, effectiveDate: "2024-01-01" },
+  // Idaho Youth Ranch RN hourly
+  { clientId: "3", clientName: "Idaho Youth Ranch", visitType: "hourly-RN", rate: 93, effectiveDate: "2024-01-01" },
+  // Treasure Valley Outpatient general hourly (PT-led)
+  { clientId: "4", clientName: "Treasure Valley Outpatient Clinic", visitType: "hourly", rate: 69, effectiveDate: "2024-01-01" },
 ];
 
 // Advisory lock key so concurrent server instances (or parallel test

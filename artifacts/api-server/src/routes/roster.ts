@@ -80,6 +80,12 @@ export async function ensureRosterSeeded() {
   // Backfill later-added clients into already-populated databases (no-op when
   // the row already exists, so this is safe to run on every startup).
   await db.insert(clientsTable).values(backfillClients).onConflictDoNothing();
+  // Meridian Senior Care (id 5) is not a real client — ensure it stays inactive
+  // in any database that was seeded before this was established.
+  await db
+    .update(clientsTable)
+    .set({ active: false })
+    .where(eq(clientsTable.id, "5"));
   seeded = true;
 }
 
