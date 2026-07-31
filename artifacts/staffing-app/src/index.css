@@ -80,37 +80,37 @@
   --elevate-1: rgba(0, 0, 0, 0.03);
   --elevate-2: rgba(0, 0, 0, 0.08);
 
-  /* Soft sage green and warm clay palette */
-  --background: 45 20% 96%;
-  --foreground: 30 15% 20%;
+  /* Soft sage green and cool slate palette */
+  --background: 210 20% 97%;
+  --foreground: 215 28% 20%;
 
-  --border: 45 15% 86%;
+  --border: 214 18% 87%;
   
   --card: 0 0% 100%;
-  --card-foreground: 30 15% 20%;
-  --card-border: 45 15% 90%;
+  --card-foreground: 215 28% 20%;
+  --card-border: 214 16% 90%;
 
-  --sidebar: 45 25% 94%;
-  --sidebar-foreground: 30 15% 25%;
-  --sidebar-border: 45 15% 86%;
+  --sidebar: 212 22% 95%;
+  --sidebar-foreground: 215 25% 25%;
+  --sidebar-border: 214 18% 87%;
   --sidebar-primary: 150 28% 48%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 45 30% 88%;
-  --sidebar-accent-foreground: 30 15% 20%;
+  --sidebar-accent: 212 24% 89%;
+  --sidebar-accent-foreground: 215 28% 20%;
   --sidebar-ring: 150 28% 48%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 30 15% 20%;
-  --popover-border: 45 15% 88%;
+  --popover-foreground: 215 28% 20%;
+  --popover-border: 214 16% 89%;
 
   --primary: 150 28% 48%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 45 30% 88%;
-  --secondary-foreground: 30 15% 20%;
+  --secondary: 212 24% 89%;
+  --secondary-foreground: 215 28% 20%;
 
-  --muted: 45 20% 94%;
-  --muted-foreground: 30 10% 45%;
+  --muted: 212 18% 94%;
+  --muted-foreground: 215 16% 41%;
 
   --accent: 150 35% 92%;
   --accent-foreground: 150 35% 25%;
@@ -118,14 +118,14 @@
   --destructive: 0 65% 50%;
   --destructive-foreground: 0 0% 100%;
 
-  --input: 45 15% 82%;
+  --input: 214 18% 82%;
   --ring: 150 28% 48%;
   
   --chart-1: 150 28% 48%;
-  --chart-2: 45 50% 55%;
-  --chart-3: 30 40% 60%;
+  --chart-2: 210 45% 55%;
+  --chart-3: 220 30% 60%;
   --chart-4: 150 20% 65%;
-  --chart-5: 45 25% 70%;
+  --chart-5: 210 20% 70%;
 
   --app-font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --app-font-serif: Georgia, serif;
@@ -215,36 +215,36 @@
   --elevate-1: rgba(255, 255, 255, 0.04);
   --elevate-2: rgba(255, 255, 255, 0.09);
 
-  --background: 30 20% 12%;
-  --foreground: 45 20% 92%;
+  --background: 218 24% 11%;
+  --foreground: 212 20% 92%;
 
-  --border: 30 15% 22%;
+  --border: 216 18% 22%;
   
-  --card: 30 18% 15%;
-  --card-foreground: 45 20% 92%;
-  --card-border: 30 15% 20%;
+  --card: 217 22% 14%;
+  --card-foreground: 212 20% 92%;
+  --card-border: 216 18% 20%;
 
-  --sidebar: 30 20% 14%;
-  --sidebar-foreground: 45 18% 85%;
-  --sidebar-border: 30 15% 22%;
+  --sidebar: 218 24% 13%;
+  --sidebar-foreground: 212 18% 85%;
+  --sidebar-border: 216 18% 22%;
   --sidebar-primary: 150 32% 42%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 30 18% 20%;
-  --sidebar-accent-foreground: 45 20% 90%;
+  --sidebar-accent: 216 20% 20%;
+  --sidebar-accent-foreground: 212 20% 90%;
   --sidebar-ring: 150 32% 42%;
 
-  --popover: 30 18% 16%;
-  --popover-foreground: 45 20% 92%;
-  --popover-border: 30 15% 24%;
+  --popover: 217 22% 15%;
+  --popover-foreground: 212 20% 92%;
+  --popover-border: 216 18% 24%;
 
   --primary: 150 32% 42%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 30 18% 22%;
-  --secondary-foreground: 45 20% 92%;
+  --secondary: 216 20% 22%;
+  --secondary-foreground: 212 20% 92%;
 
-  --muted: 30 15% 20%;
-  --muted-foreground: 45 12% 60%;
+  --muted: 216 18% 20%;
+  --muted-foreground: 214 14% 62%;
 
   --accent: 150 25% 20%;
   --accent-foreground: 150 35% 85%;
@@ -252,14 +252,14 @@
   --destructive: 0 65% 50%;
   --destructive-foreground: 0 0% 100%;
 
-  --input: 30 15% 28%;
+  --input: 216 18% 28%;
   --ring: 150 32% 42%;
   
   --chart-1: 150 32% 42%;
-  --chart-2: 45 45% 48%;
-  --chart-3: 30 35% 52%;
+  --chart-2: 210 45% 52%;
+  --chart-3: 220 30% 58%;
   --chart-4: 150 22% 55%;
-  --chart-5: 45 20% 60%;
+  --chart-5: 210 18% 62%;
 
   --shadow-2xs: 0px 1px 2px 0px rgba(0, 0, 0, 0.3);
   --shadow-xs: 0px 1px 3px 0px rgba(0, 0, 0, 0.4);
