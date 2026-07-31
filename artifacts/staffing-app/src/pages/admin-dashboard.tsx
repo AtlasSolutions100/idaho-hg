@@ -3,6 +3,7 @@ import { useListEmployees, useListTimeEntries } from '@workspace/api-client-reac
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { 
   CheckSquare, 
   DollarSign, 
@@ -88,9 +89,12 @@ export default function AdminDashboard() {
       {/* Header */}
       <div className="bg-card border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div>
-            <h1 className="text-2xl font-semibold">Admin Dashboard</h1>
-            <p className="text-sm text-muted-foreground mt-1">Hodge Staffing Management</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold">Admin Dashboard</h1>
+              <p className="text-sm text-muted-foreground mt-1">Hodge Staffing Management</p>
+            </div>
+            <ThemeToggle />
           </div>
         </div>
       </div>

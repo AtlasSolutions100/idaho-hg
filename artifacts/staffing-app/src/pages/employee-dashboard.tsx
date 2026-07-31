@@ -5,6 +5,7 @@ import { LogHoursForm } from '@/components/employee/log-hours-form';
 import { TimeEntriesList } from '@/components/employee/time-entries-list';
 import { Plus, Clock, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 export default function EmployeeDashboard() {
   const [showForm, setShowForm] = useState(false);
@@ -30,9 +31,12 @@ export default function EmployeeDashboard() {
               <h1 className="text-xl font-semibold">Log Hours</h1>
               <p className="text-sm text-muted-foreground">Sarah Martinez</p>
             </div>
-            <div className="flex items-center gap-2 text-sm">
-              <CheckCircle className="h-4 w-4 text-primary" />
-              <span className="font-mono font-medium">{submittedCount} submitted</span>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 text-sm">
+                <CheckCircle className="h-4 w-4 text-primary" />
+                <span className="font-mono font-medium">{submittedCount} submitted</span>
+              </div>
+              <ThemeToggle />
             </div>
           </div>
         </div>

@@ -3,6 +3,7 @@ import { useLocation } from 'wouter';
 import { RoleSwitcher, type UserRole } from '@/components/role-switcher';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, Clock } from 'lucide-react';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 export default function Home() {
   const [role, setRole] = useState<UserRole>('employee');
@@ -17,7 +18,10 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-[100dvh] flex items-center justify-center p-4 bg-gradient-to-b from-background via-background to-accent/40 dark:to-accent/20">
+    <div className="relative min-h-[100dvh] flex items-center justify-center p-4 bg-gradient-to-b from-background via-background to-accent/40 dark:to-accent/20">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
       <main className="w-full max-w-md">
         <div className="rounded-2xl bg-card border border-card-border shadow-lg px-8 py-10 sm:px-10 sm:py-12">
           {/* Icon */}
