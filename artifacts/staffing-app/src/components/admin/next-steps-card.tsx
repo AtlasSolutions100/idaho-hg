@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useWorkflowSnapshot, WorkflowProgress } from '@/components/admin/workflow-progress';
 import { CheckSquare, FileSpreadsheet, ChevronRight } from 'lucide-react';
-import { format } from 'date-fns';
 
 /**
  * "This period" summary for the admin dashboard: shows where Molly is in the
@@ -28,13 +27,13 @@ export function NextStepsCard() {
   const { isLoading, pendingCount, approvedCount, readyClients, stepStates } =
     useWorkflowSnapshot(range);
 
-  const rangeLabel = `${format(new Date(`${range.start}T12:00:00`), 'MMM d')} – ${format(new Date(`${range.end}T12:00:00`), 'MMM d')}`;
-
+  // Summary of the work waiting, not a pay period — the 30-day window is
+  // just how far back the card scans.
   let message: string;
   if (pendingCount > 0) {
     message = `${pendingCount} time ${pendingCount === 1 ? 'entry' : 'entries'} waiting for approval.`;
   } else if (approvedCount > 0) {
-    message = 'All entries approved — ready to generate the payroll export and client reports.';
+    message = `${approvedCount} approved ${approvedCount === 1 ? 'entry' : 'entries'} ready across ${readyClients.length} ${readyClients.length === 1 ? 'client' : 'clients'} — generate the payroll export and client reports.`;
   } else {
     message = 'No recent time entries. Guidance appears here as hours come in.';
   }
@@ -43,7 +42,7 @@ export function NextStepsCard() {
     <Card data-testid="card-next-steps">
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <CardTitle className="text-base">This Period · {rangeLabel}</CardTitle>
+          <CardTitle className="text-base">Next Steps</CardTitle>
           {isLoading ? null : (
             <span className="text-sm text-muted-foreground" data-testid="text-next-steps-summary">
               {message}
