@@ -11,6 +11,10 @@ import {
   type EmployeeRow,
 } from "@workspace/db";
 import { CreateClientBody, CreateEmployeeBody } from "@workspace/api-zod";
+import {
+  hasDemoEmployeeData,
+  purgeDemoEmployeeData,
+} from "../lib/demo-cleanup";
 
 const router: IRouter = Router();
 
@@ -46,6 +50,14 @@ const seedEmployees = [
 let seeded = false;
 export async function ensureRosterSeeded() {
   if (seeded) return;
+  // Guard: if legacy demo employees (IDs "1"–"6") resurfaced (e.g. via a
+  // restored backup), purge them and skip seeding — the database is not
+  // fresh, so seeding would only mix demo remnants with real data.
+  if (await hasDemoEmployeeData()) {
+    await purgeDemoEmployeeData();
+    seeded = true;
+    return;
+  }
   const [clientRow] = await db.select().from(clientsTable).limit(1);
   if (!clientRow) {
     await db.insert(clientsTable).values(seedClients);
