@@ -19,7 +19,8 @@ import {
 } from '@/components/ui/table';
 import { downloadCsv, formatMoney } from '@/lib/report-csv';
 import { format } from 'date-fns';
-import { FileSpreadsheet, Download, Loader2, AlertCircle, Inbox } from 'lucide-react';
+import { FileSpreadsheet, Download, Loader2, AlertCircle, AlertTriangle, Inbox } from 'lucide-react';
+import { Link } from 'wouter';
 
 // Rates like mileage need 3 decimals (e.g. 0.655) so Qty × Rate matches Amount.
 function formatRate(rate: number): string {
@@ -161,9 +162,25 @@ export function InvoiceReportCard() {
         {report && report.entryCount > 0 && (
           <div className="space-y-4 pt-2" data-testid="invoice-results">
             {report.missingRateCount > 0 && (
-              <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-500">
-                <AlertCircle className="h-4 w-4" />
-                {report.missingRateCount} entr{report.missingRateCount === 1 ? 'y has' : 'ies have'} no billing rate on file — shown with a "No rate" badge and billed as $0.
+              <div
+                className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40 px-4 py-3"
+                data-testid="invoice-missing-rate-banner"
+              >
+                <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-500 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium text-amber-800 dark:text-amber-300">
+                    {report.missingRateCount === 1
+                      ? '1 line has no billing rate and is billed as $0'
+                      : `${report.missingRateCount} lines have no billing rate and are billed as $0`}
+                  </p>
+                  <p className="text-amber-700 dark:text-amber-400 mt-0.5">
+                    The highlighted rows below show a "No rate" badge. Fix the missing{' '}
+                    {report.missingRateCount === 1 ? 'rate' : 'rates'} before sending this invoice.{' '}
+                    <Link href="/admin/client-rates" className="underline font-medium">
+                      Add rates on the Client Rates page
+                    </Link>
+                  </p>
+                </div>
               </div>
             )}
             {report.unbilledCount > 0 && (
@@ -186,7 +203,11 @@ export function InvoiceReportCard() {
                 </TableHeader>
                 <TableBody>
                   {report.lines.map((line) => (
-                    <TableRow key={line.lineId} data-testid={`invoice-line-${line.lineId}`}>
+                    <TableRow
+                      key={line.lineId}
+                      data-testid={`invoice-line-${line.lineId}`}
+                      className={line.missingRate ? 'bg-amber-50 hover:bg-amber-100/70 dark:bg-amber-950/40 dark:hover:bg-amber-950/60' : undefined}
+                    >
                       <TableCell className="font-mono text-sm whitespace-nowrap">
                         {format(new Date(`${line.date}T00:00:00`), 'M/d/yy')}
                       </TableCell>
@@ -196,7 +217,11 @@ export function InvoiceReportCard() {
                           <span className="text-sm">{line.description}</span>
                           {line.missingRate && <Badge variant="destructive" className="text-xs">No rate</Badge>}
                         </div>
-                        {line.note && <div className="text-xs text-muted-foreground mt-1">{line.note}</div>}
+                        {line.note && (
+                          <div className={`text-xs mt-1 ${line.missingRate ? 'text-amber-700 dark:text-amber-400 font-medium' : 'text-muted-foreground'}`}>
+                            {line.note}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="text-right font-mono">{line.qty}</TableCell>
                       <TableCell className="text-right font-mono">{line.rate != null ? `$${formatRate(line.rate)}` : '—'}</TableCell>
