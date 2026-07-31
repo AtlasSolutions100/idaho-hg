@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { PracticeDataCard } from '@/components/admin/practice-data-card';
+import { NextStepsCard } from '@/components/admin/next-steps-card';
 import { 
   CheckSquare, 
   DollarSign, 
@@ -118,6 +119,11 @@ export default function AdminDashboard() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Weekly workflow guidance */}
+        <div className="mb-8">
+          <NextStepsCard />
+        </div>
+
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {quickActions.map((action) => {
             const Icon = action.icon;

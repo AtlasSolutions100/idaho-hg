@@ -4,9 +4,12 @@ import { PayrollReportCard } from '@/components/admin/payroll-report-card';
 import { InvoiceReportCard } from '@/components/admin/invoice-report-card';
 import { ReconciliationReportCard } from '@/components/admin/reconciliation-report-card';
 import { MissingRatesNotice } from '@/components/admin/missing-rates-notice';
+import { useWorkflowSnapshot, WorkflowProgress } from '@/components/admin/workflow-progress';
+import { Card, CardContent } from '@/components/ui/card';
 import { ChevronLeft } from 'lucide-react';
 
 export default function ReportsPage() {
+  const workflow = useWorkflowSnapshot();
   return (
     <div className="min-h-[100dvh] bg-background">
       {/* Header */}
@@ -29,6 +32,19 @@ export default function ReportsPage() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        {!workflow.isLoading && (
+          <Card>
+            <CardContent className="py-4">
+              <WorkflowProgress stepStates={workflow.stepStates} />
+              {workflow.pendingCount > 0 && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {workflow.pendingCount} time {workflow.pendingCount === 1 ? 'entry is' : 'entries are'} still
+                  waiting for approval — reports only include approved entries.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
         <MissingRatesNotice />
         <PayrollReportCard />
         <InvoiceReportCard />

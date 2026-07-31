@@ -18,6 +18,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { downloadCsv, formatMoney } from '@/lib/report-csv';
+import { useWorkflowSnapshot } from '@/components/admin/workflow-progress';
 import { format } from 'date-fns';
 import { FileSpreadsheet, Download, Loader2, AlertCircle, AlertTriangle, Inbox } from 'lucide-react';
 import { Link } from 'wouter';
@@ -53,6 +54,11 @@ export function InvoiceReportCard() {
   const [params, setParams] = useState<{ clientId: string; start: string; end: string } | null>(null);
 
   const { data: clients } = useListClients();
+  // Highlight clients with approved entries ready — scoped to the chosen
+  // period once both dates are set, otherwise across all approved entries.
+  const rangeSelected = start !== '' && end !== '' && start <= end;
+  const { readyClients } = useWorkflowSnapshot(rangeSelected ? { start, end } : undefined);
+  const readyByClient = new Map(readyClients.map((c) => [c.clientId, c.count]));
   const { data: report, isLoading, isError } = useGetInvoiceReport(
     params ?? { clientId: '', start: '', end: '' },
     {
@@ -88,11 +94,21 @@ export function InvoiceReportCard() {
                 <SelectValue placeholder="Select client" />
               </SelectTrigger>
               <SelectContent>
-                {(clients ?? []).map((client) => (
-                  <SelectItem key={client.id} value={client.id}>
-                    {client.name}
-                  </SelectItem>
-                ))}
+                {(clients ?? []).map((client) => {
+                  const ready = readyByClient.get(client.id);
+                  return (
+                    <SelectItem key={client.id} value={client.id}>
+                      <span className="flex items-center gap-2">
+                        {client.name}
+                        {ready != null && (
+                          <span className="rounded-full bg-primary/10 px-1.5 text-xs font-semibold text-primary">
+                            {ready} ready
+                          </span>
+                        )}
+                      </span>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
