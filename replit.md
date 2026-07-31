@@ -1,6 +1,6 @@
-# Hodge Staffing Time App
+# Idaho Healthcare Staffing (Hodge Staffing Time App)
 
-Time-entry and payroll-approval app for Molly Hodge's healthcare staffing company: employees log hours on mobile, Molly approves payroll and manages rates from an admin dashboard.
+Time-entry and payroll-approval app for Molly Hodge's healthcare staffing company, Idaho Healthcare Staffing: employees log hours on mobile, Molly approves payroll and manages rates from an admin dashboard.
 
 ## Run & Operate
 

@@ -34,7 +34,7 @@ export default function Home() {
           {/* Heading */}
           <div className="text-center mt-7 space-y-2">
             <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight text-foreground">
-              Hodge Staffing
+              Idaho Healthcare Staffing
             </h1>
             <p className="text-sm text-muted-foreground">
               Time tracking for healthcare professionals
@@ -67,7 +67,7 @@ export default function Home() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground/70 mt-6">
-          Hodge Staffing · Internal time &amp; billing
+          Idaho Healthcare Staffing · Internal time &amp; billing
         </p>
       </main>
     </div>

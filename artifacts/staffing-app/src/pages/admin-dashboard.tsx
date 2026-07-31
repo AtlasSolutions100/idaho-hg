@@ -105,7 +105,7 @@ export default function AdminDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-semibold">Admin Dashboard</h1>
-              <p className="text-sm text-muted-foreground mt-1">Hodge Staffing Management</p>
+              <p className="text-sm text-muted-foreground mt-1">Idaho Healthcare Staffing</p>
             </div>
             <div className="flex items-center gap-2">
               <ThemeToggle />

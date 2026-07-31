@@ -32,7 +32,7 @@ export function downloadInvoicePdf(report: InvoiceReport) {
   // Header: business name + invoice metadata.
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(20);
-  doc.text('Hodge Staffing', margin, 64);
+  doc.text('Idaho Healthcare Staffing', margin, 64);
   doc.setFontSize(14);
   doc.setTextColor(100);
   doc.text('INVOICE', pageWidth - margin, 64, { align: 'right' });
