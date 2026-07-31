@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { useLocation } from 'wouter';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { RoleSwitcher, type UserRole } from '@/components/role-switcher';
 import { Button } from '@/components/ui/button';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Clock } from 'lucide-react';
 
 export default function Home() {
   const [role, setRole] = useState<UserRole>('employee');
@@ -18,53 +17,55 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center space-y-3">
-          <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-            <svg
-              className="w-8 h-8 text-primary"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-          </div>
-          <div>
-            <CardTitle className="text-2xl">Hodge Staffing</CardTitle>
-            <CardDescription className="mt-2">Time tracking for healthcare professionals</CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-3">
-            <label className="text-sm font-medium text-muted-foreground">Select your role</label>
-            <RoleSwitcher currentRole={role} onRoleChange={setRole} />
+    <div className="min-h-[100dvh] flex items-center justify-center p-4 bg-gradient-to-b from-background via-background to-accent/40 dark:to-accent/20">
+      <main className="w-full max-w-md">
+        <div className="rounded-2xl bg-card border border-card-border shadow-lg px-8 py-10 sm:px-10 sm:py-12">
+          {/* Icon */}
+          <div className="mx-auto w-20 h-20 rounded-full bg-accent flex items-center justify-center ring-8 ring-accent/40">
+            <div className="w-14 h-14 rounded-full bg-primary/15 flex items-center justify-center">
+              <Clock className="w-7 h-7 text-primary" strokeWidth={1.75} />
+            </div>
           </div>
 
-          <div className="pt-2">
-            <p className="text-sm text-muted-foreground mb-4">
-              {role === 'employee' 
+          {/* Heading */}
+          <div className="text-center mt-7 space-y-2">
+            <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight text-foreground">
+              Hodge Staffing
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Time tracking for healthcare professionals
+            </p>
+          </div>
+
+          {/* Role selection */}
+          <div className="mt-9 space-y-2.5">
+            <span className="block text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              I am signing in as
+            </span>
+            <RoleSwitcher currentRole={role} onRoleChange={setRole} />
+            <p className="text-[0.8125rem] leading-relaxed text-muted-foreground/90 min-h-10 pt-1">
+              {role === 'employee'
                 ? 'Log your hours, mileage, and per diem for client visits.'
                 : 'Review time entries, manage rates, and generate payroll reports.'}
             </p>
-            <Button
-              onClick={handleContinue}
-              className="w-full gap-2"
-              size="lg"
-              data-testid="button-continue"
-            >
-              Continue
-              <ArrowRight className="h-4 w-4" />
-            </Button>
           </div>
-        </CardContent>
-      </Card>
+
+          {/* Continue */}
+          <Button
+            onClick={handleContinue}
+            className="w-full gap-2 mt-4 h-11 text-[0.9375rem] shadow-sm"
+            size="lg"
+            data-testid="button-continue"
+          >
+            Continue
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <p className="text-center text-xs text-muted-foreground/70 mt-6">
+          Hodge Staffing · Internal time &amp; billing
+        </p>
+      </main>
     </div>
   );
 }
