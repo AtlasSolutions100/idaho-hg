@@ -1,3 +1,4 @@
 - [Task rebase pitfalls](task-rebase-pitfalls.md) — rebases onto main can scramble route handlers and leave the task DB missing new tables; re-run typecheck, `pnpm install`, and `lib/db push` after every rebase.
 - [E2E invoice test isolation](e2e-invoice-test-isolation.md) — each report/invoice e2e file must use its own billing month; shared DB + concurrent files makes reused months flaky.
+- [Design-system button positioning](design-system-button-positioning.md) — hover-elevate forces position:relative on buttons; wrap in a positioned div instead of using fixed/absolute on the Button.
 - [Seed backfill concurrency](seed-backfill-concurrency.md) — backfills into unconstrained (append-only) tables need pg_advisory_xact_lock; exists-checks alone double-insert under parallel processes.
