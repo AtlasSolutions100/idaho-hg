@@ -18,9 +18,10 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { downloadCsv, formatMoney } from '@/lib/report-csv';
+import { downloadInvoicePdf } from '@/lib/invoice-pdf';
 import { useWorkflowSnapshot } from '@/components/admin/workflow-progress';
 import { format } from 'date-fns';
-import { FileSpreadsheet, Download, Loader2, AlertCircle, AlertTriangle, Inbox } from 'lucide-react';
+import { FileSpreadsheet, FileText, Download, Loader2, AlertCircle, AlertTriangle, Inbox } from 'lucide-react';
 import { Link } from 'wouter';
 
 // Rates like mileage need 3 decimals (e.g. 0.655) so Qty × Rate matches Amount.
@@ -151,6 +152,15 @@ export function InvoiceReportCard() {
           >
             <Download className="h-4 w-4" />
             Download CSV
+          </Button>
+          <Button
+            variant="outline" className="gap-2"
+            disabled={!report || report.entryCount === 0}
+            onClick={() => report && downloadInvoicePdf(report)}
+            data-testid="button-download-client-invoice-pdf"
+          >
+            <FileText className="h-4 w-4" />
+            Download PDF
           </Button>
         </div>
 
