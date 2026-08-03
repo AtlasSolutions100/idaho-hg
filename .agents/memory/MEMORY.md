@@ -3,4 +3,5 @@
 - [Design-system button positioning](design-system-button-positioning.md) — hover-elevate forces position:relative on buttons; wrap in a positioned div instead of using fixed/absolute on the Button.
 - [QuickBooks sandbox verification](qbo-sandbox-verification.md) — live sends verified clean; Intuit redirect-URI saves fail silently, and multiple connect tabs cause OAuth state mismatches.
 - [QBO e2e mocking](qbo-e2e-mocking.md) — e2e-test QuickBooks sends by vi.mock-ing getValidAccess and the QBO API wrappers; never stub global fetch.
+- [Staffing-app UI tests](staffing-app-ui-tests.md) — component tests run real generated hooks against a stubbed global fetch; jsdom needs Radix pointer-capture polyfills and explicit cleanup().
 - [Seed backfill concurrency](seed-backfill-concurrency.md) — backfills into unconstrained (append-only) tables need pg_advisory_xact_lock; exists-checks alone double-insert under parallel processes.
