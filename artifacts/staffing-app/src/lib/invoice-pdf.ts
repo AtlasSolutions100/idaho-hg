@@ -55,10 +55,18 @@ export interface InvoiceBusinessDetails {
   paymentTerms: string;
 }
 
+export interface InvoiceBillTo {
+  /** Optional contact person, shown above the client name (QuickBooks style). */
+  billingContact?: string;
+  /** Optional multi-line billing address, shown below the client name. */
+  billingAddress?: string;
+}
+
 export function downloadInvoicePdf(
   report: InvoiceReport,
   details?: InvoiceBusinessDetails,
   invoiceNumber?: number,
+  billTo?: InvoiceBillTo,
 ) {
   const doc = new jsPDF({ unit: 'pt', format: 'letter' });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -110,12 +118,24 @@ export function downloadInvoicePdf(
 
   const headerBottom = Math.max(leftY, midY, 40 + logoH) + 18;
 
-  // ---- Pale green band: Bill to / Ship to (we store the client name only).
-  // Long client names wrap; the band grows to fit.
+  // ---- Pale green band: Bill to / Ship to. Shows the optional billing
+  // contact above the client name and the billing address below it, matching
+  // Molly's real QuickBooks invoices. Clients without these fields show the
+  // name only. Long lines wrap; the band grows to fit.
   const bandPad = 12;
   const colW = contentWidth / 2 - 16;
   doc.setFontSize(8.5);
-  const nameLines = doc.splitTextToSize(report.clientName, colW) as string[];
+  const billToRaw = [
+    ...(billTo?.billingContact?.trim() ? [billTo.billingContact.trim()] : []),
+    report.clientName,
+    ...(billTo?.billingAddress ?? '')
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .filter(Boolean),
+  ];
+  const nameLines = billToRaw.flatMap(
+    (raw) => doc.splitTextToSize(raw, colW) as string[],
+  );
   const billBandH = bandPad + 2 + 14 + nameLines.length * 11 + bandPad - 4;
   doc.setFillColor(...GREEN_PALE);
   doc.rect(0, headerBottom, pageWidth, billBandH, 'F');

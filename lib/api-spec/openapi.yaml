@@ -376,6 +376,41 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
   /clients/{id}:
+    patch:
+      operationId: updateClientBilling
+      tags: [roster]
+      summary: Update a client's optional billing contact and address
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateClientBilling"
+      responses:
+        "200":
+          description: Updated client
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
     delete:
       operationId: removeClient
       tags: [roster]
@@ -1230,6 +1265,12 @@ components:
           type: boolean
         isDemo:
           type: boolean
+        billingContact:
+          type: string
+          description: Optional contact person shown on PDF invoices
+        billingAddress:
+          type: string
+          description: Optional multi-line billing address shown on PDF invoices
       required:
         - id
         - name
@@ -1246,10 +1287,21 @@ components:
         rate:
           type: number
           minimum: 0
+        billingContact:
+          type: string
+        billingAddress:
+          type: string
       required:
         - name
         - visitType
         - rate
+    UpdateClientBilling:
+      type: object
+      properties:
+        billingContact:
+          type: string
+        billingAddress:
+          type: string
     Employee:
       type: object
       properties:

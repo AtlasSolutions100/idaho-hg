@@ -7,6 +7,8 @@ import {
   useCreateClient,
   useCreateClientRate,
   useRemoveClient,
+  useListClients,
+  useUpdateClientBilling,
   getListClientRatesQueryKey,
   getListClientRateHistoryQueryKey,
   getListClientsQueryKey,
@@ -19,6 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { isDemoId } from '@/lib/demo';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,
@@ -30,7 +33,7 @@ import {
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { visitTypeLabels, clientRateTypeLabels, type VisitType } from '@/lib/data';
-import { Pencil, Loader2, AlertCircle, History, Plus, Trash2, Clock } from 'lucide-react';
+import { Pencil, Loader2, AlertCircle, History, Plus, Trash2, Clock, MapPin } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 function rateTypeLabel(visitType: string): string {
@@ -58,7 +61,15 @@ export function ClientRatesTable() {
   const [newName, setNewName] = useState('');
   const [newVisitType, setNewVisitType] = useState<VisitType | ''>('');
   const [newRate, setNewRate] = useState('');
+  const [newBillingContact, setNewBillingContact] = useState('');
+  const [newBillingAddress, setNewBillingAddress] = useState('');
   const [addError, setAddError] = useState<string | null>(null);
+
+  // Per-client billing contact/address editing (shown on PDF invoices).
+  const { data: clientList } = useListClients();
+  const [billingFor, setBillingFor] = useState<{ clientId: string; clientName: string } | null>(null);
+  const [billingContact, setBillingContact] = useState('');
+  const [billingAddress, setBillingAddress] = useState('');
   const [removing, setRemoving] = useState<{ clientId: string; clientName: string } | null>(null);
 
   const [hourlyFor, setHourlyFor] = useState<{ clientId: string; clientName: string } | null>(null);
@@ -140,6 +151,33 @@ export function ClientRatesTable() {
     },
   });
 
+  const billingMutation = useUpdateClientBilling({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListClientsQueryKey() });
+        setBillingFor(null);
+        toast({
+          title: 'Billing details saved',
+          description: 'PDF invoices for this client will now show them in the Bill to section.',
+        });
+      },
+      onError: () => {
+        toast({
+          title: 'Could not save billing details',
+          description: 'Please try again.',
+          variant: 'destructive',
+        });
+      },
+    },
+  });
+
+  const openBilling = (clientId: string, clientName: string) => {
+    const client = (clientList ?? []).find((c) => c.id === clientId);
+    setBillingContact(client?.billingContact ?? '');
+    setBillingAddress(client?.billingAddress ?? '');
+    setBillingFor({ clientId, clientName });
+  };
+
   const createRateMutation = useCreateClientRate({
     mutation: {
       onSuccess: () => {
@@ -195,6 +233,8 @@ export function ClientRatesTable() {
     setNewName('');
     setNewVisitType('');
     setNewRate('');
+    setNewBillingContact('');
+    setNewBillingAddress('');
     setAddError(null);
     setAddOpen(true);
   };
@@ -215,7 +255,13 @@ export function ClientRatesTable() {
       return;
     }
     createMutation.mutate({
-      data: { name: newName.trim(), visitType: newVisitType, rate: parsedRate },
+      data: {
+        name: newName.trim(),
+        visitType: newVisitType,
+        rate: parsedRate,
+        ...(newBillingContact.trim() ? { billingContact: newBillingContact.trim() } : {}),
+        ...(newBillingAddress.trim() ? { billingAddress: newBillingAddress.trim() } : {}),
+      },
     });
   };
 
@@ -310,6 +356,16 @@ export function ClientRatesTable() {
                         Add Hourly Rate
                       </Button>
                     )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="gap-2"
+                      onClick={() => openBilling(clientId, clientRates[0].clientName)}
+                      data-testid={`button-edit-billing-${clientId}`}
+                    >
+                      <MapPin className="h-3.5 w-3.5" />
+                      Billing Details
+                    </Button>
                     <Button
                       size="sm"
                       variant="ghost"
@@ -427,6 +483,30 @@ export function ClientRatesTable() {
                 data-testid="input-new-client-rate"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-client-billing-contact">Billing Contact (optional)</Label>
+              <Input
+                id="new-client-billing-contact"
+                value={newBillingContact}
+                onChange={(e) => setNewBillingContact(e.target.value)}
+                placeholder="e.g. Rosie Rios"
+                data-testid="input-new-client-billing-contact"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-client-billing-address">Billing Address (optional)</Label>
+              <Textarea
+                id="new-client-billing-address"
+                value={newBillingAddress}
+                onChange={(e) => setNewBillingAddress(e.target.value)}
+                placeholder={'5465 W Irving Street\nBoise, ID 83706'}
+                rows={3}
+                data-testid="input-new-client-billing-address"
+              />
+              <p className="text-xs text-muted-foreground">
+                Shown in the "Bill to" section of PDF invoices, like QuickBooks.
+              </p>
+            </div>
             {addError && (
               <div
                 className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
@@ -477,6 +557,62 @@ export function ClientRatesTable() {
             >
               {removeMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
               Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!billingFor} onOpenChange={(open) => !open && setBillingFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Billing Details</DialogTitle>
+            <DialogDescription>
+              {billingFor
+                ? `${billingFor.clientName} — the contact and address appear in the "Bill to" section of PDF invoices. Leave blank to show the client name only.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="billing-contact">Billing Contact (optional)</Label>
+              <Input
+                id="billing-contact"
+                value={billingContact}
+                onChange={(e) => setBillingContact(e.target.value)}
+                placeholder="e.g. Rosie Rios"
+                data-testid="input-billing-contact"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="billing-address">Billing Address (optional)</Label>
+              <Textarea
+                id="billing-address"
+                value={billingAddress}
+                onChange={(e) => setBillingAddress(e.target.value)}
+                placeholder={'5465 W Irving Street\nBoise, ID 83706'}
+                rows={3}
+                data-testid="input-billing-address"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBillingFor(null)} data-testid="button-cancel-billing">
+              Cancel
+            </Button>
+            <Button
+              onClick={() =>
+                billingFor &&
+                billingMutation.mutate({
+                  id: billingFor.clientId,
+                  data: { billingContact, billingAddress },
+                })
+              }
+              disabled={billingMutation.isPending}
+              className="gap-2"
+              data-testid="button-save-billing"
+            >
+              {billingMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>

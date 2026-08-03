@@ -67,12 +67,19 @@ export function InvoiceReportCard() {
   // numbers never repeat. If numbering fails, the PDF still downloads
   // (without a number) and Molly is told explicitly.
   const handleDownloadPdf = async (invoiceReport: InvoiceReport) => {
+    // Bill-to details (contact + address) come from the client record, keyed
+    // by the client chosen for this report.
+    const client = (clients ?? []).find((c) => c.id === params?.clientId);
+    const billTo = {
+      billingContact: client?.billingContact,
+      billingAddress: client?.billingAddress,
+    };
     setPdfBusy(true);
     try {
       const { invoiceNumber } = await allocateInvoiceNumber();
-      downloadInvoicePdf(invoiceReport, businessSettings, invoiceNumber);
+      downloadInvoicePdf(invoiceReport, businessSettings, invoiceNumber, billTo);
     } catch {
-      downloadInvoicePdf(invoiceReport, businessSettings);
+      downloadInvoicePdf(invoiceReport, businessSettings, undefined, billTo);
       toast({
         title: 'PDF downloaded without an invoice number',
         description: "Couldn't reach the server to get the next invoice number. Check your connection and try again if you need a numbered invoice.",

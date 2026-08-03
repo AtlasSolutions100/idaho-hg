@@ -5,6 +5,9 @@ export const clientsTable = pgTable("clients", {
   name: text("name").notNull(),
   active: boolean("active").notNull().default(true),
   isDemo: boolean("is_demo").notNull().default(false),
+  // Optional billing details shown in the PDF invoice "Bill to / Ship to" band.
+  billingContact: text("billing_contact"),
+  billingAddress: text("billing_address"),
 });
 
 export const employeesTable = pgTable("employees", {

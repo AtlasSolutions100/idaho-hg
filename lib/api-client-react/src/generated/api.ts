@@ -47,6 +47,7 @@ import type {
   ReconciliationReport,
   TimeEntry,
   UpdateBusinessSettings,
+  UpdateClientBilling,
   UpdateClientRate,
   UpdateEmployeeRate,
   UpdateOnboardingItem,
@@ -1197,6 +1198,78 @@ export const useCreateClient = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getCreateClientMutationOptions(options));
+    }
+
+export const getUpdateClientBillingUrl = (id: string,) => {
+
+
+
+
+  return `/api/clients/${id}`
+}
+
+/**
+ * @summary Update a client's optional billing contact and address
+ */
+export const updateClientBilling = async (id: string,
+    updateClientBilling: UpdateClientBilling, options?: Parameters<typeof customFetch>[1]): Promise<Client> => {
+
+  return customFetch<Client>(getUpdateClientBillingUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateClientBilling)
+  }
+);}
+
+
+
+
+
+export const getUpdateClientBillingMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateClientBilling>>, TError,{id: string;data: BodyType<UpdateClientBilling>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateClientBilling>>, TError,{id: string;data: BodyType<UpdateClientBilling>}, TContext> => {
+
+const mutationKey = ['updateClientBilling'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateClientBilling>>, {id: string;data: BodyType<UpdateClientBilling>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateClientBilling(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateClientBillingMutationResult = NonNullable<Awaited<ReturnType<typeof updateClientBilling>>>
+    export type UpdateClientBillingMutationBody = BodyType<UpdateClientBilling>
+    export type UpdateClientBillingMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update a client's optional billing contact and address
+ */
+export const useUpdateClientBilling = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateClientBilling>>, TError,{id: string;data: BodyType<UpdateClientBilling>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateClientBilling>>,
+        TError,
+        {id: string;data: BodyType<UpdateClientBilling>},
+        TContext
+      > => {
+      return useMutation(getUpdateClientBillingMutationOptions(options));
     }
 
 export const getRemoveClientUrl = (id: string,) => {

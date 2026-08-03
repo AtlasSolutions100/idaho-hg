@@ -13,4 +13,6 @@ export interface ClientInput {
   visitType: VisitType;
   /** @minimum 0 */
   rate: number;
+  billingContact?: string;
+  billingAddress?: string;
 }

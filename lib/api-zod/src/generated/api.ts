@@ -339,7 +339,9 @@ export const ListClientsResponseItem = zod.object({
   "id": zod.string(),
   "name": zod.string(),
   "active": zod.boolean(),
-  "isDemo": zod.boolean()
+  "isDemo": zod.boolean(),
+  "billingContact": zod.string().optional().describe('Optional contact person shown on PDF invoices'),
+  "billingAddress": zod.string().optional().describe('Optional multi-line billing address shown on PDF invoices')
 })
 export const ListClientsResponse = zod.array(ListClientsResponseItem)
 
@@ -355,14 +357,40 @@ export const createClientBodyRateMin = 0;
 export const CreateClientBody = zod.object({
   "name": zod.string().min(1),
   "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy']),
-  "rate": zod.number().min(createClientBodyRateMin)
+  "rate": zod.number().min(createClientBodyRateMin),
+  "billingContact": zod.string().optional(),
+  "billingAddress": zod.string().optional()
 })
 
 export const CreateClientResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
   "active": zod.boolean(),
-  "isDemo": zod.boolean()
+  "isDemo": zod.boolean(),
+  "billingContact": zod.string().optional().describe('Optional contact person shown on PDF invoices'),
+  "billingAddress": zod.string().optional().describe('Optional multi-line billing address shown on PDF invoices')
+})
+
+
+/**
+ * @summary Update a client's optional billing contact and address
+ */
+export const UpdateClientBillingParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const UpdateClientBillingBody = zod.object({
+  "billingContact": zod.string().optional(),
+  "billingAddress": zod.string().optional()
+})
+
+export const UpdateClientBillingResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "active": zod.boolean(),
+  "isDemo": zod.boolean(),
+  "billingContact": zod.string().optional().describe('Optional contact person shown on PDF invoices'),
+  "billingAddress": zod.string().optional().describe('Optional multi-line billing address shown on PDF invoices')
 })
 
 
@@ -377,7 +405,9 @@ export const RemoveClientResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
   "active": zod.boolean(),
-  "isDemo": zod.boolean()
+  "isDemo": zod.boolean(),
+  "billingContact": zod.string().optional().describe('Optional contact person shown on PDF invoices'),
+  "billingAddress": zod.string().optional().describe('Optional multi-line billing address shown on PDF invoices')
 })
 
 

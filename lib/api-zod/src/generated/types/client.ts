@@ -11,4 +11,8 @@ export interface Client {
   name: string;
   active: boolean;
   isDemo: boolean;
+  /** Optional contact person shown on PDF invoices */
+  billingContact?: string;
+  /** Optional multi-line billing address shown on PDF invoices */
+  billingAddress?: string;
 }

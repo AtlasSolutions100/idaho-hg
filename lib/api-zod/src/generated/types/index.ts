@@ -44,6 +44,7 @@ export * from './reconciliationReportLine';
 export * from './reconciliationTotals';
 export * from './timeEntry';
 export * from './updateBusinessSettings';
+export * from './updateClientBilling';
 export * from './updateClientRate';
 export * from './updateEmployeeRate';
 export * from './updateOnboardingItem';

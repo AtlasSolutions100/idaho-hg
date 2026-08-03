@@ -10,7 +10,11 @@ import {
   type ClientRow,
   type EmployeeRow,
 } from "@workspace/db";
-import { CreateClientBody, CreateEmployeeBody } from "@workspace/api-zod";
+import {
+  CreateClientBody,
+  CreateEmployeeBody,
+  UpdateClientBillingBody,
+} from "@workspace/api-zod";
 import {
   hasDemoEmployeeData,
   purgeDemoEmployeeData,
@@ -90,7 +94,16 @@ export async function ensureRosterSeeded() {
 }
 
 function serializeClient(row: ClientRow) {
-  return { id: row.id, name: row.name, active: row.active, isDemo: row.isDemo };
+  return {
+    id: row.id,
+    name: row.name,
+    active: row.active,
+    isDemo: row.isDemo,
+    // Optional billing details — omitted (undefined) when not set so clients
+    // without an address are unchanged.
+    ...(row.billingContact ? { billingContact: row.billingContact } : {}),
+    ...(row.billingAddress ? { billingAddress: row.billingAddress } : {}),
+  };
 }
 
 function serializeEmployee(row: EmployeeRow) {
@@ -148,9 +161,11 @@ router.post("/clients", async (req, res, next) => {
       return;
     }
     const id = randomUUID();
+    const billingContact = body.billingContact?.trim() || null;
+    const billingAddress = body.billingAddress?.trim() || null;
     const [row] = await db
       .insert(clientsTable)
-      .values({ id, name })
+      .values({ id, name, billingContact, billingAddress })
       .returning();
     await db.insert(clientRatesTable).values({
       clientId: id,
@@ -160,6 +175,35 @@ router.post("/clients", async (req, res, next) => {
       effectiveDate: today(),
     });
     res.status(201).json(serializeClient(row));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch("/clients/:id", async (req, res, next) => {
+  try {
+    await ensureRosterSeeded();
+    const parsed = UpdateClientBillingBody.safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ message: parsed.error.issues[0]?.message ?? "Invalid billing details" });
+      return;
+    }
+    // Blank strings clear the field — Molly can remove an address she added.
+    const [row] = await db
+      .update(clientsTable)
+      .set({
+        billingContact: parsed.data.billingContact?.trim() || null,
+        billingAddress: parsed.data.billingAddress?.trim() || null,
+      })
+      .where(eq(clientsTable.id, req.params.id))
+      .returning();
+    if (!row) {
+      res.status(404).json({ message: "Client not found" });
+      return;
+    }
+    res.json(serializeClient(row));
   } catch (err) {
     next(err);
   }

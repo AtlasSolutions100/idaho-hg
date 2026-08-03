@@ -228,6 +228,10 @@ export interface Client {
   name: string;
   active: boolean;
   isDemo: boolean;
+  /** Optional contact person shown on PDF invoices */
+  billingContact?: string;
+  /** Optional multi-line billing address shown on PDF invoices */
+  billingAddress?: string;
 }
 
 export interface ClientInput {
@@ -236,6 +240,13 @@ export interface ClientInput {
   visitType: VisitType;
   /** @minimum 0 */
   rate: number;
+  billingContact?: string;
+  billingAddress?: string;
+}
+
+export interface UpdateClientBilling {
+  billingContact?: string;
+  billingAddress?: string;
 }
 
 export interface Employee {
