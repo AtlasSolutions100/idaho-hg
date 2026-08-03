@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import {
   db,
   clientsTable,
@@ -25,15 +25,53 @@ const router: IRouter = Router();
 // Seed the roster tables once so a fresh database starts with Molly's real
 // clients and employees (UUIDs match the live database).
 const seedClients = [
-  { id: "1", name: "St. Luke's Health System" },
+  {
+    id: "1",
+    name: "St. Luke's Health System",
+    billingAddress: "St Lukes Health System, Ltd\n190 E Bannock St\nBoise, ID 83712",
+  },
   { id: "2", name: "Weiser Memorial Hospital" },
   { id: "3", name: "Idaho Youth Ranch" },
   { id: "4", name: "Treasure Valley Outpatient Clinic" },
   // Meridian Senior Care (id 5) was seeded as a placeholder — confirmed not a
   // real client, so it is seeded inactive to keep legacy IDs stable.
   { id: "5", name: "Meridian Senior Care", active: false },
-  { id: "6", name: "Current PT" },
-  { id: "7", name: "Thrive" },
+  {
+    id: "6",
+    name: "Current PT",
+    billingContact: "Nick Hartley",
+    billingAddress: "Current PT, Fruitland\n2175 N. Whitley Dr\nFruitland, ID 83619",
+  },
+  {
+    id: "7",
+    name: "Thrive",
+    billingContact: "Jody A Thatcher",
+    billingAddress: "Physical Therapy at Thrive\n2302 N Bogus Basin road\nSuite C\nBoise, ID 83702",
+  },
+];
+
+// Billing details confirmed from real QuickBooks invoices. Only applied to
+// rows where billing_address is still NULL so any manually-entered address
+// Molly already set is never overwritten.
+const knownBillingDetails: Array<{
+  id: string;
+  billingContact?: string;
+  billingAddress: string;
+}> = [
+  {
+    id: "1",
+    billingAddress: "St Lukes Health System, Ltd\n190 E Bannock St\nBoise, ID 83712",
+  },
+  {
+    id: "6",
+    billingContact: "Nick Hartley",
+    billingAddress: "Current PT, Fruitland\n2175 N. Whitley Dr\nFruitland, ID 83619",
+  },
+  {
+    id: "7",
+    billingContact: "Jody A Thatcher",
+    billingAddress: "Physical Therapy at Thrive\n2302 N Bogus Basin road\nSuite C\nBoise, ID 83702",
+  },
 ];
 
 // Clients added after the original seed. Existing (non-empty) databases skip
@@ -90,6 +128,18 @@ export async function ensureRosterSeeded() {
     .update(clientsTable)
     .set({ active: false })
     .where(eq(clientsTable.id, "5"));
+  // Backfill confirmed billing details into existing databases. Only updates
+  // rows where billing_address is still NULL so any address Molly already
+  // entered manually is never overwritten.
+  for (const detail of knownBillingDetails) {
+    await db
+      .update(clientsTable)
+      .set({
+        billingAddress: detail.billingAddress,
+        ...(detail.billingContact ? { billingContact: detail.billingContact } : {}),
+      })
+      .where(and(eq(clientsTable.id, detail.id), isNull(clientsTable.billingAddress)));
+  }
   seeded = true;
 }
 

@@ -107,6 +107,12 @@ export function InvoiceReportCard() {
   const canGenerate = clientId !== '' && start !== '' && end !== '' && start <= end;
   const showResults = params !== null;
 
+  // Gentle reminder: PDFs print name-only "Bill to" until billing details
+  // are on file for the selected client.
+  const selectedClient = (clients ?? []).find((c) => c.id === clientId);
+  const missingBillingDetails =
+    selectedClient != null && !selectedClient.billingAddress && !selectedClient.billingContact;
+
   return (
     <Card>
       <CardHeader>
@@ -164,6 +170,21 @@ export function InvoiceReportCard() {
             />
           </div>
         </div>
+        {missingBillingDetails && (
+          <div
+            className="flex items-start gap-2 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground"
+            data-testid="invoice-missing-billing-hint"
+          >
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <p>
+              {selectedClient.name} has no billing contact or address on file, so PDF invoices will
+              show only the client name in the Bill to section.{' '}
+              <Link href="/admin/client-rates" className="underline font-medium">
+                Add billing details on the Client Rates page
+              </Link>
+            </p>
+          </div>
+        )}
         {start !== '' && end !== '' && start > end && (
           <p className="text-sm text-destructive">Start date must be on or before the end date.</p>
         )}
