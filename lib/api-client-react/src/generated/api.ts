@@ -45,6 +45,8 @@ import type {
   OnboardingItem,
   PayrollReport,
   QboDisconnectResult,
+  QboInvoiceSend,
+  QboSentInvoice,
   QboStatus,
   ReconciliationReport,
   TimeEntry,
@@ -2786,6 +2788,78 @@ export function useGetQboStatus<TData = Awaited<ReturnType<typeof getQboStatus>>
 
 
 
+
+export const getSendInvoiceToQboUrl = () => {
+
+
+
+
+  return `/api/qbo/invoice`
+}
+
+/**
+ * Rebuilds the invoice report server-side for the given client and period, matches (or creates) the QuickBooks customer and service items, then creates the invoice in QuickBooks in a single call.
+ * @summary Send a client invoice into QuickBooks
+ */
+export const sendInvoiceToQbo = async (qboInvoiceSend: QboInvoiceSend, options?: Parameters<typeof customFetch>[1]): Promise<QboSentInvoice> => {
+
+  return customFetch<QboSentInvoice>(getSendInvoiceToQboUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(qboInvoiceSend)
+  }
+);}
+
+
+
+
+
+export const getSendInvoiceToQboMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendInvoiceToQbo>>, TError,{data: BodyType<QboInvoiceSend>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendInvoiceToQbo>>, TError,{data: BodyType<QboInvoiceSend>}, TContext> => {
+
+const mutationKey = ['sendInvoiceToQbo'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendInvoiceToQbo>>, {data: BodyType<QboInvoiceSend>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  sendInvoiceToQbo(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendInvoiceToQboMutationResult = NonNullable<Awaited<ReturnType<typeof sendInvoiceToQbo>>>
+    export type SendInvoiceToQboMutationBody = BodyType<QboInvoiceSend>
+    export type SendInvoiceToQboMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Send a client invoice into QuickBooks
+ */
+export const useSendInvoiceToQbo = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendInvoiceToQbo>>, TError,{data: BodyType<QboInvoiceSend>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendInvoiceToQbo>>,
+        TError,
+        {data: BodyType<QboInvoiceSend>},
+        TContext
+      > => {
+      return useMutation(getSendInvoiceToQboMutationOptions(options));
+    }
 
 export const getDisconnectQboUrl = () => {
 

@@ -8,7 +8,7 @@ import {
 } from "@workspace/db";
 import { getClientRateForDate, getEmployeeRateForDate } from "../lib/rate-lookup";
 import { computePayrollAmounts, round2 } from "../lib/payroll-calc";
-import { buildInvoiceLines, type InvoiceEntryInput } from "../lib/invoice-lines";
+import { computeInvoiceReport } from "../lib/invoice-report";
 import { buildReconciliationReport } from "../lib/reconciliation-lines";
 
 const router: IRouter = Router();
@@ -138,70 +138,12 @@ router.get("/reports/invoice", async (req, res, next) => {
       res.status(400).json({ message: "Provide a valid date range (start <= end, YYYY-MM-DD)" });
       return;
     }
-    const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
-    if (!client) {
+    const report = await computeInvoiceReport(clientId, range.start, range.end);
+    if (!report) {
       res.status(404).json({ message: "Client not found" });
       return;
     }
-
-    const entries = (await approvedEntriesInRange(range.start, range.end)).filter(
-      (e) => e.clientId === clientId,
-    );
-
-    // Annotate each approved entry with the rates in effect on its date:
-    // - visit entries bill the client's per-visit rate for that visit type
-    // - hourly entries bill the client's "hourly" billing rate
-    // - mileage and per diem are passed through at the employee's
-    //   reimbursement rates in effect on the entry date
-    // Missing rates produce $0 lines flagged "No rate" — never dropped.
-    const annotated: InvoiceEntryInput[] = [];
-    for (const entry of entries) {
-      const input: InvoiceEntryInput = {
-        id: entry.id,
-        date: entry.date,
-        employeeId: entry.employeeId,
-        employeeName: entry.employeeName,
-        employeeRole: entry.employeeRole,
-        visitType: entry.visitType,
-        hours: entry.hours,
-        mileage: entry.mileage,
-        perDiem: entry.perDiem,
-      };
-      if (entry.visitType) {
-        const rate = await getClientRateForDate(clientId, entry.visitType, entry.date);
-        if (rate) input.visitRate = rate.rate;
-      } else if (entry.hours != null && entry.hours > 0) {
-        // Try role-specific hourly rate first (e.g. "hourly-RN"), fall back to
-        // the generic "hourly" rate so clients with a single hourly rate still work.
-        const roleRate = entry.employeeRole
-          ? await getClientRateForDate(clientId, `hourly-${entry.employeeRole}`, entry.date)
-          : undefined;
-        const rate = roleRate ?? await getClientRateForDate(clientId, "hourly", entry.date);
-        if (rate) input.hourlyRate = rate.rate;
-      }
-      if ((entry.mileage ?? 0) > 0 || (entry.perDiem ?? 0) > 0) {
-        const empRate = await getEmployeeRateForDate(entry.employeeId, entry.date);
-        if (empRate) {
-          input.mileageRate = empRate.mileageRate;
-          input.perDiemRate = empRate.perDiemRate;
-        }
-      }
-      annotated.push(input);
-    }
-
-    const { lines, total, missingRateCount, unbilledCount } = buildInvoiceLines(annotated);
-
-    res.json({
-      clientId,
-      clientName: client.name,
-      start: range.start,
-      end: range.end,
-      lines,
-      total,
-      entryCount: entries.length,
-      missingRateCount,
-      unbilledCount,
-    });
+    res.json(report);
   } catch (err) {
     next(err);
   }

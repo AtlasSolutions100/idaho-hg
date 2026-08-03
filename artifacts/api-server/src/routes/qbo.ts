@@ -13,6 +13,14 @@ import {
   revokeWithIntuit,
   saveConnection,
 } from "../lib/qbo";
+import {
+  QboApiError,
+  buildQboInvoicePayload,
+  createQboInvoice,
+  findOrCreateCustomer,
+  findOrCreateItem,
+} from "../lib/qbo-invoice";
+import { computeInvoiceReport } from "../lib/invoice-report";
 
 const router: IRouter = Router();
 
@@ -158,6 +166,81 @@ router.get("/qbo/status", async (_req, res) => {
       connectedAt: conn.connectedAt.toISOString(),
       problem: "Connected, but QuickBooks couldn't be reached just now.",
     });
+  }
+});
+
+// ---- Send an invoice into QuickBooks as a draft (unsent) invoice.
+router.post("/qbo/invoice", async (req, res, next) => {
+  try {
+    const { clientId, start, end } = (req.body ?? {}) as Record<string, unknown>;
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+    if (typeof clientId !== "string" || clientId.length === 0) {
+      return res.status(400).json({ message: "Provide a clientId" });
+    }
+    if (
+      typeof start !== "string" || typeof end !== "string" ||
+      !DATE_RE.test(start) || !DATE_RE.test(end) || start > end
+    ) {
+      return res.status(400).json({ message: "Provide a valid date range (start <= end, YYYY-MM-DD)" });
+    }
+
+    const access = await getValidAccess();
+    if (!access) {
+      return res.status(409).json({
+        message: "QuickBooks isn't connected. Connect QuickBooks on the Admin dashboard first, then try again.",
+      });
+    }
+
+    // Rebuild the invoice from the database so what lands in QuickBooks is
+    // exactly what the report shows — the browser never supplies amounts.
+    const report = await computeInvoiceReport(clientId, start, end);
+    if (!report) return res.status(404).json({ message: "Client not found" });
+    if (report.lines.length === 0) {
+      return res.status(400).json({
+        message: "There's nothing to send — no approved billable entries for this client in that period.",
+      });
+    }
+
+    // Resolve the customer and one service item per "Product or service"
+    // name. These are find-or-create lookups (idempotent); the invoice itself
+    // is created in a single call afterwards, so a failure never leaves a
+    // half-created invoice behind.
+    const customerRef = await findOrCreateCustomer(access, report.clientName);
+    const itemNames = [...new Set(report.lines.map((l) => l.productService))];
+    const itemRefsByName = new Map<string, { value: string; name?: string }>();
+    for (const name of itemNames) {
+      itemRefsByName.set(name, await findOrCreateItem(access, name));
+    }
+
+    const payload = buildQboInvoicePayload({
+      customerRef,
+      lines: report.lines,
+      itemRefsByName,
+      txnDate: report.end,
+      periodStart: report.start,
+      periodEnd: report.end,
+    });
+    const invoice = await createQboInvoice(access, payload);
+
+    logger.info(
+      { clientId, start, end, qboInvoiceId: invoice.id, docNumber: invoice.docNumber },
+      "Invoice sent to QuickBooks",
+    );
+    return res.json({
+      qboInvoiceId: invoice.id,
+      docNumber: invoice.docNumber,
+      customerName: customerRef.name ?? report.clientName,
+      lineCount: report.lines.length,
+      total: report.total,
+    });
+  } catch (err) {
+    if (err instanceof QboApiError) {
+      logger.warn({ err }, "QuickBooks rejected the invoice send");
+      return res.status(502).json({
+        message: "QuickBooks rejected the request, so nothing was created. Please try again — if it keeps failing, reconnect QuickBooks.",
+      });
+    }
+    return next(err);
   }
 });
 

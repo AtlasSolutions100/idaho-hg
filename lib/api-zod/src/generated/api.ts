@@ -800,6 +800,25 @@ export const GetQboStatusResponse = zod.object({
 
 
 /**
+ * Rebuilds the invoice report server-side for the given client and period, matches (or creates) the QuickBooks customer and service items, then creates the invoice in QuickBooks in a single call.
+ * @summary Send a client invoice into QuickBooks
+ */
+export const SendInvoiceToQboBody = zod.object({
+  "clientId": zod.string(),
+  "start": zod.string(),
+  "end": zod.string()
+})
+
+export const SendInvoiceToQboResponse = zod.object({
+  "qboInvoiceId": zod.string(),
+  "docNumber": zod.string().nullable().describe('QuickBooks invoice number, when QuickBooks assigned one'),
+  "customerName": zod.string(),
+  "lineCount": zod.number(),
+  "total": zod.number()
+})
+
+
+/**
  * Revokes the tokens with Intuit and deletes them from our database
  * @summary Disconnect from QuickBooks
  */

@@ -33,6 +33,24 @@ export interface QboStatus {
   problem?: string | null;
 }
 
+export interface QboInvoiceSend {
+  clientId: string;
+  start: string;
+  end: string;
+}
+
+export interface QboSentInvoice {
+  qboInvoiceId: string;
+  /**
+     * QuickBooks invoice number, when QuickBooks assigned one
+     * @nullable
+     */
+  docNumber: string | null;
+  customerName: string;
+  lineCount: number;
+  total: number;
+}
+
 export interface QboDisconnectResult {
   disconnected: boolean;
 }

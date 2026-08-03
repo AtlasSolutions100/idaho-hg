@@ -834,6 +834,49 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/QboStatus"
+  /qbo/invoice:
+    post:
+      operationId: sendInvoiceToQbo
+      tags: [quickbooks]
+      summary: Send a client invoice into QuickBooks
+      description: Rebuilds the invoice report server-side for the given client and period, matches (or creates) the QuickBooks customer and service items, then creates the invoice in QuickBooks in a single call.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QboInvoiceSend"
+      responses:
+        "200":
+          description: The invoice created in QuickBooks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QboSentInvoice"
+        "400":
+          description: Invalid parameters or nothing billable in the period
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: QuickBooks is not connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "502":
+          description: QuickBooks rejected the request; nothing was created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /qbo/disconnect:
     post:
       operationId: disconnectQbo
@@ -904,6 +947,39 @@ components:
       required:
         - configured
         - connected
+    QboInvoiceSend:
+      type: object
+      properties:
+        clientId:
+          type: string
+        start:
+          type: string
+        end:
+          type: string
+      required:
+        - clientId
+        - start
+        - end
+    QboSentInvoice:
+      type: object
+      properties:
+        qboInvoiceId:
+          type: string
+        docNumber:
+          type: ["string", "null"]
+          description: QuickBooks invoice number, when QuickBooks assigned one
+        customerName:
+          type: string
+        lineCount:
+          type: number
+        total:
+          type: number
+      required:
+        - qboInvoiceId
+        - docNumber
+        - customerName
+        - lineCount
+        - total
     QboDisconnectResult:
       type: object
       properties:

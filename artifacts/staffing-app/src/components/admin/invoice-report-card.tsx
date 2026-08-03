@@ -4,6 +4,8 @@ import {
   getGetInvoiceReportQueryKey,
   useListClients,
   useGetBusinessSettings,
+  useGetQboStatus,
+  useSendInvoiceToQbo,
   allocateInvoiceNumber,
   type InvoiceReport,
 } from '@workspace/api-client-react';
@@ -23,8 +25,9 @@ import { downloadCsv, formatMoney } from '@/lib/report-csv';
 import { downloadInvoicePdf } from '@/lib/invoice-pdf';
 import { useToast } from '@/hooks/use-toast';
 import { useWorkflowSnapshot } from '@/components/admin/workflow-progress';
+import { ApiError } from '@workspace/api-client-react';
 import { format } from 'date-fns';
-import { FileSpreadsheet, FileText, Download, Loader2, AlertCircle, AlertTriangle, Inbox } from 'lucide-react';
+import { FileSpreadsheet, FileText, Download, Loader2, AlertCircle, AlertTriangle, Inbox, Send } from 'lucide-react';
 import { Link } from 'wouter';
 
 // Rates like mileage need 3 decimals (e.g. 0.655) so Qty × Rate matches Amount.
@@ -89,6 +92,34 @@ export function InvoiceReportCard() {
       setPdfBusy(false);
     }
   };
+  // Send to QuickBooks: the server rebuilds the invoice from the database and
+  // creates it in QBO in one call, so a failure never half-creates anything.
+  const { data: qboStatus } = useGetQboStatus();
+  const qboReady = qboStatus?.connected === true;
+  const sendToQbo = useSendInvoiceToQbo({
+    mutation: {
+      onSuccess: (sent) => {
+        toast({
+          title: 'Invoice sent to QuickBooks',
+          description: `${sent.lineCount} line${sent.lineCount === 1 ? '' : 's'} for ${sent.customerName}${sent.docNumber ? ` — QuickBooks invoice #${sent.docNumber}` : ''} (${formatMoney(sent.total)}). Review and send it from QuickBooks.`,
+        });
+      },
+      onError: (error) => {
+        const serverMessage =
+          error instanceof ApiError && error.data && typeof error.data === 'object'
+            ? (error.data as { message?: string }).message
+            : undefined;
+        toast({
+          title: "Couldn't send to QuickBooks",
+          description:
+            serverMessage ??
+            'Something went wrong and nothing was created in QuickBooks. Please try again.',
+          variant: 'destructive',
+        });
+      },
+    },
+  });
+
   // Highlight clients with approved entries ready — scoped to the chosen
   // period once both dates are set, otherwise across all approved entries.
   const rangeSelected = start !== '' && end !== '' && start <= end;
@@ -215,6 +246,25 @@ export function InvoiceReportCard() {
           >
             {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
             Download PDF
+          </Button>
+          <Button
+            variant="outline" className="gap-2"
+            disabled={!report || report.entryCount === 0 || sendToQbo.isPending}
+            onClick={() => {
+              if (!report) return;
+              if (!qboReady) {
+                toast({
+                  title: 'QuickBooks is not connected',
+                  description: 'Connect QuickBooks from the QuickBooks card on this dashboard, then try again.',
+                });
+                return;
+              }
+              sendToQbo.mutate({ data: { clientId: report.clientId, start: report.start, end: report.end } });
+            }}
+            data-testid="button-send-invoice-to-quickbooks"
+          >
+            {sendToQbo.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            Send to QuickBooks
           </Button>
         </div>
 

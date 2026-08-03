@@ -93,6 +93,55 @@ describe("GET /qbo/callback", () => {
   });
 });
 
+describe("POST /qbo/invoice", () => {
+  const send = (body: unknown) =>
+    fetch(`${base}/qbo/invoice`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  it("rejects a missing clientId", async () => {
+    const res = await send({ start: "2026-07-01", end: "2026-07-15" });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { message: string };
+    expect(body.message).toMatch(/clientId/);
+  });
+
+  it("rejects an invalid date range", async () => {
+    const res = await send({ clientId: "c1", start: "2026-07-15", end: "2026-07-01" });
+    expect(res.status).toBe(400);
+  });
+
+  it("blocks with a friendly message when QuickBooks is not connected", async () => {
+    const res = await send({ clientId: "c1", start: "2026-07-01", end: "2026-07-15" });
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { message: string };
+    expect(body.message).toMatch(/isn't connected/i);
+    expect(body.message).toMatch(/connect/i);
+  });
+
+  it("blocks with 409 (not a crash) when the stored connection has expired", async () => {
+    const past = new Date(Date.now() - 60 * 60 * 1000);
+    await db.insert(qboConnectionTable).values({
+      id: "singleton",
+      realmId: "123",
+      accessToken: "expired-access",
+      refreshToken: "expired-refresh",
+      accessTokenExpiresAt: past,
+      refreshTokenExpiresAt: past,
+      connectedAt: past,
+      updatedAt: past,
+    });
+    try {
+      const res = await send({ clientId: "c1", start: "2026-07-01", end: "2026-07-15" });
+      expect(res.status).toBe(409);
+    } finally {
+      await db.delete(qboConnectionTable).where(eq(qboConnectionTable.id, "singleton"));
+    }
+  });
+});
+
 describe("POST /qbo/disconnect", () => {
   it("succeeds when nothing is connected", async () => {
     const res = await fetch(`${base}/qbo/disconnect`, { method: "POST" });

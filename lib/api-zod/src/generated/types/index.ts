@@ -39,6 +39,8 @@ export * from './payrollReport';
 export * from './payrollReportEmployee';
 export * from './payrollReportLine';
 export * from './qboDisconnectResult';
+export * from './qboInvoiceSend';
+export * from './qboSentInvoice';
 export * from './qboStatus';
 export * from './reconciliationEmployeeGroup';
 export * from './reconciliationReport';
