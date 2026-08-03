@@ -37,6 +37,24 @@ export interface QboInvoiceSend {
   clientId: string;
   start: string;
   end: string;
+  /** Set true to send again after the already-sent warning */
+  confirmDuplicate?: boolean;
+}
+
+/**
+ * 409 body for the send endpoint. When alreadySent is true, this client + period has a recorded send and the request must be retried with confirmDuplicate to proceed.
+ */
+export interface QboSendConflict {
+  message: string;
+  alreadySent?: boolean;
+  /** When the earlier send happened (ISO timestamp) */
+  previousSentAt?: string;
+  /**
+     * QuickBooks invoice number from the earlier send
+     * @nullable
+     */
+  previousDocNumber?: string | null;
+  previousQboInvoiceId?: string;
 }
 
 export interface QboSentInvoice {

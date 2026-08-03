@@ -46,6 +46,7 @@ import type {
   PayrollReport,
   QboDisconnectResult,
   QboInvoiceSend,
+  QboSendConflict,
   QboSentInvoice,
   QboStatus,
   ReconciliationReport,
@@ -2816,7 +2817,7 @@ export const sendInvoiceToQbo = async (qboInvoiceSend: QboInvoiceSend, options?:
 
 
 
-export const getSendInvoiceToQboMutationOptions = <TError = ErrorType<ApiError>,
+export const getSendInvoiceToQboMutationOptions = <TError = ErrorType<ApiError | QboSendConflict>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendInvoiceToQbo>>, TError,{data: BodyType<QboInvoiceSend>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof sendInvoiceToQbo>>, TError,{data: BodyType<QboInvoiceSend>}, TContext> => {
 
@@ -2845,12 +2846,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type SendInvoiceToQboMutationResult = NonNullable<Awaited<ReturnType<typeof sendInvoiceToQbo>>>
     export type SendInvoiceToQboMutationBody = BodyType<QboInvoiceSend>
-    export type SendInvoiceToQboMutationError = ErrorType<ApiError>
+    export type SendInvoiceToQboMutationError = ErrorType<ApiError | QboSendConflict>
 
     /**
  * @summary Send a client invoice into QuickBooks
  */
-export const useSendInvoiceToQbo = <TError = ErrorType<ApiError>,
+export const useSendInvoiceToQbo = <TError = ErrorType<ApiError | QboSendConflict>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendInvoiceToQbo>>, TError,{data: BodyType<QboInvoiceSend>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof sendInvoiceToQbo>>,

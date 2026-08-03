@@ -40,6 +40,7 @@ export * from './payrollReportEmployee';
 export * from './payrollReportLine';
 export * from './qboDisconnectResult';
 export * from './qboInvoiceSend';
+export * from './qboSendConflict';
 export * from './qboSentInvoice';
 export * from './qboStatus';
 export * from './reconciliationEmployeeGroup';

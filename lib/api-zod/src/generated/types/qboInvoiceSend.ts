@@ -10,4 +10,6 @@ export interface QboInvoiceSend {
   clientId: string;
   start: string;
   end: string;
+  /** Set true to send again after the already-sent warning */
+  confirmDuplicate?: boolean;
 }

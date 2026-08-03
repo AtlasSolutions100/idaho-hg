@@ -1,5 +1,15 @@
 import { useState } from 'react';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   useGetInvoiceReport,
   getGetInvoiceReportQueryKey,
   useListClients,
@@ -96,19 +106,40 @@ export function InvoiceReportCard() {
   // creates it in QBO in one call, so a failure never half-creates anything.
   const { data: qboStatus } = useGetQboStatus();
   const qboReady = qboStatus?.connected === true;
+  // When the server reports this client + period was already sent, we hold
+  // the request here and ask Molly to confirm before sending again.
+  const [duplicatePrompt, setDuplicatePrompt] = useState<{
+    clientId: string;
+    start: string;
+    end: string;
+    message: string;
+  } | null>(null);
   const sendToQbo = useSendInvoiceToQbo({
     mutation: {
       onSuccess: (sent) => {
+        setDuplicatePrompt(null);
         toast({
           title: 'Invoice sent to QuickBooks',
           description: `${sent.lineCount} line${sent.lineCount === 1 ? '' : 's'} for ${sent.customerName}${sent.docNumber ? ` — QuickBooks invoice #${sent.docNumber}` : ''} (${formatMoney(sent.total)}). Review and send it from QuickBooks.`,
         });
       },
-      onError: (error) => {
-        const serverMessage =
+      onError: (error, variables) => {
+        const errorData =
           error instanceof ApiError && error.data && typeof error.data === 'object'
-            ? (error.data as { message?: string }).message
+            ? (error.data as { message?: string; alreadySent?: boolean })
             : undefined;
+        // A calm confirmation, not an error: this invoice already went to
+        // QuickBooks, so ask before creating it a second time.
+        if (errorData?.alreadySent && errorData.message) {
+          setDuplicatePrompt({
+            clientId: variables.data.clientId,
+            start: variables.data.start,
+            end: variables.data.end,
+            message: errorData.message,
+          });
+          return;
+        }
+        const serverMessage = errorData?.message;
         toast({
           title: "Couldn't send to QuickBooks",
           description:
@@ -373,6 +404,43 @@ export function InvoiceReportCard() {
           </div>
         )}
       </CardContent>
+      <AlertDialog
+        open={duplicatePrompt !== null}
+        onOpenChange={(open) => {
+          if (!open) setDuplicatePrompt(null);
+        }}
+      >
+        <AlertDialogContent data-testid="dialog-quickbooks-already-sent">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Already sent to QuickBooks</AlertDialogTitle>
+            <AlertDialogDescription>
+              {duplicatePrompt?.message} Would you like to send it again anyway?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-duplicate-send">
+              Don't send
+            </AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="button-confirm-duplicate-send"
+              onClick={() => {
+                if (!duplicatePrompt) return;
+                sendToQbo.mutate({
+                  data: {
+                    clientId: duplicatePrompt.clientId,
+                    start: duplicatePrompt.start,
+                    end: duplicatePrompt.end,
+                    confirmDuplicate: true,
+                  },
+                });
+                setDuplicatePrompt(null);
+              }}
+            >
+              Send again
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

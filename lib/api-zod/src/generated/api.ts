@@ -806,7 +806,8 @@ export const GetQboStatusResponse = zod.object({
 export const SendInvoiceToQboBody = zod.object({
   "clientId": zod.string(),
   "start": zod.string(),
-  "end": zod.string()
+  "end": zod.string(),
+  "confirmDuplicate": zod.boolean().optional().describe('Set true to send again after the already-sent warning')
 })
 
 export const SendInvoiceToQboResponse = zod.object({

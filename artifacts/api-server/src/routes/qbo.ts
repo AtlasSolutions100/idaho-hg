@@ -1,5 +1,7 @@
 import { Router, type IRouter, type Request } from "express";
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { db, qboSentInvoicesTable, type QboSentInvoiceRow } from "@workspace/db";
 import { logger } from "../lib/logger";
 import {
   INTUIT_AUTHORIZE_URL,
@@ -169,10 +171,47 @@ router.get("/qbo/status", async (_req, res) => {
   }
 });
 
+/** Newest recorded send for a client + billing period, if any. */
+async function latestRecordedSend(
+  clientId: string,
+  start: string,
+  end: string,
+): Promise<QboSentInvoiceRow | undefined> {
+  const [row] = await db
+    .select()
+    .from(qboSentInvoicesTable)
+    .where(
+      and(
+        eq(qboSentInvoicesTable.clientId, clientId),
+        eq(qboSentInvoicesTable.periodStart, start),
+        eq(qboSentInvoicesTable.periodEnd, end),
+      ),
+    )
+    .orderBy(desc(qboSentInvoicesTable.sentAt))
+    .limit(1);
+  return row;
+}
+
+/** Calm 409 body telling Molly this invoice already went to QuickBooks. */
+function alreadySentResponse(prior: QboSentInvoiceRow) {
+  const sentOn = prior.sentAt.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  return {
+    message: `It looks like this invoice was already sent to QuickBooks on ${sentOn}${prior.docNumber ? ` as invoice #${prior.docNumber}` : ""}. Sending again will create a second invoice in QuickBooks.`,
+    alreadySent: true,
+    previousSentAt: prior.sentAt.toISOString(),
+    previousDocNumber: prior.docNumber,
+    previousQboInvoiceId: prior.qboInvoiceId,
+  };
+}
+
 // ---- Send an invoice into QuickBooks as a draft (unsent) invoice.
 router.post("/qbo/invoice", async (req, res, next) => {
   try {
-    const { clientId, start, end } = (req.body ?? {}) as Record<string, unknown>;
+    const { clientId, start, end, confirmDuplicate } = (req.body ?? {}) as Record<string, unknown>;
     const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
     if (typeof clientId !== "string" || clientId.length === 0) {
       return res.status(400).json({ message: "Provide a clientId" });
@@ -182,6 +221,15 @@ router.post("/qbo/invoice", async (req, res, next) => {
       !DATE_RE.test(start) || !DATE_RE.test(end) || start > end
     ) {
       return res.status(400).json({ message: "Provide a valid date range (start <= end, YYYY-MM-DD)" });
+    }
+
+    // Warn about a repeat send before anything else — even before checking
+    // the connection — so Molly hears about it as early as possible. A
+    // confirmed re-send (confirmDuplicate: true) skips the warning.
+    const confirmed = confirmDuplicate === true;
+    if (!confirmed) {
+      const prior = await latestRecordedSend(clientId, start, end);
+      if (prior) return res.status(409).json(alreadySentResponse(prior));
     }
 
     const access = await getValidAccess();
@@ -220,7 +268,46 @@ router.post("/qbo/invoice", async (req, res, next) => {
       periodStart: report.start,
       periodEnd: report.end,
     });
-    const invoice = await createQboInvoice(access, payload);
+    // Send and record inside one transaction holding an advisory lock keyed
+    // on client + period, so two rapid/parallel sends serialize: the second
+    // waits, then sees the first send's row and gets the warning instead of
+    // silently creating a duplicate. (Holding the transaction across the QBO
+    // call is fine here — this is a single-user, low-traffic flow.)
+    const outcome = await db.transaction(
+      async (tx): Promise<{ duplicate: QboSentInvoiceRow } | { invoice: Awaited<ReturnType<typeof createQboInvoice>> }> => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${`qbo_invoice_send:${clientId}:${start}:${end}`}))`,
+      );
+      if (!confirmed) {
+        const [prior] = await tx
+          .select()
+          .from(qboSentInvoicesTable)
+          .where(
+            and(
+              eq(qboSentInvoicesTable.clientId, clientId),
+              eq(qboSentInvoicesTable.periodStart, start),
+              eq(qboSentInvoicesTable.periodEnd, end),
+            ),
+          )
+          .orderBy(desc(qboSentInvoicesTable.sentAt))
+          .limit(1);
+        if (prior) return { duplicate: prior } as const;
+      }
+      const invoice = await createQboInvoice(access, payload);
+      await tx.insert(qboSentInvoicesTable).values({
+        id: randomUUID(),
+        clientId,
+        periodStart: start,
+        periodEnd: end,
+        qboInvoiceId: invoice.id,
+        docNumber: invoice.docNumber,
+      });
+      return { invoice } as const;
+    });
+    if ("duplicate" in outcome) {
+      return res.status(409).json(alreadySentResponse(outcome.duplicate));
+    }
+    const invoice = outcome.invoice;
 
     logger.info(
       { clientId, start, end, qboInvoiceId: invoice.id, docNumber: invoice.docNumber },

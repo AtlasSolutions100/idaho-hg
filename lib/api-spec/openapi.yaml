@@ -866,11 +866,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "409":
-          description: QuickBooks is not connected
+          description: QuickBooks is not connected, or this client + period was already sent (see alreadySent; retry with confirmDuplicate to send anyway)
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiError"
+                $ref: "#/components/schemas/QboSendConflict"
         "502":
           description: QuickBooks rejected the request; nothing was created
           content:
@@ -956,10 +956,31 @@ components:
           type: string
         end:
           type: string
+        confirmDuplicate:
+          type: boolean
+          description: Set true to send again after the already-sent warning
       required:
         - clientId
         - start
         - end
+    QboSendConflict:
+      type: object
+      description: 409 body for the send endpoint. When alreadySent is true, this client + period has a recorded send and the request must be retried with confirmDuplicate to proceed.
+      properties:
+        message:
+          type: string
+        alreadySent:
+          type: boolean
+        previousSentAt:
+          type: string
+          description: When the earlier send happened (ISO timestamp)
+        previousDocNumber:
+          type: ["string", "null"]
+          description: QuickBooks invoice number from the earlier send
+        previousQboInvoiceId:
+          type: string
+      required:
+        - message
     QboSentInvoice:
       type: object
       properties:
