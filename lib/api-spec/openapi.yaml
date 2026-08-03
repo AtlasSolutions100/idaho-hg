@@ -877,6 +877,41 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /qbo/sent-invoices:
+    get:
+      operationId: getQboSentInvoice
+      tags: [quickbooks]
+      summary: Most recent recorded QuickBooks send for a client + period
+      description: Returns the newest recorded "Send to QuickBooks" for the given client and billing period, so the invoice screen can show it before Molly reaches for the button.
+      parameters:
+        - name: clientId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: start
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: end
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The latest recorded send, or sent=false when none exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QboSentInvoiceLookup"
+        "400":
+          description: Missing or invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /qbo/disconnect:
     post:
       operationId: disconnectQbo
@@ -1001,6 +1036,25 @@ components:
         - customerName
         - lineCount
         - total
+    QboSentInvoiceLookup:
+      type: object
+      description: Newest recorded QuickBooks send for a client + period. When sent is false the other fields are null.
+      properties:
+        sent:
+          type: boolean
+        sentAt:
+          type: ["string", "null"]
+          description: When the send happened (ISO timestamp)
+        docNumber:
+          type: ["string", "null"]
+          description: QuickBooks invoice number, when QuickBooks assigned one
+        qboInvoiceId:
+          type: ["string", "null"]
+      required:
+        - sent
+        - sentAt
+        - docNumber
+        - qboInvoiceId
     QboDisconnectResult:
       type: object
       properties:

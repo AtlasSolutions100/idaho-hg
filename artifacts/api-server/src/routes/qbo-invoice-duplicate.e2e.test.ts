@@ -216,3 +216,34 @@ describe("POST /qbo/invoice duplicate-send guard", () => {
     expect(await recordedSends(start, end)).toHaveLength(1);
   });
 });
+
+describe("GET /qbo/sent-invoices", () => {
+  const get = (query: Record<string, string>) =>
+    api(`/qbo/sent-invoices?${new URLSearchParams(query)}`);
+
+  it("returns sent=false for a period never sent", async () => {
+    const res = await get({ clientId, start: "2027-05-02", end: "2027-05-03" });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ sent: false, sentAt: null, docNumber: null, qboInvoiceId: null });
+  });
+
+  it("returns the newest recorded send for a sent period", async () => {
+    // START/END has two recorded sends by now (original + confirmed repeat).
+    const rows = await recordedSends(START, END);
+    expect(rows.length).toBeGreaterThanOrEqual(2);
+    const newest = [...rows].sort((a, b) => b.sentAt.getTime() - a.sentAt.getTime())[0]!;
+
+    const res = await get({ clientId, start: START, end: END });
+    expect(res.status).toBe(200);
+    expect(res.body.sent).toBe(true);
+    expect(res.body.qboInvoiceId).toBe(newest.qboInvoiceId);
+    expect(res.body.docNumber).toBe(newest.docNumber);
+    expect(res.body.sentAt).toBe(newest.sentAt.toISOString());
+  });
+
+  it("rejects missing or invalid parameters", async () => {
+    expect((await get({ start: START, end: END, clientId: "" })).status).toBe(400);
+    expect((await get({ clientId, start: "not-a-date", end: END })).status).toBe(400);
+    expect((await get({ clientId, start: END, end: START })).status).toBe(400);
+  });
+});

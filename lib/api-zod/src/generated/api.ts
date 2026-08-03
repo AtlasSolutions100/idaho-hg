@@ -820,6 +820,24 @@ export const SendInvoiceToQboResponse = zod.object({
 
 
 /**
+ * Returns the newest recorded "Send to QuickBooks" for the given client and billing period, so the invoice screen can show it before Molly reaches for the button.
+ * @summary Most recent recorded QuickBooks send for a client + period
+ */
+export const GetQboSentInvoiceQueryParams = zod.object({
+  "clientId": zod.coerce.string(),
+  "start": zod.coerce.string(),
+  "end": zod.coerce.string()
+})
+
+export const GetQboSentInvoiceResponse = zod.object({
+  "sent": zod.boolean(),
+  "sentAt": zod.string().nullable().describe('When the send happened (ISO timestamp)'),
+  "docNumber": zod.string().nullable().describe('QuickBooks invoice number, when QuickBooks assigned one'),
+  "qboInvoiceId": zod.string().nullable()
+}).describe('Newest recorded QuickBooks send for a client + period. When sent is false the other fields are null.')
+
+
+/**
  * Revokes the tokens with Intuit and deletes them from our database
  * @summary Disconnect from QuickBooks
  */

@@ -208,6 +208,36 @@ function alreadySentResponse(prior: QboSentInvoiceRow) {
   };
 }
 
+// ---- Latest recorded send for a client + period, so the invoice screen can
+// show "Sent to QuickBooks on … as invoice #…" before Molly clicks Send.
+router.get("/qbo/sent-invoices", async (req, res, next) => {
+  try {
+    const { clientId, start, end } = req.query as Record<string, string | undefined>;
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+    if (typeof clientId !== "string" || clientId.length === 0) {
+      return res.status(400).json({ message: "Provide a clientId" });
+    }
+    if (
+      typeof start !== "string" || typeof end !== "string" ||
+      !DATE_RE.test(start) || !DATE_RE.test(end) || start > end
+    ) {
+      return res.status(400).json({ message: "Provide a valid date range (start <= end, YYYY-MM-DD)" });
+    }
+    const prior = await latestRecordedSend(clientId, start, end);
+    if (!prior) {
+      return res.json({ sent: false, sentAt: null, docNumber: null, qboInvoiceId: null });
+    }
+    return res.json({
+      sent: true,
+      sentAt: prior.sentAt.toISOString(),
+      docNumber: prior.docNumber,
+      qboInvoiceId: prior.qboInvoiceId,
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 // ---- Send an invoice into QuickBooks as a draft (unsent) invoice.
 router.post("/qbo/invoice", async (req, res, next) => {
   try {

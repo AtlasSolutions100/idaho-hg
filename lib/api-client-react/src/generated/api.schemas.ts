@@ -69,6 +69,25 @@ export interface QboSentInvoice {
   total: number;
 }
 
+/**
+ * Newest recorded QuickBooks send for a client + period. When sent is false the other fields are null.
+ */
+export interface QboSentInvoiceLookup {
+  sent: boolean;
+  /**
+     * When the send happened (ISO timestamp)
+     * @nullable
+     */
+  sentAt: string | null;
+  /**
+     * QuickBooks invoice number, when QuickBooks assigned one
+     * @nullable
+     */
+  docNumber: string | null;
+  /** @nullable */
+  qboInvoiceId: string | null;
+}
+
 export interface QboDisconnectResult {
   disconnected: boolean;
 }
@@ -477,6 +496,12 @@ end: string;
 };
 
 export type GetReconciliationReportParams = {
+clientId: string;
+start: string;
+end: string;
+};
+
+export type GetQboSentInvoiceParams = {
 clientId: string;
 start: string;
 end: string;

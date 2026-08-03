@@ -37,6 +37,7 @@ import type {
   FeedbackCreate,
   GetInvoiceReportParams,
   GetPayrollReportParams,
+  GetQboSentInvoiceParams,
   GetReconciliationReportParams,
   GetWorkflowStatusParams,
   HealthStatus,
@@ -48,6 +49,7 @@ import type {
   QboInvoiceSend,
   QboSendConflict,
   QboSentInvoice,
+  QboSentInvoiceLookup,
   QboStatus,
   ReconciliationReport,
   TimeEntry,
@@ -2861,6 +2863,91 @@ export const useSendInvoiceToQbo = <TError = ErrorType<ApiError | QboSendConflic
       > => {
       return useMutation(getSendInvoiceToQboMutationOptions(options));
     }
+
+export const getGetQboSentInvoiceUrl = (params: GetQboSentInvoiceParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/qbo/sent-invoices?${stringifiedParams}` : `/api/qbo/sent-invoices`
+}
+
+/**
+ * Returns the newest recorded "Send to QuickBooks" for the given client and billing period, so the invoice screen can show it before Molly reaches for the button.
+ * @summary Most recent recorded QuickBooks send for a client + period
+ */
+export const getQboSentInvoice = async (params: GetQboSentInvoiceParams, options?: Parameters<typeof customFetch>[1]): Promise<QboSentInvoiceLookup> => {
+
+  return customFetch<QboSentInvoiceLookup>(getGetQboSentInvoiceUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetQboSentInvoiceQueryKey = (params?: GetQboSentInvoiceParams,) => {
+    return [
+    `/api/qbo/sent-invoices`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetQboSentInvoiceQueryOptions = <TData = Awaited<ReturnType<typeof getQboSentInvoice>>, TError = ErrorType<ApiError>>(params: GetQboSentInvoiceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getQboSentInvoice>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetQboSentInvoiceQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getQboSentInvoice>>> = ({ signal }) => getQboSentInvoice(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getQboSentInvoice>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetQboSentInvoiceQueryResult = NonNullable<Awaited<ReturnType<typeof getQboSentInvoice>>>
+export type GetQboSentInvoiceQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Most recent recorded QuickBooks send for a client + period
+ */
+
+export function useGetQboSentInvoice<TData = Awaited<ReturnType<typeof getQboSentInvoice>>, TError = ErrorType<ApiError>>(
+ params: GetQboSentInvoiceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getQboSentInvoice>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetQboSentInvoiceQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getDisconnectQboUrl = () => {
 

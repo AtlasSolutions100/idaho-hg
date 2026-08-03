@@ -15,6 +15,8 @@ import {
   useListClients,
   useGetBusinessSettings,
   useGetQboStatus,
+  useGetQboSentInvoice,
+  getGetQboSentInvoiceQueryKey,
   useSendInvoiceToQbo,
   allocateInvoiceNumber,
   type InvoiceReport,
@@ -34,6 +36,7 @@ import {
 import { downloadCsv, formatMoney } from '@/lib/report-csv';
 import { downloadInvoicePdf } from '@/lib/invoice-pdf';
 import { useToast } from '@/hooks/use-toast';
+import { useQueryClient } from '@tanstack/react-query';
 import { useWorkflowSnapshot } from '@/components/admin/workflow-progress';
 import { ApiError } from '@workspace/api-client-react';
 import { format } from 'date-fns';
@@ -106,6 +109,18 @@ export function InvoiceReportCard() {
   // creates it in QBO in one call, so a failure never half-creates anything.
   const { data: qboStatus } = useGetQboStatus();
   const qboReady = qboStatus?.connected === true;
+  const queryClient = useQueryClient();
+  // The most recent recorded send for this client + period, shown as a note
+  // on the generated report so Molly knows before she reaches for the button.
+  const { data: sentInfo } = useGetQboSentInvoice(
+    params ?? { clientId: '', start: '', end: '' },
+    {
+      query: {
+        enabled: params !== null,
+        queryKey: getGetQboSentInvoiceQueryKey(params ?? { clientId: '', start: '', end: '' }),
+      },
+    },
+  );
   // When the server reports this client + period was already sent, we hold
   // the request here and ask Molly to confirm before sending again.
   const [duplicatePrompt, setDuplicatePrompt] = useState<{
@@ -116,8 +131,16 @@ export function InvoiceReportCard() {
   } | null>(null);
   const sendToQbo = useSendInvoiceToQbo({
     mutation: {
-      onSuccess: (sent) => {
+      onSuccess: (sent, variables) => {
         setDuplicatePrompt(null);
+        // Refresh the "already sent" note for this client + period.
+        void queryClient.invalidateQueries({
+          queryKey: getGetQboSentInvoiceQueryKey({
+            clientId: variables.data.clientId,
+            start: variables.data.start,
+            end: variables.data.end,
+          }),
+        });
         toast({
           title: 'Invoice sent to QuickBooks',
           description: `${sent.lineCount} line${sent.lineCount === 1 ? '' : 's'} for ${sent.customerName}${sent.docNumber ? ` — QuickBooks invoice #${sent.docNumber}` : ''} (${formatMoney(sent.total)}). Review and send it from QuickBooks.`,
@@ -323,6 +346,19 @@ export function InvoiceReportCard() {
         )}
         {report && report.entryCount > 0 && (
           <div className="space-y-4 pt-2" data-testid="invoice-results">
+            {sentInfo?.sent && sentInfo.sentAt && (
+              <div
+                className="flex items-start gap-2 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground"
+                data-testid="invoice-qbo-already-sent-note"
+              >
+                <Send className="h-4 w-4 shrink-0 mt-0.5" />
+                <p>
+                  Sent to QuickBooks on {format(new Date(sentInfo.sentAt), 'MMMM d, yyyy')}
+                  {sentInfo.docNumber ? ` as invoice #${sentInfo.docNumber}` : ''}. Sending again
+                  will create a second invoice in QuickBooks.
+                </p>
+              </div>
+            )}
             {report.missingRateCount > 0 && (
               <div
                 className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40 px-4 py-3"
