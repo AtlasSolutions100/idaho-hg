@@ -31,7 +31,12 @@ const seedClients = [
     billingAddress: "St Lukes Health System, Ltd\n190 E Bannock St\nBoise, ID 83712",
   },
   { id: "2", name: "Weiser Memorial Hospital" },
-  { id: "3", name: "Idaho Youth Ranch" },
+  {
+    id: "3",
+    name: "Idaho Youth Ranch",
+    billingContact: "Rosie Rios",
+    billingAddress: "Idaho Youth Ranch\n5465 W Irving Street\nBoise, ID 83706",
+  },
   { id: "4", name: "Treasure Valley Outpatient Clinic" },
   // Meridian Senior Care (id 5) was seeded as a placeholder — confirmed not a
   // real client, so it is seeded inactive to keep legacy IDs stable.
@@ -61,6 +66,11 @@ const knownBillingDetails: Array<{
   {
     id: "1",
     billingAddress: "St Lukes Health System, Ltd\n190 E Bannock St\nBoise, ID 83712",
+  },
+  {
+    id: "3",
+    billingContact: "Rosie Rios",
+    billingAddress: "Idaho Youth Ranch\n5465 W Irving Street\nBoise, ID 83706",
   },
   {
     id: "6",
