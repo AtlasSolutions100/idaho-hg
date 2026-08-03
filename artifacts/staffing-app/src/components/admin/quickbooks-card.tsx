@@ -1,4 +1,7 @@
+import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   useGetQboStatus,
   useDisconnectQbo,
@@ -25,8 +28,42 @@ import { Link2, CircleCheck, CircleAlert } from 'lucide-react';
  * QuickBooks connection card for the Admin dashboard.
  * Calm status + one clear action: Connect or Disconnect.
  */
+type ConnectOutcome = 'error' | 'cancelled';
+
 export function QuickBooksCard() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [connectOutcome, setConnectOutcome] = useState<ConnectOutcome | null>(null);
+
+  // After Intuit sends Molly back, the server redirects to
+  // /admin?quickbooks=connected|cancelled|error. Read it once, tell her what
+  // happened in plain language, and clean the address bar so a refresh
+  // doesn't repeat the message.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get('quickbooks');
+    if (!result) return;
+
+    if (result === 'connected') {
+      toast({
+        title: 'QuickBooks connected',
+        description: 'Your QuickBooks account is now linked. Invoices can be sent there.',
+      });
+      queryClient.invalidateQueries({ queryKey: getGetQboStatusQueryKey() });
+    } else if (result === 'cancelled') {
+      setConnectOutcome('cancelled');
+    } else {
+      setConnectOutcome('error');
+    }
+
+    params.delete('quickbooks');
+    const rest = params.toString();
+    window.history.replaceState(
+      null,
+      '',
+      `${window.location.pathname}${rest ? `?${rest}` : ''}`,
+    );
+  }, [toast, queryClient]);
   const statusQuery = useGetQboStatus();
   const disconnect = useDisconnectQbo({
     mutation: {
@@ -60,6 +97,26 @@ export function QuickBooksCard() {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {connectOutcome === 'error' && (
+          <Alert variant="destructive" className="mb-4" data-testid="alert-qbo-connect-error">
+            <CircleAlert className="h-4 w-4" aria-hidden="true" />
+            <AlertTitle>The QuickBooks connection didn't go through</AlertTitle>
+            <AlertDescription>
+              This usually happens when an older QuickBooks tab was still open. Close any other
+              QuickBooks tabs, then click "Connect to QuickBooks" again in one fresh tab.
+            </AlertDescription>
+          </Alert>
+        )}
+        {connectOutcome === 'cancelled' && (
+          <Alert className="mb-4" data-testid="alert-qbo-connect-cancelled">
+            <CircleAlert className="h-4 w-4" aria-hidden="true" />
+            <AlertTitle>Connection cancelled</AlertTitle>
+            <AlertDescription>
+              You cancelled on the QuickBooks page, so nothing was connected. Click "Connect to
+              QuickBooks" whenever you're ready to try again.
+            </AlertDescription>
+          </Alert>
+        )}
         {statusQuery.isLoading ? (
           <Skeleton className="h-10 w-full max-w-md" />
         ) : statusQuery.isError || !status ? (
