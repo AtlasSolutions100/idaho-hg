@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { PracticeDataCard } from '@/components/admin/practice-data-card';
 import { NextStepsCard } from '@/components/admin/next-steps-card';
+import { QuickBooksCard } from '@/components/admin/quickbooks-card';
 import { 
   CheckSquare, 
   DollarSign, 
@@ -225,6 +226,11 @@ export default function AdminDashboard() {
               <p className="text-sm text-muted-foreground">Currently staffing</p>
             </CardContent>
           </Card>
+        </div>
+
+        {/* QuickBooks connection */}
+        <div className="mt-8">
+          <QuickBooksCard />
         </div>
 
         {/* Practice data */}

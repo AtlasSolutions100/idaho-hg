@@ -38,6 +38,8 @@ export * from './onboardingItem';
 export * from './payrollReport';
 export * from './payrollReportEmployee';
 export * from './payrollReportLine';
+export * from './qboDisconnectResult';
+export * from './qboStatus';
 export * from './reconciliationEmployeeGroup';
 export * from './reconciliationReport';
 export * from './reconciliationReportLine';

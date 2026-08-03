@@ -6,3 +6,4 @@ export * from "./roster";
 export * from "./workflow-status";
 export * from "./feedback";
 export * from "./business-settings";
+export * from "./qbo-connection";

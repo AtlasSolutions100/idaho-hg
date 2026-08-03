@@ -786,3 +786,25 @@ export const AllocateInvoiceNumberResponse = zod.object({
 })
 
 
+/**
+ * Reports whether Intuit credentials are configured and whether a live connection exists. When connected, includes the company name fetched from QuickBooks to prove the tokens work.
+ * @summary QuickBooks connection status
+ */
+export const GetQboStatusResponse = zod.object({
+  "configured": zod.boolean().describe('Whether Intuit app credentials (Client ID\/Secret) are set up'),
+  "connected": zod.boolean(),
+  "companyName": zod.string().nullish().describe('Company name from QuickBooks when connected and reachable'),
+  "connectedAt": zod.string().nullish(),
+  "problem": zod.string().nullish().describe('Plain-language note when the connection needs attention (e.g. needs reconnecting)')
+})
+
+
+/**
+ * Revokes the tokens with Intuit and deletes them from our database
+ * @summary Disconnect from QuickBooks
+ */
+export const DisconnectQboResponse = zod.object({
+  "disconnected": zod.boolean()
+})
+
+

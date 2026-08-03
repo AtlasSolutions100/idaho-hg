@@ -44,6 +44,8 @@ import type {
   ListTimeEntriesParams,
   OnboardingItem,
   PayrollReport,
+  QboDisconnectResult,
+  QboStatus,
   ReconciliationReport,
   TimeEntry,
   UpdateBusinessSettings,
@@ -2705,5 +2707,155 @@ export const useAllocateInvoiceNumber = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAllocateInvoiceNumberMutationOptions(options));
+    }
+
+export const getGetQboStatusUrl = () => {
+
+
+
+
+  return `/api/qbo/status`
+}
+
+/**
+ * Reports whether Intuit credentials are configured and whether a live connection exists. When connected, includes the company name fetched from QuickBooks to prove the tokens work.
+ * @summary QuickBooks connection status
+ */
+export const getQboStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<QboStatus> => {
+
+  return customFetch<QboStatus>(getGetQboStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetQboStatusQueryKey = () => {
+    return [
+    `/api/qbo/status`
+    ] as const;
+    }
+
+
+export const getGetQboStatusQueryOptions = <TData = Awaited<ReturnType<typeof getQboStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getQboStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetQboStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getQboStatus>>> = ({ signal }) => getQboStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getQboStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetQboStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getQboStatus>>>
+export type GetQboStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary QuickBooks connection status
+ */
+
+export function useGetQboStatus<TData = Awaited<ReturnType<typeof getQboStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getQboStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetQboStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDisconnectQboUrl = () => {
+
+
+
+
+  return `/api/qbo/disconnect`
+}
+
+/**
+ * Revokes the tokens with Intuit and deletes them from our database
+ * @summary Disconnect from QuickBooks
+ */
+export const disconnectQbo = async ( options?: Parameters<typeof customFetch>[1]): Promise<QboDisconnectResult> => {
+
+  return customFetch<QboDisconnectResult>(getDisconnectQboUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDisconnectQboMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectQbo>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof disconnectQbo>>, TError,void, TContext> => {
+
+const mutationKey = ['disconnectQbo'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disconnectQbo>>, void> = () => {
+
+
+          return  disconnectQbo(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DisconnectQboMutationResult = NonNullable<Awaited<ReturnType<typeof disconnectQbo>>>
+
+    export type DisconnectQboMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Disconnect from QuickBooks
+ */
+export const useDisconnectQbo = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectQbo>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof disconnectQbo>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDisconnectQboMutationOptions(options));
     }
 

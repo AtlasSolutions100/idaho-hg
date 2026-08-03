@@ -28,6 +28,8 @@ tags:
     description: In-app feedback from users to the developers
   - name: settings
     description: Business details and invoice numbering for PDF invoices
+  - name: quickbooks
+    description: QuickBooks Online connection (OAuth 2.0 with Intuit)
 paths:
   /healthz:
     get:
@@ -819,6 +821,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AllocatedInvoiceNumber"
+  /qbo/status:
+    get:
+      operationId: getQboStatus
+      tags: [quickbooks]
+      summary: QuickBooks connection status
+      description: Reports whether Intuit credentials are configured and whether a live connection exists. When connected, includes the company name fetched from QuickBooks to prove the tokens work.
+      responses:
+        "200":
+          description: Connection status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QboStatus"
+  /qbo/disconnect:
+    post:
+      operationId: disconnectQbo
+      tags: [quickbooks]
+      summary: Disconnect from QuickBooks
+      description: Revokes the tokens with Intuit and deletes them from our database
+      responses:
+        "200":
+          description: Disconnected (also returned when nothing was connected)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QboDisconnectResult"
 components:
   schemas:
     BusinessSettings:
@@ -854,6 +882,35 @@ components:
         nextInvoiceNumber:
           type: number
           minimum: 1
+    QboStatus:
+      type: object
+      properties:
+        configured:
+          type: boolean
+          description: Whether Intuit app credentials (Client ID/Secret) are set up
+        connected:
+          type: boolean
+        companyName:
+          type: string
+          nullable: true
+          description: Company name from QuickBooks when connected and reachable
+        connectedAt:
+          type: string
+          nullable: true
+        problem:
+          type: string
+          nullable: true
+          description: Plain-language note when the connection needs attention (e.g. needs reconnecting)
+      required:
+        - configured
+        - connected
+    QboDisconnectResult:
+      type: object
+      properties:
+        disconnected:
+          type: boolean
+      required:
+        - disconnected
     AllocatedInvoiceNumber:
       type: object
       properties:

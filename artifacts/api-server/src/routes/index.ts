@@ -9,6 +9,7 @@ import demoDataRouter from "./demo-data";
 import workflowStatusRouter from "./workflow-status";
 import feedbackRouter from "./feedback";
 import businessSettingsRouter from "./business-settings";
+import qboRouter from "./qbo";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(demoDataRouter);
 router.use(workflowStatusRouter);
 router.use(feedbackRouter);
 router.use(businessSettingsRouter);
+router.use(qboRouter);
 
 export default router;

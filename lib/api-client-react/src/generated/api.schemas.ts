@@ -22,6 +22,21 @@ export interface UpdateBusinessSettings {
   nextInvoiceNumber?: number;
 }
 
+export interface QboStatus {
+  /** Whether Intuit app credentials (Client ID/Secret) are set up */
+  configured: boolean;
+  connected: boolean;
+  /** Company name from QuickBooks when connected and reachable */
+  companyName?: string | null;
+  connectedAt?: string | null;
+  /** Plain-language note when the connection needs attention (e.g. needs reconnecting) */
+  problem?: string | null;
+}
+
+export interface QboDisconnectResult {
+  disconnected: boolean;
+}
+
 export interface AllocatedInvoiceNumber {
   invoiceNumber: number;
 }
