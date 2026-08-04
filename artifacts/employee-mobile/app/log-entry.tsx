@@ -14,6 +14,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   getListTimeEntriesQueryKey,
   useCreateTimeEntry,
+  useGetMyEmployee,
   useListClients,
   type VisitType,
 } from '@workspace/api-client-react';
@@ -23,7 +24,6 @@ import { Redirect, useRouter } from 'expo-router';
 import colors from '@/constants/colors';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useColors } from '@/hooks/useColors';
-import { useEmployee } from '@/lib/employee-context';
 import { visitTypeLabels } from '@/lib/labels';
 
 function toDateString(d: Date): string {
@@ -59,7 +59,9 @@ export default function LogEntryScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { employee } = useEmployee();
+  // Server derives the employee from the signed-in session; we only need it
+  // here to know the form is ready to submit.
+  const { data: employee } = useGetMyEmployee();
 
   const [entryType, setEntryType] = useState<'visit' | 'hourly'>('visit');
   const [clientId, setClientId] = useState('');
@@ -113,7 +115,7 @@ export default function LogEntryScreen() {
     !createEntry.isPending &&
     !saved;
 
-  if (!employee) return <Redirect href="/select-employee" />;
+  if (!employee) return <Redirect href="/sign-in" />;
 
   const handleSubmit = () => {
     if (!canSubmit || !employee) return;

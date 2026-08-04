@@ -23,4 +23,5 @@ export interface EmployeeInput {
   weekendMultiplier: number;
   /** @minimum 1 */
   holidayMultiplier: number;
+  email?: string;
 }

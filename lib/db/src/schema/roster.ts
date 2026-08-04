@@ -16,6 +16,9 @@ export const employeesTable = pgTable("employees", {
   role: text("role").notNull(),
   active: boolean("active").notNull().default(true),
   isDemo: boolean("is_demo").notNull().default(false),
+  // Sign-in email for the employee mobile app. Stored lowercase; unique so a
+  // signed-in email maps to exactly one employee.
+  email: text("email").unique(),
 });
 
 export type ClientRow = typeof clientsTable.$inferSelect;

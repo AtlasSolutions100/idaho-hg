@@ -13,6 +13,7 @@ import {
   CreateTimeEntryBody,
   ListTimeEntriesQueryParams,
 } from "@workspace/api-zod";
+import { resolveSessionEmployee } from "../lib/employee-auth";
 
 const router: IRouter = Router();
 
@@ -42,6 +43,18 @@ function serialize(row: TimeEntryRow) {
 router.get("/time-entries", async (req, res, next) => {
   try {
     const query = ListTimeEntriesQueryParams.parse(req.query);
+    // Signed-in employees (mobile app) only ever see their own entries,
+    // regardless of what filter the client sent.
+    const session = await resolveSessionEmployee(req);
+    if (session.kind === "employee") {
+      query.employeeId = session.employee.id;
+    } else if (session.kind === "unknown") {
+      res.status(403).json({
+        message:
+          "This email isn't on the team roster yet. Ask Molly to add your email, then try again.",
+      });
+      return;
+    }
     let rows = await db
       .select()
       .from(timeEntriesTable)
@@ -67,6 +80,18 @@ router.post("/time-entries", async (req, res, next) => {
     }
     const body = parsed.data;
     await ensureRosterSeeded();
+    // When the request carries a signed-in session (mobile app), the entry is
+    // always recorded against that employee — the client can't pick another.
+    const session = await resolveSessionEmployee(req);
+    if (session.kind === "employee") {
+      body.employeeId = session.employee.id;
+    } else if (session.kind === "unknown") {
+      res.status(403).json({
+        message:
+          "This email isn't on the team roster yet. Ask Molly to add your email, then try again.",
+      });
+      return;
+    }
     const [employee] = await db
       .select()
       .from(employeesTable)

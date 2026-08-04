@@ -6,6 +6,8 @@ import {
   useListEmployeeRateHistory,
   useCreateEmployee,
   useRemoveEmployee,
+  useListEmployees,
+  useUpdateEmployeeEmail,
   getListEmployeeRatesQueryKey,
   getListEmployeeRateHistoryQueryKey,
   getListEmployeesQueryKey,
@@ -27,7 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Pencil, Loader2, AlertCircle, History, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Loader2, AlertCircle, History, Plus, Trash2, Mail } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface EditForm {
@@ -74,9 +76,20 @@ export function EmployeeRatesTable() {
   const [addOpen, setAddOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [newRole, setNewRole] = useState('');
+  const [newEmail, setNewEmail] = useState('');
   const [newRates, setNewRates] = useState<Record<string, string>>({});
   const [addError, setAddError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<{ employeeId: string; employeeName: string } | null>(null);
+  const [emailFor, setEmailFor] = useState<{ employeeId: string; employeeName: string } | null>(null);
+  const [emailValue, setEmailValue] = useState('');
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  // Roster (with sign-in emails) so each row can show whether the employee
+  // can sign in to the mobile app yet.
+  const { data: employees } = useListEmployees();
+  const emailByEmployeeId = new Map(
+    (employees ?? []).map((e) => [e.id, e.email ?? '']),
+  );
 
   const historyQuery = useListEmployeeRateHistory(historyFor?.id ?? '', {
     query: {
@@ -152,9 +165,46 @@ export function EmployeeRatesTable() {
     },
   });
 
+  const emailMutation = useUpdateEmployeeEmail({
+    mutation: {
+      onSuccess: (employee) => {
+        invalidateEmployees();
+        setEmailFor(null);
+        toast({
+          title: 'Sign-in email saved',
+          description: employee.email
+            ? `${employee.name} can now sign in to the mobile app with ${employee.email}.`
+            : `${employee.name}'s sign-in email was removed.`,
+        });
+      },
+      onError: (error) => {
+        const serverMessage =
+          error && typeof error === 'object' && 'data' in error &&
+          error.data && typeof error.data === 'object' && 'message' in error.data &&
+          typeof (error.data as { message?: unknown }).message === 'string'
+            ? (error.data as { message: string }).message
+            : null;
+        setEmailError(serverMessage ?? 'Could not save the email. Please try again.');
+      },
+    },
+  });
+
+  const openEmail = (employeeId: string, employeeName: string) => {
+    setEmailFor({ employeeId, employeeName });
+    setEmailValue(emailByEmployeeId.get(employeeId) ?? '');
+    setEmailError(null);
+  };
+
+  const handleSaveEmail = () => {
+    if (!emailFor) return;
+    setEmailError(null);
+    emailMutation.mutate({ id: emailFor.employeeId, data: { email: emailValue.trim() } });
+  };
+
   const openAdd = () => {
     setNewName('');
     setNewRole('');
+    setNewEmail('');
     setNewRates({
       hourlyRate: '',
       visitRate: '',
@@ -194,6 +244,7 @@ export function EmployeeRatesTable() {
       data: {
         name: newName.trim(),
         role: newRole.trim(),
+        ...(newEmail.trim() ? { email: newEmail.trim() } : {}),
         hourlyRate: values.hourlyRate,
         visitRate: values.visitRate,
         mileageRate: values.mileageRate,
@@ -308,6 +359,15 @@ export function EmployeeRatesTable() {
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground">{rate.employeeRole}</div>
+                      <button
+                        type="button"
+                        onClick={() => openEmail(rate.employeeId, rate.employeeName)}
+                        className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:underline"
+                        data-testid={`button-email-employee-${rate.employeeId}`}
+                      >
+                        <Mail className="h-3 w-3" />
+                        {emailByEmployeeId.get(rate.employeeId) || 'Add sign-in email'}
+                      </button>
                     </TableCell>
                     <TableCell className="text-right font-mono">
                       ${rate.hourlyRate.toFixed(2)}
@@ -401,6 +461,20 @@ export function EmployeeRatesTable() {
                 data-testid="input-new-employee-role"
               />
             </div>
+            <div className="space-y-2 col-span-2">
+              <Label htmlFor="new-employee-email">Sign-in email (optional)</Label>
+              <Input
+                id="new-employee-email"
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="e.g. jane@example.com"
+                data-testid="input-new-employee-email"
+              />
+              <p className="text-xs text-muted-foreground">
+                Lets the employee sign in to the mobile app with a code sent to this email.
+              </p>
+            </div>
             {numericFields.map(field => (
               <div key={field.key} className="space-y-2">
                 <Label htmlFor={`new-employee-${field.key}`}>{field.label}</Label>
@@ -437,6 +511,52 @@ export function EmployeeRatesTable() {
             >
               {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
               Add Employee
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!emailFor} onOpenChange={(open) => !open && setEmailFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sign-in Email</DialogTitle>
+            <DialogDescription>
+              {emailFor?.employeeName} will sign in to the mobile app with a one-time
+              code sent to this email. Leave it blank to remove app access.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="employee-email">Email</Label>
+            <Input
+              id="employee-email"
+              type="email"
+              value={emailValue}
+              onChange={(e) => setEmailValue(e.target.value)}
+              placeholder="e.g. jane@example.com"
+              data-testid="input-employee-email"
+            />
+            {emailError && (
+              <div
+                className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+                data-testid="error-employee-email"
+              >
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>{emailError}</span>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmailFor(null)} data-testid="button-cancel-employee-email">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveEmail}
+              disabled={emailMutation.isPending}
+              className="gap-2"
+              data-testid="button-save-employee-email"
+            >
+              {emailMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>

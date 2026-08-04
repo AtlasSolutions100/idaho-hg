@@ -14,7 +14,13 @@ import {
   CreateClientBody,
   CreateEmployeeBody,
   UpdateClientBillingBody,
+  UpdateEmployeeEmailBody,
 } from "@workspace/api-zod";
+import {
+  ensureClerkUserForEmail,
+  requireEmployee,
+  resolveSessionEmployee,
+} from "../lib/employee-auth";
 import {
   hasDemoEmployeeData,
   purgeDemoEmployeeData,
@@ -173,11 +179,58 @@ function serializeEmployee(row: EmployeeRow) {
     role: row.role,
     active: row.active,
     isDemo: row.isDemo,
+    ...(row.email ? { email: row.email } : {}),
   };
+}
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Validate + normalize a sign-in email and make sure no other employee uses
+ * it. Returns the normalized email, null (cleared), or an error message.
+ */
+async function prepareEmployeeEmail(
+  rawEmail: string,
+  excludeEmployeeId?: string,
+): Promise<{ email: string | null } | { error: string; status: number }> {
+  const email = rawEmail.trim().toLowerCase();
+  if (!email) return { email: null };
+  if (!EMAIL_PATTERN.test(email)) {
+    return { error: "That doesn't look like a valid email address.", status: 400 };
+  }
+  const existing = await db.select().from(employeesTable);
+  const match = existing.find(
+    (e) => e.email === email && e.id !== excludeEmployeeId,
+  );
+  if (match) {
+    return {
+      error: `That email is already used by ${match.name}.`,
+      status: 409,
+    };
+  }
+  return { email };
 }
 
 function today() {
   return new Date().toISOString().slice(0, 10);
+}
+
+/** Postgres unique-constraint violation on the employee email index. */
+function isUniqueEmailViolation(err: unknown): boolean {
+  const cause =
+    err && typeof err === "object" && "cause" in err ? (err as { cause?: unknown }).cause : undefined;
+  for (const candidate of [err, cause]) {
+    if (
+      candidate &&
+      typeof candidate === "object" &&
+      "code" in candidate &&
+      (candidate as { code?: unknown }).code === "23505" &&
+      String((candidate as { constraint?: unknown }).constraint ?? "").includes("email")
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 router.get("/clients", async (_req, res, next) => {
@@ -328,25 +381,97 @@ router.post("/employees", async (req, res, next) => {
       });
       return;
     }
+    let email: string | null = null;
+    if (body.email !== undefined) {
+      const prepared = await prepareEmployeeEmail(body.email);
+      if ("error" in prepared) {
+        res.status(prepared.status).json({ message: prepared.error });
+        return;
+      }
+      email = prepared.email;
+    }
+    // Provision the Clerk user first (idempotent) so a Clerk failure can't
+    // leave a half-created employee behind.
+    if (email) {
+      await ensureClerkUserForEmail(email);
+    }
     const id = randomUUID();
-    const [row] = await db
-      .insert(employeesTable)
-      .values({ id, name, role })
-      .returning();
-    await db.insert(employeeRatesTable).values({
-      employeeId: id,
-      employeeName: name,
-      employeeRole: role,
-      hourlyRate: body.hourlyRate,
-      visitRate: body.visitRate,
-      mileageRate: body.mileageRate,
-      perDiemRate: body.perDiemRate,
-      weekendMultiplier: body.weekendMultiplier,
-      holidayMultiplier: body.holidayMultiplier,
-      effectiveDate: today(),
+    const row = await db.transaction(async (tx) => {
+      const [inserted] = await tx
+        .insert(employeesTable)
+        .values({ id, name, role, email })
+        .returning();
+      await tx.insert(employeeRatesTable).values({
+        employeeId: id,
+        employeeName: name,
+        employeeRole: role,
+        hourlyRate: body.hourlyRate,
+        visitRate: body.visitRate,
+        mileageRate: body.mileageRate,
+        perDiemRate: body.perDiemRate,
+        weekendMultiplier: body.weekendMultiplier,
+        holidayMultiplier: body.holidayMultiplier,
+        effectiveDate: today(),
+      });
+      return inserted;
     });
     res.status(201).json(serializeEmployee(row));
   } catch (err) {
+    if (isUniqueEmailViolation(err)) {
+      res.status(409).json({ message: "That email is already used by another employee." });
+      return;
+    }
+    next(err);
+  }
+});
+
+router.get("/me", requireEmployee, async (req, res, next) => {
+  try {
+    await ensureRosterSeeded();
+    const { employee } = req as typeof req & {
+      employee: import("@workspace/db").EmployeeRow;
+    };
+    res.json(serializeEmployee(employee));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch("/employees/:id", async (req, res, next) => {
+  try {
+    await ensureRosterSeeded();
+    const parsed = UpdateEmployeeEmailBody.safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ message: parsed.error.issues[0]?.message ?? "Invalid email" });
+      return;
+    }
+    const prepared = await prepareEmployeeEmail(parsed.data.email, req.params.id);
+    if ("error" in prepared) {
+      res.status(prepared.status).json({ message: prepared.error });
+      return;
+    }
+    // Provision the Clerk user first (idempotent) so we never persist an
+    // email the employee can't actually sign in with.
+    if (prepared.email) {
+      await ensureClerkUserForEmail(prepared.email);
+    }
+    const [row] = await db
+      .update(employeesTable)
+      .set({ email: prepared.email })
+      .where(eq(employeesTable.id, req.params.id))
+      .returning();
+    if (!row) {
+      res.status(404).json({ message: "Employee not found" });
+      return;
+    }
+    res.json(serializeEmployee(row));
+  } catch (err) {
+    if (isUniqueEmailViolation(err)) {
+      res.status(409).json({ message: "That email is already used by another employee." });
+      return;
+    }
     next(err);
   }
 });

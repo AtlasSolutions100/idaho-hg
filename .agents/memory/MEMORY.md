@@ -5,3 +5,5 @@
 - [QBO e2e mocking](qbo-e2e-mocking.md) — e2e-test QuickBooks sends by vi.mock-ing getValidAccess and the QBO API wrappers; never stub global fetch.
 - [Staffing-app UI tests](staffing-app-ui-tests.md) — component tests run real generated hooks against a stubbed global fetch; jsdom needs Radix pointer-capture polyfills and explicit cleanup().
 - [Seed backfill concurrency](seed-backfill-concurrency.md) — backfills into unconstrained (append-only) tables need pg_advisory_xact_lock; exists-checks alone double-insert under parallel processes.
+- [Clerk email-code testing](clerk-otp-e2e.md) — `+clerk_test` emails always accept code 424242; full FAPI script gets a Bearer JWT for curl-level auth tests.
+- [Duplicate @types/react](types-react-dedupe.md) — one package pinning a different @types/react flips pnpm's hoisted fallback and breaks other apps' typecheck; keep everything on `catalog:`.

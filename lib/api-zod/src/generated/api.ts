@@ -419,7 +419,8 @@ export const ListEmployeesResponseItem = zod.object({
   "name": zod.string(),
   "role": zod.string(),
   "active": zod.boolean(),
-  "isDemo": zod.boolean()
+  "isDemo": zod.boolean(),
+  "email": zod.string().optional()
 })
 export const ListEmployeesResponse = zod.array(ListEmployeesResponseItem)
 
@@ -449,7 +450,8 @@ export const CreateEmployeeBody = zod.object({
   "mileageRate": zod.number().min(createEmployeeBodyMileageRateMin),
   "perDiemRate": zod.number().min(createEmployeeBodyPerDiemRateMin),
   "weekendMultiplier": zod.number().min(1),
-  "holidayMultiplier": zod.number().min(1)
+  "holidayMultiplier": zod.number().min(1),
+  "email": zod.string().optional()
 })
 
 export const CreateEmployeeResponse = zod.object({
@@ -457,7 +459,42 @@ export const CreateEmployeeResponse = zod.object({
   "name": zod.string(),
   "role": zod.string(),
   "active": zod.boolean(),
-  "isDemo": zod.boolean()
+  "isDemo": zod.boolean(),
+  "email": zod.string().optional()
+})
+
+
+/**
+ * @summary Get the roster employee for the signed-in user
+ */
+export const GetMyEmployeeResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "active": zod.boolean(),
+  "isDemo": zod.boolean(),
+  "email": zod.string().optional()
+})
+
+
+/**
+ * @summary Set or clear an employee's sign-in email
+ */
+export const UpdateEmployeeEmailParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const UpdateEmployeeEmailBody = zod.object({
+  "email": zod.string()
+})
+
+export const UpdateEmployeeEmailResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "active": zod.boolean(),
+  "isDemo": zod.boolean(),
+  "email": zod.string().optional()
 })
 
 
@@ -473,7 +510,8 @@ export const RemoveEmployeeResponse = zod.object({
   "name": zod.string(),
   "role": zod.string(),
   "active": zod.boolean(),
-  "isDemo": zod.boolean()
+  "isDemo": zod.boolean(),
+  "email": zod.string().optional()
 })
 
 

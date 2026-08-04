@@ -325,6 +325,7 @@ export interface Employee {
   role: string;
   active: boolean;
   isDemo: boolean;
+  email?: string;
 }
 
 export interface EmployeeInput {
@@ -344,6 +345,11 @@ export interface EmployeeInput {
   weekendMultiplier: number;
   /** @minimum 1 */
   holidayMultiplier: number;
+  email?: string;
+}
+
+export interface UpdateEmployeeEmail {
+  email: string;
 }
 
 export type ClientRateType = typeof ClientRateType[keyof typeof ClientRateType];

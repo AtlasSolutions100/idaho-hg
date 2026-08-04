@@ -10,16 +10,19 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
+  ApiError,
+  getGetMyEmployeeQueryKey,
   getListTimeEntriesQueryKey,
+  useGetMyEmployee,
   useListTimeEntries,
   type TimeEntry,
 } from '@workspace/api-client-react';
+import { useAuth, useClerk } from '@clerk/expo';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Redirect, useRouter } from 'expo-router';
 import colors from '@/constants/colors';
 import { useColors } from '@/hooks/useColors';
-import { useEmployee } from '@/lib/employee-context';
 import { statusLabels, visitTypeLabels } from '@/lib/labels';
 
 function formatDate(iso: string): string {
@@ -37,8 +40,23 @@ export default function HomeScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { employee, loading } = useEmployee();
+  const { isLoaded, isSignedIn } = useAuth();
+  const { signOut } = useClerk();
   const [refreshing, setRefreshing] = useState(false);
+
+  // Who am I? The server maps the signed-in email to the roster.
+  const {
+    data: employee,
+    isLoading: meLoading,
+    error: meError,
+    refetch: refetchMe,
+  } = useGetMyEmployee({
+    query: {
+      enabled: isLoaded && isSignedIn,
+      retry: false,
+      queryKey: getGetMyEmployeeQueryKey(),
+    },
+  });
 
   const employeeId = employee?.id;
   const {
@@ -70,11 +88,99 @@ export default function HomeScreen() {
     [entries],
   );
 
-  if (loading) return null;
-  if (!employee) return <Redirect href="/select-employee" />;
+  if (!isLoaded) return null;
+  if (!isSignedIn) return <Redirect href="/sign-in" />;
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const bottomInset = Platform.OS === 'web' ? 34 : insets.bottom;
+
+  // Signed in, but the email isn't on Molly's roster yet.
+  if (meError instanceof ApiError && meError.response.status === 403) {
+    return (
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: c.background,
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: 32,
+          },
+        ]}
+      >
+        <Feather name="user-x" size={44} color={c.mutedForeground} />
+        <Text style={[styles.emptyTitle, { color: c.foreground, textAlign: 'center' }]}>
+          You're not on the roster yet
+        </Text>
+        <Text style={[styles.emptyText, { color: c.mutedForeground }]}>
+          Ask Molly to add this email to the team roster, then try again.
+        </Text>
+        <Pressable
+          onPress={() => refetchMe()}
+          style={[styles.retryButton, { backgroundColor: c.primary }]}
+          testID="button-check-again"
+        >
+          <Text style={[styles.retryText, { color: c.primaryForeground }]}>
+            Check again
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => signOut()}
+          style={[styles.retryButton, { backgroundColor: c.secondary }]}
+          testID="button-sign-out"
+        >
+          <Text style={[styles.retryText, { color: c.secondaryForeground }]}>
+            Sign out
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (meLoading || (!employee && !meError)) {
+    return (
+      <View
+        style={[
+          styles.container,
+          { backgroundColor: c.background, alignItems: 'center', justifyContent: 'center' },
+        ]}
+      >
+        <Text style={[styles.emptyText, { color: c.mutedForeground }]}>
+          Loading…
+        </Text>
+      </View>
+    );
+  }
+
+  if (!employee) {
+    return (
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: c.background,
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: 32,
+          },
+        ]}
+      >
+        <Feather name="wifi-off" size={40} color={c.mutedForeground} />
+        <Text style={[styles.emptyTitle, { color: c.foreground }]}>
+          Couldn't load your info
+        </Text>
+        <Pressable
+          onPress={() => refetchMe()}
+          style={[styles.retryButton, { backgroundColor: c.secondary }]}
+          testID="button-retry-me"
+        >
+          <Text style={[styles.retryText, { color: c.secondaryForeground }]}>
+            Try again
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
@@ -95,15 +201,15 @@ export default function HomeScreen() {
               My Hours
             </Text>
             <Pressable
-              onPress={() => router.push('/select-employee')}
+              onPress={() => signOut()}
               hitSlop={8}
               style={styles.namePill}
-              testID="button-switch-employee"
+              testID="button-sign-out"
             >
               <Text style={[styles.headerName, { color: c.mutedForeground }]}>
-                {employee.name}
+                {employee.name} · Sign out
               </Text>
-              <Feather name="chevron-down" size={14} color={c.mutedForeground} />
+              <Feather name="log-out" size={13} color={c.mutedForeground} />
             </Pressable>
           </View>
           {waitingCount > 0 && (

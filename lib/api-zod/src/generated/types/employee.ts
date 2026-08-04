@@ -12,4 +12,5 @@ export interface Employee {
   role: string;
   active: boolean;
   isDemo: boolean;
+  email?: string;
 }

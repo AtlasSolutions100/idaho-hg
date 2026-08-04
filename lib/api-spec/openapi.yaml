@@ -473,7 +473,72 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /me:
+    get:
+      operationId: getMyEmployee
+      tags: [roster]
+      summary: Get the roster employee for the signed-in user
+      responses:
+        "200":
+          description: The signed-in employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Signed-in email is not on the roster
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /employees/{id}:
+    patch:
+      operationId: updateEmployeeEmail
+      tags: [roster]
+      summary: Set or clear an employee's sign-in email
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEmployeeEmail"
+      responses:
+        "200":
+          description: Updated employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Email already used by another employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
     delete:
       operationId: removeEmployee
       tags: [roster]
@@ -1523,6 +1588,8 @@ components:
           type: boolean
         isDemo:
           type: boolean
+        email:
+          type: string
       required:
         - id
         - name
@@ -1556,6 +1623,8 @@ components:
         holidayMultiplier:
           type: number
           minimum: 1
+        email:
+          type: string
       required:
         - name
         - role
@@ -1565,6 +1634,13 @@ components:
         - perDiemRate
         - weekendMultiplier
         - holidayMultiplier
+    UpdateEmployeeEmail:
+      type: object
+      properties:
+        email:
+          type: string
+      required:
+        - email
     ClientRate:
       type: object
       properties:
