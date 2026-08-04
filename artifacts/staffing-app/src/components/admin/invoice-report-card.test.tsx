@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { InvoiceReportCard } from './invoice-report-card';
+import { Toaster } from '@/components/ui/toaster';
 
 // These tests exercise the real generated API hooks (react-query) against a
 // stubbed network layer, so the query-invalidation path after a successful
@@ -44,7 +45,7 @@ const SENT = {
 
 type Routes = {
   sentInvoices: () => unknown;
-  onSend?: () => { status: number; body: unknown };
+  onSend?: () => { status: number; body?: unknown };
 };
 
 let routes: Routes;
@@ -86,6 +87,9 @@ beforeEach(() => {
       if (path === '/api/qbo/invoice' && (init?.method ?? 'GET') === 'POST') {
         sendRequestBodies.push(init?.body ? JSON.parse(String(init.body)) : undefined);
         const result = routes.onSend?.() ?? { status: 500, body: { message: 'no send stub' } };
+        // body === undefined simulates a failure with no parseable JSON body
+        // (e.g. a proxy/network-level error page).
+        if (result.body === undefined) return new Response(null, { status: result.status });
         return jsonResponse(result.body, result.status);
       }
       throw new Error(`Unstubbed request in test: ${init?.method ?? 'GET'} ${url}`);
@@ -105,6 +109,7 @@ function renderCard() {
   return render(
     <QueryClientProvider client={queryClient}>
       <InvoiceReportCard />
+      <Toaster />
     </QueryClientProvider>,
   );
 }
@@ -196,6 +201,51 @@ describe('InvoiceReportCard — Sent to QuickBooks note', () => {
     expect(note).toHaveTextContent('as invoice #1042');
     // The refreshed note came from a new lookup request, not a stale cache.
     expect(sentLookupCalls.length).toBeGreaterThan(lookupsBeforeSend);
+  });
+});
+
+describe('InvoiceReportCard — failed send error toast', () => {
+  it("shows the server's explanation in a destructive toast when the send fails", async () => {
+    routes = {
+      sentInvoices: () => NOT_SENT,
+      onSend: () => ({
+        status: 500,
+        body: { message: 'QuickBooks reported the customer "Idaho Youth Ranch" was not found.' },
+      }),
+    };
+    const user = userEvent.setup();
+    renderCard();
+    await generateReport(user);
+
+    await user.click(screen.getByTestId('button-send-invoice-to-quickbooks'));
+
+    await screen.findByText("Couldn't send to QuickBooks");
+    // The server's own explanation must reach Molly verbatim.
+    await screen.findByText(
+      'QuickBooks reported the customer "Idaho Youth Ranch" was not found.',
+    );
+    // A plain failure never opens the duplicate-send confirmation dialog.
+    expect(screen.queryByTestId('dialog-quickbooks-already-sent')).not.toBeInTheDocument();
+    expect(sendRequestBodies).toHaveLength(1);
+  });
+
+  it('falls back to the generic "nothing was created" message when the error has no body', async () => {
+    routes = {
+      sentInvoices: () => NOT_SENT,
+      // No body at all — e.g. the connection dropped mid-send.
+      onSend: () => ({ status: 502 }),
+    };
+    const user = userEvent.setup();
+    renderCard();
+    await generateReport(user);
+
+    await user.click(screen.getByTestId('button-send-invoice-to-quickbooks'));
+
+    await screen.findByText("Couldn't send to QuickBooks");
+    await screen.findByText(
+      'Something went wrong and nothing was created in QuickBooks. Please try again.',
+    );
+    expect(screen.queryByTestId('dialog-quickbooks-already-sent')).not.toBeInTheDocument();
   });
 });
 
