@@ -49,6 +49,7 @@ type Routes = {
 
 let routes: Routes;
 let sentLookupCalls: string[];
+let sendRequestBodies: unknown[];
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -59,6 +60,7 @@ function jsonResponse(body: unknown, status = 200) {
 
 beforeEach(() => {
   sentLookupCalls = [];
+  sendRequestBodies = [];
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -82,6 +84,7 @@ beforeEach(() => {
         return jsonResponse(routes.sentInvoices());
       }
       if (path === '/api/qbo/invoice' && (init?.method ?? 'GET') === 'POST') {
+        sendRequestBodies.push(init?.body ? JSON.parse(String(init.body)) : undefined);
         const result = routes.onSend?.() ?? { status: 500, body: { message: 'no send stub' } };
         return jsonResponse(result.body, result.status);
       }
@@ -193,5 +196,82 @@ describe('InvoiceReportCard — Sent to QuickBooks note', () => {
     expect(note).toHaveTextContent('as invoice #1042');
     // The refreshed note came from a new lookup request, not a stale cache.
     expect(sentLookupCalls.length).toBeGreaterThan(lookupsBeforeSend);
+  });
+});
+
+describe('InvoiceReportCard — already-sent confirmation dialog', () => {
+  const ALREADY_SENT_MESSAGE =
+    'This invoice for Idaho Youth Ranch (Jul 12–25, 2026) was already sent to QuickBooks on July 28, 2026 as invoice #1042.';
+
+  // Drive a send that the server rejects with alreadySent, so the dialog opens.
+  async function openDuplicateDialog(user: ReturnType<typeof userEvent.setup>) {
+    routes = {
+      sentInvoices: () => SENT,
+      onSend: () => ({
+        status: 409,
+        body: { alreadySent: true, message: ALREADY_SENT_MESSAGE },
+      }),
+    };
+    renderCard();
+    await generateReport(user);
+    await user.click(screen.getByTestId('button-send-invoice-to-quickbooks'));
+    return await screen.findByTestId('dialog-quickbooks-already-sent');
+  }
+
+  it('shows the confirmation dialog with the server message instead of silently resending', async () => {
+    const user = userEvent.setup();
+    const dialog = await openDuplicateDialog(user);
+
+    expect(dialog).toHaveTextContent('Already sent to QuickBooks');
+    expect(dialog).toHaveTextContent(ALREADY_SENT_MESSAGE);
+    // Exactly one send happened — the rejected one. No automatic retry.
+    expect(sendRequestBodies).toHaveLength(1);
+    expect(sendRequestBodies[0]).toEqual({
+      clientId: 'client-1',
+      start: '2026-07-12',
+      end: '2026-07-25',
+    });
+  });
+
+  it("closes without a second request when Molly clicks Don't send", async () => {
+    const user = userEvent.setup();
+    await openDuplicateDialog(user);
+
+    await user.click(screen.getByTestId('button-cancel-duplicate-send'));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('dialog-quickbooks-already-sent')).not.toBeInTheDocument(),
+    );
+    // Still only the original rejected send — cancelling never re-sends.
+    expect(sendRequestBodies).toHaveLength(1);
+  });
+
+  it('resends with confirmDuplicate=true only after Molly clicks Send again', async () => {
+    const user = userEvent.setup();
+    await openDuplicateDialog(user);
+
+    // From here on the server accepts the confirmed resend.
+    routes.onSend = () => ({
+      status: 200,
+      body: {
+        qboInvoiceId: 'qbo-78',
+        docNumber: '1043',
+        customerName: 'Idaho Youth Ranch',
+        lineCount: 1,
+        total: 120,
+      },
+    });
+    await user.click(screen.getByTestId('button-confirm-duplicate-send'));
+
+    await waitFor(() => expect(sendRequestBodies).toHaveLength(2));
+    expect(sendRequestBodies[1]).toEqual({
+      clientId: 'client-1',
+      start: '2026-07-12',
+      end: '2026-07-25',
+      confirmDuplicate: true,
+    });
+    await waitFor(() =>
+      expect(screen.queryByTestId('dialog-quickbooks-already-sent')).not.toBeInTheDocument(),
+    );
   });
 });
