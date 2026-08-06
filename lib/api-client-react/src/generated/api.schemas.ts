@@ -326,6 +326,7 @@ export interface Employee {
   active: boolean;
   isDemo: boolean;
   email?: string;
+  signInEnabled: boolean;
 }
 
 export interface EmployeeInput {
@@ -350,6 +351,10 @@ export interface EmployeeInput {
 
 export interface UpdateEmployeeEmail {
   email: string;
+}
+
+export interface UpdateEmployeeSignInAccess {
+  signInEnabled: boolean;
 }
 
 export type ClientRateType = typeof ClientRateType[keyof typeof ClientRateType];

@@ -94,8 +94,13 @@ export default function HomeScreen() {
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const bottomInset = Platform.OS === 'web' ? 34 : insets.bottom;
 
-  // Signed in, but the email isn't on Molly's roster yet.
+  // Signed in, but the server won't let this email in — either the email
+  // isn't on Molly's roster, or Molly turned this employee's sign-in off.
   if (meError instanceof ApiError && meError.response.status === 403) {
+    const signInTurnedOff =
+      !!meError.data &&
+      typeof meError.data === 'object' &&
+      (meError.data as { code?: unknown }).code === 'SIGN_IN_DISABLED';
     return (
       <View
         style={[
@@ -108,12 +113,18 @@ export default function HomeScreen() {
           },
         ]}
       >
-        <Feather name="user-x" size={44} color={c.mutedForeground} />
+        <Feather
+          name={signInTurnedOff ? 'lock' : 'user-x'}
+          size={44}
+          color={c.mutedForeground}
+        />
         <Text style={[styles.emptyTitle, { color: c.foreground, textAlign: 'center' }]}>
-          You're not on the roster yet
+          {signInTurnedOff ? 'Your sign-in is turned off' : "You're not on the roster yet"}
         </Text>
         <Text style={[styles.emptyText, { color: c.mutedForeground }]}>
-          Ask Molly to add this email to the team roster, then try again.
+          {signInTurnedOff
+            ? 'Molly turned off app access for this email. Ask her if you think this is a mistake.'
+            : 'Ask Molly to add this email to the team roster, then try again.'}
         </Text>
         <Pressable
           onPress={() => refetchMe()}

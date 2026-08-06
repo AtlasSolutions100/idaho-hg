@@ -13,4 +13,5 @@ export interface Employee {
   active: boolean;
   isDemo: boolean;
   email?: string;
+  signInEnabled: boolean;
 }

@@ -420,7 +420,8 @@ export const ListEmployeesResponseItem = zod.object({
   "role": zod.string(),
   "active": zod.boolean(),
   "isDemo": zod.boolean(),
-  "email": zod.string().optional()
+  "email": zod.string().optional(),
+  "signInEnabled": zod.boolean()
 })
 export const ListEmployeesResponse = zod.array(ListEmployeesResponseItem)
 
@@ -460,7 +461,8 @@ export const CreateEmployeeResponse = zod.object({
   "role": zod.string(),
   "active": zod.boolean(),
   "isDemo": zod.boolean(),
-  "email": zod.string().optional()
+  "email": zod.string().optional(),
+  "signInEnabled": zod.boolean()
 })
 
 
@@ -473,7 +475,8 @@ export const GetMyEmployeeResponse = zod.object({
   "role": zod.string(),
   "active": zod.boolean(),
   "isDemo": zod.boolean(),
-  "email": zod.string().optional()
+  "email": zod.string().optional(),
+  "signInEnabled": zod.boolean()
 })
 
 
@@ -494,7 +497,8 @@ export const UpdateEmployeeEmailResponse = zod.object({
   "role": zod.string(),
   "active": zod.boolean(),
   "isDemo": zod.boolean(),
-  "email": zod.string().optional()
+  "email": zod.string().optional(),
+  "signInEnabled": zod.boolean()
 })
 
 
@@ -511,7 +515,30 @@ export const RemoveEmployeeResponse = zod.object({
   "role": zod.string(),
   "active": zod.boolean(),
   "isDemo": zod.boolean(),
-  "email": zod.string().optional()
+  "email": zod.string().optional(),
+  "signInEnabled": zod.boolean()
+})
+
+
+/**
+ * @summary Turn an employee's mobile-app sign-in on or off
+ */
+export const UpdateEmployeeSignInAccessParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const UpdateEmployeeSignInAccessBody = zod.object({
+  "signInEnabled": zod.boolean()
+})
+
+export const UpdateEmployeeSignInAccessResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "active": zod.boolean(),
+  "isDemo": zod.boolean(),
+  "email": zod.string().optional(),
+  "signInEnabled": zod.boolean()
 })
 
 

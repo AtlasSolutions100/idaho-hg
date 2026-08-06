@@ -55,6 +55,7 @@ export * from './updateClientBilling';
 export * from './updateClientRate';
 export * from './updateEmployeeEmail';
 export * from './updateEmployeeRate';
+export * from './updateEmployeeSignInAccess';
 export * from './updateOnboardingItem';
 export * from './visitType';
 export * from './visitTypeCount';

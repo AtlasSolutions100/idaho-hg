@@ -10,6 +10,7 @@ import { ensureRosterSeeded } from "../routes/roster";
  * Returns one of:
  * - { kind: "none" }        — no Clerk session on the request
  * - { kind: "unknown" }     — signed in, but email is not on the roster
+ * - { kind: "disabled" }    — on the roster, but Molly turned sign-in off
  * - { kind: "employee" }    — signed in and matched to an active employee
  */
 export async function resolveSessionEmployee(
@@ -17,6 +18,7 @@ export async function resolveSessionEmployee(
 ): Promise<
   | { kind: "none" }
   | { kind: "unknown"; email: string | null }
+  | { kind: "disabled"; email: string }
   | { kind: "employee"; employee: EmployeeRow; email: string }
 > {
   const auth = getAuth(req);
@@ -42,6 +44,9 @@ export async function resolveSessionEmployee(
   if (!employee || !employee.active) {
     return { kind: "unknown", email: normalized };
   }
+  if (!employee.signInEnabled) {
+    return { kind: "disabled", email: normalized };
+  }
   return { kind: "employee", employee, email: normalized };
 }
 
@@ -55,6 +60,15 @@ export async function requireEmployee(
     const session = await resolveSessionEmployee(req);
     if (session.kind === "none") {
       res.status(401).json({ message: "Please sign in first." });
+      return;
+    }
+    if (session.kind === "disabled") {
+      res.status(403).json({
+        // Stable code so clients can branch without matching on wording.
+        code: "SIGN_IN_DISABLED",
+        message:
+          "Your sign-in has been turned off. Ask Molly if you think this is a mistake.",
+      });
       return;
     }
     if (session.kind === "unknown") {

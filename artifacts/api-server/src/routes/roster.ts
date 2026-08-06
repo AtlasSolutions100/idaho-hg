@@ -15,6 +15,7 @@ import {
   CreateEmployeeBody,
   UpdateClientBillingBody,
   UpdateEmployeeEmailBody,
+  UpdateEmployeeSignInAccessBody,
 } from "@workspace/api-zod";
 import {
   ensureClerkUserForEmail,
@@ -180,6 +181,7 @@ function serializeEmployee(row: EmployeeRow) {
     active: row.active,
     isDemo: row.isDemo,
     ...(row.email ? { email: row.email } : {}),
+    signInEnabled: row.signInEnabled,
   };
 }
 
@@ -472,6 +474,42 @@ router.patch("/employees/:id", async (req, res, next) => {
       res.status(409).json({ message: "That email is already used by another employee." });
       return;
     }
+    next(err);
+  }
+});
+
+router.patch("/employees/:id/sign-in-access", async (req, res, next) => {
+  try {
+    await ensureRosterSeeded();
+    // Guard: a signed-in employee (mobile app) must never be able to flip
+    // sign-in access — their own or anyone else's. Only the admin app (which
+    // carries no employee session; full admin auth is tracked separately)
+    // may call this.
+    const session = await resolveSessionEmployee(req);
+    if (session.kind === "employee" || session.kind === "disabled") {
+      res.status(403).json({
+        message: "Only Molly can change sign-in access.",
+      });
+      return;
+    }
+    const parsed = UpdateEmployeeSignInAccessBody.safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ message: parsed.error.issues[0]?.message ?? "Invalid request" });
+      return;
+    }
+    const [row] = await db
+      .update(employeesTable)
+      .set({ signInEnabled: parsed.data.signInEnabled })
+      .where(eq(employeesTable.id, req.params.id))
+      .returning();
+    if (!row) {
+      res.status(404).json({ message: "Employee not found" });
+      return;
+    }
+    res.json(serializeEmployee(row));
+  } catch (err) {
     next(err);
   }
 });

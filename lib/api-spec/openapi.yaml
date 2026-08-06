@@ -562,6 +562,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /employees/{id}/sign-in-access:
+    patch:
+      operationId: updateEmployeeSignInAccess
+      tags: [roster]
+      summary: Turn an employee's mobile-app sign-in on or off
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEmployeeSignInAccess"
+      responses:
+        "200":
+          description: Updated employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /demo-data:
     get:
       operationId: getDemoDataStatus
@@ -1590,12 +1626,15 @@ components:
           type: boolean
         email:
           type: string
+        signInEnabled:
+          type: boolean
       required:
         - id
         - name
         - role
         - active
         - isDemo
+        - signInEnabled
     EmployeeInput:
       type: object
       properties:
@@ -1641,6 +1680,13 @@ components:
           type: string
       required:
         - email
+    UpdateEmployeeSignInAccess:
+      type: object
+      properties:
+        signInEnabled:
+          type: boolean
+      required:
+        - signInEnabled
     ClientRate:
       type: object
       properties:

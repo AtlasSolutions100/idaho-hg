@@ -8,6 +8,7 @@ import {
   useRemoveEmployee,
   useListEmployees,
   useUpdateEmployeeEmail,
+  useUpdateEmployeeSignInAccess,
   getListEmployeeRatesQueryKey,
   getListEmployeeRateHistoryQueryKey,
   getListEmployeesQueryKey,
@@ -84,9 +85,10 @@ export function EmployeeRatesTable() {
   const [emailValue, setEmailValue] = useState('');
   const [emailError, setEmailError] = useState<string | null>(null);
 
-  // Roster (with sign-in emails) so each row can show whether the employee
-  // can sign in to the mobile app yet.
+  // Roster (with sign-in emails + login status) so each row can show whether
+  // the employee can sign in to the mobile app.
   const { data: employees } = useListEmployees();
+  const employeeById = new Map((employees ?? []).map((e) => [e.id, e]));
   const emailByEmployeeId = new Map(
     (employees ?? []).map((e) => [e.id, e.email ?? '']),
   );
@@ -185,6 +187,27 @@ export function EmployeeRatesTable() {
             ? (error.data as { message: string }).message
             : null;
         setEmailError(serverMessage ?? 'Could not save the email. Please try again.');
+      },
+    },
+  });
+
+  const signInAccessMutation = useUpdateEmployeeSignInAccess({
+    mutation: {
+      onSuccess: (employee) => {
+        invalidateEmployees();
+        toast({
+          title: employee.signInEnabled ? 'Sign-in turned on' : 'Sign-in turned off',
+          description: employee.signInEnabled
+            ? `${employee.name} can sign in to the mobile app again.`
+            : `${employee.name} can no longer sign in to the mobile app. Their info and past entries are kept.`,
+        });
+      },
+      onError: () => {
+        toast({
+          title: 'Could not update sign-in access',
+          description: 'Please try again.',
+          variant: 'destructive',
+        });
       },
     },
   });
@@ -368,6 +391,37 @@ export function EmployeeRatesTable() {
                         <Mail className="h-3 w-3" />
                         {emailByEmployeeId.get(rate.employeeId) || 'Add sign-in email'}
                       </button>
+                      {(() => {
+                        const emp = employeeById.get(rate.employeeId);
+                        if (!emp?.email) {
+                          return (
+                            <Badge
+                              variant="outline"
+                              className="mt-1 text-xs font-normal text-muted-foreground"
+                              data-testid={`badge-signin-status-${rate.employeeId}`}
+                            >
+                              No sign-in email
+                            </Badge>
+                          );
+                        }
+                        return emp.signInEnabled ? (
+                          <Badge
+                            variant="outline"
+                            className="mt-1 border-primary/40 text-xs font-normal text-primary"
+                            data-testid={`badge-signin-status-${rate.employeeId}`}
+                          >
+                            Can sign in
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="mt-1 border-destructive/40 text-xs font-normal text-destructive"
+                            data-testid={`badge-signin-status-${rate.employeeId}`}
+                          >
+                            Sign-in disabled
+                          </Badge>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-right font-mono">
                       ${rate.hourlyRate.toFixed(2)}
@@ -542,6 +596,55 @@ export function EmployeeRatesTable() {
               >
                 <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                 <span>{emailError}</span>
+              </div>
+            )}
+            {emailFor && employeeById.get(emailFor.employeeId)?.email && (
+              <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+                <div className="text-sm">
+                  {employeeById.get(emailFor.employeeId)?.signInEnabled ? (
+                    <>
+                      <p className="font-medium">Sign-in is on</p>
+                      <p className="text-xs text-muted-foreground">
+                        Turn it off to block app access without removing them. You can
+                        turn it back on anytime.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-medium text-destructive">Sign-in is off</p>
+                      <p className="text-xs text-muted-foreground">
+                        They can't use the mobile app right now. Turn it back on to
+                        restore access.
+                      </p>
+                    </>
+                  )}
+                </div>
+                <Button
+                  size="sm"
+                  variant={
+                    employeeById.get(emailFor.employeeId)?.signInEnabled
+                      ? 'outline'
+                      : 'default'
+                  }
+                  className="shrink-0 gap-2"
+                  disabled={signInAccessMutation.isPending}
+                  onClick={() =>
+                    signInAccessMutation.mutate({
+                      id: emailFor.employeeId,
+                      data: {
+                        signInEnabled: !employeeById.get(emailFor.employeeId)?.signInEnabled,
+                      },
+                    })
+                  }
+                  data-testid="button-toggle-signin-access"
+                >
+                  {signInAccessMutation.isPending && (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  )}
+                  {employeeById.get(emailFor.employeeId)?.signInEnabled
+                    ? 'Turn off sign-in'
+                    : 'Turn on sign-in'}
+                </Button>
               </div>
             )}
           </div>

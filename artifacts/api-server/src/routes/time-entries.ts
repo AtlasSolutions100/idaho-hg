@@ -48,6 +48,13 @@ router.get("/time-entries", async (req, res, next) => {
     const session = await resolveSessionEmployee(req);
     if (session.kind === "employee") {
       query.employeeId = session.employee.id;
+    } else if (session.kind === "disabled") {
+      res.status(403).json({
+        code: "SIGN_IN_DISABLED",
+        message:
+          "Your sign-in has been turned off. Ask Molly if you think this is a mistake.",
+      });
+      return;
     } else if (session.kind === "unknown") {
       res.status(403).json({
         message:
@@ -85,6 +92,13 @@ router.post("/time-entries", async (req, res, next) => {
     const session = await resolveSessionEmployee(req);
     if (session.kind === "employee") {
       body.employeeId = session.employee.id;
+    } else if (session.kind === "disabled") {
+      res.status(403).json({
+        code: "SIGN_IN_DISABLED",
+        message:
+          "Your sign-in has been turned off. Ask Molly if you think this is a mistake.",
+      });
+      return;
     } else if (session.kind === "unknown") {
       res.status(403).json({
         message:

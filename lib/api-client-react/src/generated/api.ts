@@ -58,6 +58,7 @@ import type {
   UpdateClientRate,
   UpdateEmployeeEmail,
   UpdateEmployeeRate,
+  UpdateEmployeeSignInAccess,
   UpdateOnboardingItem,
   WorkflowStatus,
   WorkflowStatusUpdate
@@ -1717,6 +1718,78 @@ export const useRemoveEmployee = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getRemoveEmployeeMutationOptions(options));
+    }
+
+export const getUpdateEmployeeSignInAccessUrl = (id: string,) => {
+
+
+
+
+  return `/api/employees/${id}/sign-in-access`
+}
+
+/**
+ * @summary Turn an employee's mobile-app sign-in on or off
+ */
+export const updateEmployeeSignInAccess = async (id: string,
+    updateEmployeeSignInAccess: UpdateEmployeeSignInAccess, options?: Parameters<typeof customFetch>[1]): Promise<Employee> => {
+
+  return customFetch<Employee>(getUpdateEmployeeSignInAccessUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateEmployeeSignInAccess)
+  }
+);}
+
+
+
+
+
+export const getUpdateEmployeeSignInAccessMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEmployeeSignInAccess>>, TError,{id: string;data: BodyType<UpdateEmployeeSignInAccess>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateEmployeeSignInAccess>>, TError,{id: string;data: BodyType<UpdateEmployeeSignInAccess>}, TContext> => {
+
+const mutationKey = ['updateEmployeeSignInAccess'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateEmployeeSignInAccess>>, {id: string;data: BodyType<UpdateEmployeeSignInAccess>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateEmployeeSignInAccess(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateEmployeeSignInAccessMutationResult = NonNullable<Awaited<ReturnType<typeof updateEmployeeSignInAccess>>>
+    export type UpdateEmployeeSignInAccessMutationBody = BodyType<UpdateEmployeeSignInAccess>
+    export type UpdateEmployeeSignInAccessMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Turn an employee's mobile-app sign-in on or off
+ */
+export const useUpdateEmployeeSignInAccess = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEmployeeSignInAccess>>, TError,{id: string;data: BodyType<UpdateEmployeeSignInAccess>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateEmployeeSignInAccess>>,
+        TError,
+        {id: string;data: BodyType<UpdateEmployeeSignInAccess>},
+        TContext
+      > => {
+      return useMutation(getUpdateEmployeeSignInAccessMutationOptions(options));
     }
 
 export const getGetDemoDataStatusUrl = () => {
