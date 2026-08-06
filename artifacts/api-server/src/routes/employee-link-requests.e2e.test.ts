@@ -449,7 +449,10 @@ describe("self-serve profile linking", () => {
       api("POST", `/link-requests/${claim.body.id}/approve`),
       api("PATCH", `/employees/${RACE_ID}`, { email: manualEmail }),
     ]);
-    expect([200, 409]).toContain(approve.status);
+    // Valid serialized outcomes for approve: 200 (won the race), 409 (lost —
+    // employee already has an email), or 404 (the manual edit committed first
+    // and cleared the now-stale pending request before approve read it).
+    expect([200, 404, 409]).toContain(approve.status);
     expect(manual.status).toBe(200);
 
     const [row] = await db

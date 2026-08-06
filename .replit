@@ -46,3 +46,6 @@ channel = "stable-25_05"
 
 [userenv.development]
 QBO_ENV = "sandbox"
+
+[userenv.shared]
+ADMIN_EMAIL = "nate@radiantaisoftware.com"
