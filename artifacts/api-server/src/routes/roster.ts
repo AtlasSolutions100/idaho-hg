@@ -19,8 +19,8 @@ import {
 } from "@workspace/api-zod";
 import {
   ensureClerkUserForEmail,
+  requireAdmin,
   requireEmployee,
-  resolveSessionEmployee,
   revokeClerkSessionsForEmail,
 } from "../lib/employee-auth";
 import {
@@ -479,20 +479,9 @@ router.patch("/employees/:id", async (req, res, next) => {
   }
 });
 
-router.patch("/employees/:id/sign-in-access", async (req, res, next) => {
+router.patch("/employees/:id/sign-in-access", requireAdmin, async (req, res, next) => {
   try {
     await ensureRosterSeeded();
-    // Guard: a signed-in employee (mobile app) must never be able to flip
-    // sign-in access — their own or anyone else's. Only the admin app (which
-    // carries no employee session; full admin auth is tracked separately)
-    // may call this.
-    const session = await resolveSessionEmployee(req);
-    if (session.kind === "employee" || session.kind === "disabled") {
-      res.status(403).json({
-        message: "Only Molly can change sign-in access.",
-      });
-      return;
-    }
     const parsed = UpdateEmployeeSignInAccessBody.safeParse(req.body);
     if (!parsed.success) {
       res
@@ -503,7 +492,9 @@ router.patch("/employees/:id/sign-in-access", async (req, res, next) => {
     const [row] = await db
       .update(employeesTable)
       .set({ signInEnabled: parsed.data.signInEnabled })
-      .where(eq(employeesTable.id, req.params.id))
+      // String(): with a middleware in the chain, Express widens the param
+      // type to string | string[]; this route's :id is always a single string.
+      .where(eq(employeesTable.id, String(req.params.id)))
       .returning();
     if (!row) {
       res.status(404).json({ message: "Employee not found" });

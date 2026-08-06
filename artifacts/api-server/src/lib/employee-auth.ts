@@ -1,4 +1,4 @@
-import type { NextFunction, Request, Response } from "express";
+import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { clerkClient, getAuth } from "@clerk/express";
 import { eq } from "drizzle-orm";
 import { db, employeesTable, type EmployeeRow } from "@workspace/db";
@@ -79,6 +79,60 @@ export async function requireEmployee(
       return;
     }
     (req as Request & { employee: EmployeeRow }).employee = session.employee;
+    next();
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * The admin (Molly's) sign-in email, from server configuration. Admin
+ * identity is deliberately NOT stored on the roster: roster rows (including
+ * emails) are mutable through the API, so a row-based admin flag would let
+ * anyone assign themselves the admin email and escalate. An environment
+ * variable can only be changed by whoever operates the server.
+ */
+export function getConfiguredAdminEmail(): string | null {
+  const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  return email || null;
+}
+
+/**
+ * Express middleware: require a Clerk session whose verified email matches
+ * the configured admin email (Molly). No session → 401. Any other session —
+ * employee, unknown, or Molly-unconfigured — → 403. Fails closed when
+ * ADMIN_EMAIL is not configured.
+ */
+export const requireAdmin: RequestHandler = async (req, res, next) => {
+  try {
+    const auth = getAuth(req);
+    if (!auth?.userId) {
+      res.status(401).json({ message: "Please sign in first." });
+      return;
+    }
+    const adminEmail = getConfiguredAdminEmail();
+    if (!adminEmail) {
+      // Fail closed: without a configured admin, nobody is the admin.
+      res.status(403).json({
+        message:
+          "Admin access isn't set up yet, so sign-in access can't be changed.",
+      });
+      return;
+    }
+    // Compare against the Clerk-verified session email — never anything the
+    // caller supplies or anything stored in the mutable roster.
+    const user = await clerkClient.users.getUser(auth.userId);
+    const email = (
+      user.primaryEmailAddress?.emailAddress ??
+      user.emailAddresses[0]?.emailAddress ??
+      ""
+    )
+      .trim()
+      .toLowerCase();
+    if (!email || email !== adminEmail) {
+      res.status(403).json({ message: "Only Molly can change sign-in access." });
+      return;
+    }
     next();
   } catch (err) {
     next(err);

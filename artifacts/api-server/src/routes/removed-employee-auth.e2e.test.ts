@@ -54,17 +54,32 @@ let baseUrl: string;
 
 const EMPLOYEE_ID = "e2e-removed-employee-auth";
 const EMAIL = "removed-employee-e2e@example.com";
+// Admin identity comes from server config (ADMIN_EMAIL), never from the
+// roster — this file configures it and also keeps a matching roster row
+// (Molly is an employee too).
+const ADMIN_ID = "e2e-removed-employee-auth-admin";
+const ADMIN_EMAIL = "admin-removed-employee-e2e@example.com";
+process.env.ADMIN_EMAIL = ADMIN_EMAIL;
 
 beforeAll(async () => {
   await db.delete(timeEntriesTable).where(eq(timeEntriesTable.employeeId, EMPLOYEE_ID));
   await db.delete(employeeRatesTable).where(eq(employeeRatesTable.employeeId, EMPLOYEE_ID));
   await db.delete(employeesTable).where(eq(employeesTable.id, EMPLOYEE_ID));
   await db.delete(employeesTable).where(eq(employeesTable.email, EMAIL));
+  await db.delete(employeesTable).where(eq(employeesTable.id, ADMIN_ID));
+  await db.delete(employeesTable).where(eq(employeesTable.email, ADMIN_EMAIL));
   await db.insert(employeesTable).values({
     id: EMPLOYEE_ID,
     name: "Removed Auth E2E",
     role: "RN",
     email: EMAIL,
+    active: true,
+  });
+  await db.insert(employeesTable).values({
+    id: ADMIN_ID,
+    name: "Admin Auth E2E",
+    role: "PT",
+    email: ADMIN_EMAIL,
     active: true,
   });
 
@@ -78,6 +93,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await db.delete(timeEntriesTable).where(eq(timeEntriesTable.employeeId, EMPLOYEE_ID));
   await db.delete(employeesTable).where(eq(employeesTable.id, EMPLOYEE_ID));
+  await db.delete(employeesTable).where(eq(employeesTable.id, ADMIN_ID));
   await new Promise<void>((resolve, reject) =>
     server.close((err) => (err ? reject(err) : resolve())),
   );
@@ -160,8 +176,8 @@ describe("removed employees lose mobile-app access", () => {
 
 describe("Molly can turn an employee's sign-in off and on", () => {
   it("turning sign-in off blocks the employee with a distinct friendly message", async () => {
-    // Molly's admin app carries no employee session.
-    mockState.email = null;
+    // Molly is signed in as the admin.
+    mockState.email = ADMIN_EMAIL;
     mockState.revokedSessionIds = [];
     const off = await api("PATCH", `/employees/${EMPLOYEE_ID}/sign-in-access`, {
       signInEnabled: false,
@@ -193,7 +209,7 @@ describe("Molly can turn an employee's sign-in off and on", () => {
   });
 
   it("turning sign-in back on restores access", async () => {
-    mockState.email = null;
+    mockState.email = ADMIN_EMAIL;
     mockState.revokedSessionIds = [];
     const on = await api("PATCH", `/employees/${EMPLOYEE_ID}/sign-in-access`, {
       signInEnabled: true,
@@ -211,7 +227,7 @@ describe("Molly can turn an employee's sign-in off and on", () => {
 
   it("disable is independent of removal: restoring a removed employee keeps sign-in off", async () => {
     // Disable, then remove, then restore — the deliberate disable must survive.
-    mockState.email = null;
+    mockState.email = ADMIN_EMAIL;
     await api("PATCH", `/employees/${EMPLOYEE_ID}/sign-in-access`, {
       signInEnabled: false,
     });
@@ -226,8 +242,8 @@ describe("Molly can turn an employee's sign-in off and on", () => {
     expect(me.status).toBe(403);
     expect(me.body.message).toContain("turned off");
 
-    // Re-enable (sessionless, like the admin app) so the row is left clean.
-    mockState.email = null;
+    // Re-enable as the admin so the row is left clean.
+    mockState.email = ADMIN_EMAIL;
     const on = await api("PATCH", `/employees/${EMPLOYEE_ID}/sign-in-access`, {
       signInEnabled: true,
     });
@@ -264,8 +280,8 @@ describe("Molly can turn an employee's sign-in off and on", () => {
       .where(eq(employeesTable.id, EMPLOYEE_ID));
     expect(row.signInEnabled).toBe(false);
 
-    // Restore clean state: drop the session (admin app has none) and re-enable.
-    mockState.email = null;
+    // Restore clean state: sign in as the admin and re-enable.
+    mockState.email = ADMIN_EMAIL;
     const on = await api("PATCH", `/employees/${EMPLOYEE_ID}/sign-in-access`, {
       signInEnabled: true,
     });
@@ -273,8 +289,79 @@ describe("Molly can turn an employee's sign-in off and on", () => {
     mockState.email = EMAIL;
   });
 
-  it("rejects an invalid body and unknown employee", async () => {
+  it("an unauthenticated caller gets 401 and changes nothing", async () => {
     mockState.email = null;
+    const attempt = await api("PATCH", `/employees/${EMPLOYEE_ID}/sign-in-access`, {
+      signInEnabled: false,
+    });
+    expect(attempt.status).toBe(401);
+    expect(attempt.body.message).toContain("sign in");
+
+    const [row] = await db
+      .select()
+      .from(employeesTable)
+      .where(eq(employeesTable.id, EMPLOYEE_ID));
+    expect(row.signInEnabled).toBe(true);
+  });
+
+  it("a non-admin roster employee session is rejected with 403", async () => {
+    // The admin exists, but this session belongs to a plain employee.
+    mockState.email = EMAIL;
+    const attempt = await api("PATCH", `/employees/${ADMIN_ID}/sign-in-access`, {
+      signInEnabled: false,
+    });
+    expect(attempt.status).toBe(403);
+    expect(attempt.body.message).toContain("Only Molly");
+  });
+
+  it("fails closed when no admin email is configured", async () => {
+    const saved = process.env.ADMIN_EMAIL;
+    delete process.env.ADMIN_EMAIL;
+    try {
+      // Even a session with the (former) admin email is rejected.
+      mockState.email = ADMIN_EMAIL;
+      const attempt = await api("PATCH", `/employees/${EMPLOYEE_ID}/sign-in-access`, {
+        signInEnabled: false,
+      });
+      expect(attempt.status).toBe(403);
+      expect(attempt.body.message).toContain("isn't set up");
+    } finally {
+      process.env.ADMIN_EMAIL = saved;
+    }
+  });
+
+  it("tampering with roster emails cannot grant toggle access", async () => {
+    // Attacker abuses the (still-unauthenticated) email endpoint to plant
+    // their own email on a roster row — admin identity must not care: it is
+    // bound to the Clerk-verified session email matching server config, not
+    // to anything stored on the roster.
+    const attackerEmail = "attacker-signin-e2e@example.com";
+    mockState.email = null;
+    const planted = await api("PATCH", `/employees/${EMPLOYEE_ID}`, {
+      email: attackerEmail,
+    });
+    expect(planted.status).toBe(200);
+
+    mockState.email = attackerEmail;
+    const attempt = await api("PATCH", `/employees/${EMPLOYEE_ID}/sign-in-access`, {
+      signInEnabled: false,
+    });
+    expect(attempt.status).toBe(403);
+    expect(attempt.body.message).toContain("Only Molly");
+
+    // Restore the row's real email for the remaining tests.
+    mockState.email = null;
+    const restored = await api("PATCH", `/employees/${EMPLOYEE_ID}`, { email: EMAIL });
+    expect(restored.status).toBe(200);
+    const [row] = await db
+      .select()
+      .from(employeesTable)
+      .where(eq(employeesTable.id, EMPLOYEE_ID));
+    expect(row.signInEnabled).toBe(true);
+  });
+
+  it("rejects an invalid body and unknown employee", async () => {
+    mockState.email = ADMIN_EMAIL;
     const bad = await api("PATCH", `/employees/${EMPLOYEE_ID}/sign-in-access`, {
       signInEnabled: "nope",
     });
