@@ -139,10 +139,14 @@ describe("removed employees lose mobile-app access", () => {
   });
 
   it("after removal the same session gets the friendly 403 everywhere", async () => {
+    // Removal is admin-only, so Molly performs it...
+    mockState.email = ADMIN_EMAIL;
     const removed = await api("DELETE", `/employees/${EMPLOYEE_ID}`);
     expect(removed.status).toBe(200);
     expect(removed.body.active).toBe(false);
 
+    // ...and the removed employee's own session is what gets blocked.
+    mockState.email = EMAIL;
     const me = await api("GET", "/me");
     expect(me.status).toBe(403);
     expect(me.body.code).toBe("NOT_LINKED");

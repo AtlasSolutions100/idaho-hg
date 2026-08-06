@@ -3,7 +3,7 @@
 // time entries, change the client's rates mid-month, and assert the invoice
 // lines split per rate with correct totals — including mileage / per-diem
 // passthrough at the employee's reimbursement rates.
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { Server } from "node:http";
 import { eq } from "drizzle-orm";
 import {
@@ -15,6 +15,31 @@ import {
   employeeRatesTable,
   timeEntriesTable,
 } from "@workspace/db";
+// Roster writes (POST /employees) are admin-only now, so this file performs
+// its roster setup as Molly and everything else anonymously (time entries
+// with an explicit employeeId still work without a session). Clerk is mocked
+// at the @clerk/express boundary.
+process.env.ADMIN_EMAIL = "admin-reports-invoice-e2e@example.com";
+const mockSession: { email: string | null } = { email: null };
+vi.mock("@clerk/express", () => ({
+  clerkMiddleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+  getAuth: () => (mockSession.email ? { userId: "user_reports_invoice_e2e" } : null),
+  clerkClient: {
+    users: {
+      getUser: async () => ({
+        primaryEmailAddress: { emailAddress: mockSession.email },
+        emailAddresses: [{ emailAddress: mockSession.email }],
+      }),
+      getUserList: async () => ({ data: [{ id: "user_reports_invoice_e2e" }] }),
+      createUser: async () => ({ id: "user_reports_invoice_e2e" }),
+    },
+    sessions: {
+      getSessionList: async () => ({ data: [] }),
+      revokeSession: async () => ({}),
+    },
+  },
+}));
+
 import app from "../app";
 
 let server: Server;
@@ -109,6 +134,7 @@ describe("GET /reports/invoice end-to-end (mid-month rate change)", () => {
     expect((await patch(`/client-rates/${hourlyRes.body.id}`, { rate: 75, effectiveDate: "2026-03-15" })).status).toBe(200);
 
     // --- Employee whose mileage/per-diem rates pass through to the client ---
+    mockSession.email = "admin-reports-invoice-e2e@example.com";
     const empRes = await post("/employees", {
       name: employeeName,
       role: "RN",
@@ -121,6 +147,7 @@ describe("GET /reports/invoice end-to-end (mid-month rate change)", () => {
     });
     expect(empRes.status).toBe(201);
     employeeId = empRes.body.id;
+    mockSession.email = null;
 
     // --- Submit entries across the rate change ---
     const mkEntry = (extra: Record<string, unknown>) => ({

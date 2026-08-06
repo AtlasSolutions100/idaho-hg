@@ -21,6 +21,31 @@ import {
   qboSentInvoicesTable,
 } from "@workspace/db";
 
+// Roster writes (POST /employees) are admin-only now, so this file performs
+// its roster setup as Molly and everything else anonymously. Clerk is mocked
+// at the @clerk/express boundary.
+const QBO_ADMIN_EMAIL = "admin-qbo-dup-e2e@example.com";
+process.env.ADMIN_EMAIL = QBO_ADMIN_EMAIL;
+const mockSession: { email: string | null } = { email: null };
+vi.mock("@clerk/express", () => ({
+  clerkMiddleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+  getAuth: () => (mockSession.email ? { userId: "user_qbo_dup_e2e" } : null),
+  clerkClient: {
+    users: {
+      getUser: async () => ({
+        primaryEmailAddress: { emailAddress: mockSession.email },
+        emailAddresses: [{ emailAddress: mockSession.email }],
+      }),
+      getUserList: async () => ({ data: [{ id: "user_qbo_dup_e2e" }] }),
+      createUser: async () => ({ id: "user_qbo_dup_e2e" }),
+    },
+    sessions: {
+      getSessionList: async () => ({ data: [] }),
+      revokeSession: async () => ({}),
+    },
+  },
+}));
+
 // Pretend QuickBooks is connected.
 vi.mock("../lib/qbo", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/qbo")>();
@@ -110,6 +135,7 @@ beforeAll(async () => {
   });
   expect(hourly.status).toBe(201);
 
+  mockSession.email = QBO_ADMIN_EMAIL;
   const empRes = await post("/employees", {
     name: employeeName,
     role: "RN",
@@ -122,6 +148,7 @@ beforeAll(async () => {
   });
   expect(empRes.status).toBe(201);
   employeeId = empRes.body.id;
+  mockSession.email = null;
 
   // 2027-05-20 exists so the second-half period used by the parallel-send
   // test has something billable too.

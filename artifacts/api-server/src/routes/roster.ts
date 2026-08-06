@@ -22,6 +22,7 @@ import {
 import {
   ensureClerkUserForEmail,
   requireAdmin,
+  requireSignedIn,
   verifyAdminRequest,
   requireEmployee,
   revokeClerkSessionsForEmail,
@@ -356,7 +357,11 @@ router.delete("/clients/:id", async (req, res, next) => {
   }
 });
 
-router.get("/employees", async (req, res, next) => {
+// The list needs at least a signed-in session — names/roles/sign-in status
+// are not public. Any session (even one not yet linked to a roster profile)
+// may read it, because the mobile claim-your-name flow lists employees
+// before the caller is linked.
+router.get("/employees", requireSignedIn, async (req, res, next) => {
   try {
     await ensureRosterSeeded();
     const rows = await db
@@ -374,7 +379,9 @@ router.get("/employees", async (req, res, next) => {
   }
 });
 
-router.post("/employees", async (req, res, next) => {
+// Admin-only: creating roster rows (with or without contact/sign-in info)
+// is Molly's job — anonymous or non-admin creation is rejected outright.
+router.post("/employees", requireAdmin, async (req, res, next) => {
   try {
     await ensureRosterSeeded();
     const parsed = CreateEmployeeBody.safeParse(req.body);
@@ -409,17 +416,6 @@ router.post("/employees", async (req, res, next) => {
       return;
     }
     let email: string | null = null;
-    if (body.email !== undefined || phone || contactEmail || address) {
-      // Creating an employee WITH a sign-in email grants app access, and
-      // contact details are personal info — both variants are admin-only
-      // (plain roster creation stays as it was; the full admin lockdown of
-      // every roster route is a separate task).
-      const verdict = await verifyAdminRequest(req);
-      if (!verdict.ok) {
-        res.status(verdict.status).json({ message: verdict.message });
-        return;
-      }
-    }
     if (body.email !== undefined) {
       const prepared = await prepareEmployeeEmail(body.email);
       if ("error" in prepared) {
@@ -646,13 +642,17 @@ router.patch("/employees/:id/sign-in-access", requireAdmin, async (req, res, nex
   }
 });
 
-router.delete("/employees/:id", async (req, res, next) => {
+// Admin-only: removing an employee cuts off their app access and hides them
+// from reports — only Molly's verified session may do it.
+router.delete("/employees/:id", requireAdmin, async (req, res, next) => {
   try {
     await ensureRosterSeeded();
     const [row] = await db
       .update(employeesTable)
       .set({ active: false })
-      .where(eq(employeesTable.id, req.params.id))
+      // String(): with a middleware in the chain, Express widens the param
+      // type to string | string[]; this route's :id is always a single string.
+      .where(eq(employeesTable.id, String(req.params.id)))
       .returning();
     if (!row) {
       res.status(404).json({ message: "Employee not found" });

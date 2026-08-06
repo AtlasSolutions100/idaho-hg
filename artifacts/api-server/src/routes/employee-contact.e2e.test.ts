@@ -99,22 +99,67 @@ describe("employee contact details", () => {
     expect(row.contactEmail).toBe("jane.contact@example.com");
   });
 
-  it("contact details are hidden from non-admin and anonymous callers", async () => {
-    // Personal info (phone, home address) must never leak through the
-    // public employee list — only Molly's session sees it.
+  it("the employee list requires a session; contact details stay admin-only", async () => {
+    // Anonymous callers can't see the roster at all anymore.
     mockState.email = null;
     const anon = await api("GET", "/employees");
-    expect(anon.status).toBe(200);
-    const anonRow = anon.body.find((e: any) => e.id === EMPLOYEE_ID);
-    expect(anonRow.phone).toBeUndefined();
-    expect(anonRow.contactEmail).toBeUndefined();
-    expect(anonRow.address).toBeUndefined();
+    expect(anon.status).toBe(401);
 
+    // A signed-in non-admin sees the list but never the personal info
+    // (phone, home address) — only Molly's session sees that.
     mockState.email = "someone-else-contact-e2e@example.com";
     const outsider = await api("GET", "/employees");
+    expect(outsider.status).toBe(200);
     const outsiderRow = outsider.body.find((e: any) => e.id === EMPLOYEE_ID);
+    expect(outsiderRow.name).toBe("Contact E2E Person");
     expect(outsiderRow.phone).toBeUndefined();
     expect(outsiderRow.address).toBeUndefined();
+  });
+
+  it("creating and removing employees is admin-only", async () => {
+    // Plain creation (no contact info, no email) is also locked down now.
+    mockState.email = null;
+    const anonCreate = await api("POST", "/employees", {
+      name: "Plain Creation E2E",
+      role: "RN",
+      hourlyRate: 40,
+      visitRate: 70,
+      mileageRate: 0.65,
+      perDiemRate: 45,
+      weekendMultiplier: 1.5,
+      holidayMultiplier: 2,
+    });
+    expect(anonCreate.status).toBe(401);
+
+    mockState.email = "someone-else-contact-e2e@example.com";
+    const outsiderCreate = await api("POST", "/employees", {
+      name: "Plain Creation E2E",
+      role: "RN",
+      hourlyRate: 40,
+      visitRate: 70,
+      mileageRate: 0.65,
+      perDiemRate: 45,
+      weekendMultiplier: 1.5,
+      holidayMultiplier: 2,
+    });
+    expect(outsiderCreate.status).toBe(403);
+    expect(outsiderCreate.body.message).toContain("Only Molly");
+
+    // Removal is admin-only too — and a rejected attempt changes nothing.
+    mockState.email = null;
+    const anonRemove = await api("DELETE", `/employees/${EMPLOYEE_ID}`);
+    expect(anonRemove.status).toBe(401);
+
+    mockState.email = "someone-else-contact-e2e@example.com";
+    const outsiderRemove = await api("DELETE", `/employees/${EMPLOYEE_ID}`);
+    expect(outsiderRemove.status).toBe(403);
+    expect(outsiderRemove.body.message).toContain("Only Molly");
+
+    const [row] = await db
+      .select()
+      .from(employeesTable)
+      .where(eq(employeesTable.id, EMPLOYEE_ID));
+    expect(row.active).toBe(true);
   });
 
   it("omitted fields are unchanged; blank strings clear a field", async () => {

@@ -112,6 +112,21 @@ export async function requireEmployee(
 }
 
 /**
+ * Express middleware: require any signed-in Clerk session (not necessarily
+ * on the roster). Used for reads that must not be public — e.g. the employee
+ * list, which the mobile claim-your-name flow needs before the caller is
+ * linked to a roster profile.
+ */
+export const requireSignedIn: RequestHandler = (req, res, next) => {
+  const auth = getAuth(req);
+  if (!auth?.userId) {
+    res.status(401).json({ message: "Please sign in first." });
+    return;
+  }
+  next();
+};
+
+/**
  * The admin (Molly's) sign-in email, from server configuration. Admin
  * identity is deliberately NOT stored on the roster: roster rows (including
  * emails) are mutable through the API, so a row-based admin flag would let
