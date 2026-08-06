@@ -1581,6 +1581,77 @@ export function useGetMyEmployee<TData = Awaited<ReturnType<typeof getMyEmployee
 
 
 
+export const getUpdateMyContactUrl = () => {
+
+
+
+
+  return `/api/me/contact`
+}
+
+/**
+ * @summary Update the signed-in employee's own contact details (phone, contact email, address)
+ */
+export const updateMyContact = async (updateEmployeeContact: UpdateEmployeeContact, options?: Parameters<typeof customFetch>[1]): Promise<Employee> => {
+
+  return customFetch<Employee>(getUpdateMyContactUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateEmployeeContact)
+  }
+);}
+
+
+
+
+
+export const getUpdateMyContactMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMyContact>>, TError,{data: BodyType<UpdateEmployeeContact>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMyContact>>, TError,{data: BodyType<UpdateEmployeeContact>}, TContext> => {
+
+const mutationKey = ['updateMyContact'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMyContact>>, {data: BodyType<UpdateEmployeeContact>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateMyContact(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMyContactMutationResult = NonNullable<Awaited<ReturnType<typeof updateMyContact>>>
+    export type UpdateMyContactMutationBody = BodyType<UpdateEmployeeContact>
+    export type UpdateMyContactMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update the signed-in employee's own contact details (phone, contact email, address)
+ */
+export const useUpdateMyContact = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMyContact>>, TError,{data: BodyType<UpdateEmployeeContact>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateMyContact>>,
+        TError,
+        {data: BodyType<UpdateEmployeeContact>},
+        TContext
+      > => {
+      return useMutation(getUpdateMyContactMutationOptions(options));
+    }
+
 export const getListClaimableEmployeesUrl = () => {
 
 

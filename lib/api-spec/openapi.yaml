@@ -497,6 +497,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /me/contact:
+    patch:
+      operationId: updateMyContact
+      tags: [roster]
+      summary: Update the signed-in employee's own contact details (phone, contact email, address)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEmployeeContact"
+      responses:
+        "200":
+          description: Updated employee (own record)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Signed-in email is not on the roster
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /link-requests/claimable:
     get:
       operationId: listClaimableEmployees

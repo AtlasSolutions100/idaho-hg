@@ -49,6 +49,7 @@ function RootLayoutNav() {
         name="log-entry"
         options={{ presentation: 'modal', gestureEnabled: false }}
       />
+      <Stack.Screen name="profile" options={{ presentation: 'modal' }} />
     </Stack>
   );
 }

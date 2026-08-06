@@ -125,20 +125,21 @@ let seeded = false;
 export async function ensureRosterSeeded() {
   if (seeded) return;
   // Guard: if legacy demo employees (IDs "1"–"6") resurfaced (e.g. via a
-  // restored backup), purge them and skip seeding — the database is not
-  // fresh, so seeding would only mix demo remnants with real data.
+  // restored backup), purge them and skip the full seed — the database is
+  // not fresh, so seeding would only mix demo remnants with real data. The
+  // idempotent backfills below still run so such a database isn't left
+  // missing later-added clients.
   if (await hasDemoEmployeeData()) {
     await purgeDemoEmployeeData();
-    seeded = true;
-    return;
-  }
-  const [clientRow] = await db.select().from(clientsTable).limit(1);
-  if (!clientRow) {
-    await db.insert(clientsTable).values(seedClients);
-  }
-  const [employeeRow] = await db.select().from(employeesTable).limit(1);
-  if (!employeeRow) {
-    await db.insert(employeesTable).values(seedEmployees);
+  } else {
+    const [clientRow] = await db.select().from(clientsTable).limit(1);
+    if (!clientRow) {
+      await db.insert(clientsTable).values(seedClients);
+    }
+    const [employeeRow] = await db.select().from(employeesTable).limit(1);
+    if (!employeeRow) {
+      await db.insert(employeesTable).values(seedEmployees);
+    }
   }
   // Backfill later-added clients into already-populated databases (no-op when
   // the row already exists, so this is safe to run on every startup).
@@ -474,47 +475,74 @@ router.get("/me", requireEmployee, async (req, res, next) => {
   }
 });
 
+/**
+ * Shared body of the two contact-update routes: validate the fields, apply
+ * only the ones present in the request (blank strings clear a field), and
+ * respond with the updated employee. The caller decides WHOSE row may be
+ * edited — Molly picks any id, an employee is pinned to their own row.
+ */
+async function applyContactUpdate(
+  employeeId: string,
+  body: unknown,
+  res: import("express").Response,
+) {
+  const parsed = UpdateEmployeeContactBody.safeParse(body);
+  if (!parsed.success) {
+    res
+      .status(400)
+      .json({ message: parsed.error.issues[0]?.message ?? "Invalid contact details" });
+    return;
+  }
+  const contactEmail = parsed.data.contactEmail?.trim().toLowerCase() || null;
+  if (contactEmail && !EMAIL_PATTERN.test(contactEmail)) {
+    res.status(400).json({ message: "That doesn't look like a valid email address." });
+    return;
+  }
+  const updates: Partial<{
+    phone: string | null;
+    contactEmail: string | null;
+    address: string | null;
+  }> = {};
+  if (parsed.data.phone !== undefined) updates.phone = parsed.data.phone.trim() || null;
+  if (parsed.data.contactEmail !== undefined) updates.contactEmail = contactEmail;
+  if (parsed.data.address !== undefined) updates.address = parsed.data.address.trim() || null;
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ message: "Nothing to update." });
+    return;
+  }
+  const [row] = await db
+    .update(employeesTable)
+    .set(updates)
+    .where(eq(employeesTable.id, employeeId))
+    .returning();
+  if (!row) {
+    res.status(404).json({ message: "Employee not found" });
+    return;
+  }
+  res.json(serializeEmployee(row, { includeContact: true }));
+}
+
+// Self-service: a signed-in employee edits their OWN contact details. The
+// target row comes from the session-resolved employee, never from the
+// request, so nobody can edit anyone else's record.
+router.patch("/me/contact", requireEmployee, async (req, res, next) => {
+  try {
+    await ensureRosterSeeded();
+    const { employee } = req as typeof req & {
+      employee: import("@workspace/db").EmployeeRow;
+    };
+    await applyContactUpdate(employee.id, req.body, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Admin-only: contact details live on the same roster row Molly manages, so
 // writes go through her verified session like the other employee edits.
 router.patch("/employees/:id/contact", requireAdmin, async (req, res, next) => {
   try {
     await ensureRosterSeeded();
-    const parsed = UpdateEmployeeContactBody.safeParse(req.body);
-    if (!parsed.success) {
-      res
-        .status(400)
-        .json({ message: parsed.error.issues[0]?.message ?? "Invalid contact details" });
-      return;
-    }
-    const contactEmail = parsed.data.contactEmail?.trim().toLowerCase() || null;
-    if (contactEmail && !EMAIL_PATTERN.test(contactEmail)) {
-      res.status(400).json({ message: "That doesn't look like a valid email address." });
-      return;
-    }
-    // Blank strings clear a field — Molly can remove outdated info. Fields
-    // left out of the request are unchanged.
-    const updates: Partial<{
-      phone: string | null;
-      contactEmail: string | null;
-      address: string | null;
-    }> = {};
-    if (parsed.data.phone !== undefined) updates.phone = parsed.data.phone.trim() || null;
-    if (parsed.data.contactEmail !== undefined) updates.contactEmail = contactEmail;
-    if (parsed.data.address !== undefined) updates.address = parsed.data.address.trim() || null;
-    if (Object.keys(updates).length === 0) {
-      res.status(400).json({ message: "Nothing to update." });
-      return;
-    }
-    const [row] = await db
-      .update(employeesTable)
-      .set(updates)
-      .where(eq(employeesTable.id, String(req.params.id)))
-      .returning();
-    if (!row) {
-      res.status(404).json({ message: "Employee not found" });
-      return;
-    }
-    res.json(serializeEmployee(row, { includeContact: true }));
+    await applyContactUpdate(String(req.params.id), req.body, res);
   } catch (err) {
     next(err);
   }

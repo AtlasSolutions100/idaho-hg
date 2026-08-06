@@ -236,6 +236,17 @@ export default function HomeScreen() {
               <Feather name="log-out" size={13} color={c.mutedForeground} />
             </Pressable>
           </View>
+          <Pressable
+            onPress={() => router.push('/profile')}
+            hitSlop={8}
+            style={[styles.profileButton, { backgroundColor: c.secondary }]}
+            testID="button-my-info"
+          >
+            <Feather name="user" size={15} color={c.secondaryForeground} />
+            <Text style={[styles.profileButtonText, { color: c.secondaryForeground }]}>
+              My Info
+            </Text>
+          </Pressable>
           {waitingCount > 0 && (
             <View style={[styles.countBadge, { backgroundColor: c.accent }]}>
               <Feather name="clock" size={13} color={c.accentForeground} />
@@ -544,6 +555,19 @@ const styles = StyleSheet.create({
   headerName: {
     fontFamily: 'Inter_500Medium',
     fontSize: 14,
+  },
+  profileButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    marginLeft: 8,
+  },
+  profileButtonText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13,
   },
   countBadge: {
     flexDirection: 'row',

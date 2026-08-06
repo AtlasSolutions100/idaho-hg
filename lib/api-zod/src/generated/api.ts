@@ -493,6 +493,29 @@ export const GetMyEmployeeResponse = zod.object({
 
 
 /**
+ * @summary Update the signed-in employee's own contact details (phone, contact email, address)
+ */
+export const UpdateMyContactBody = zod.object({
+  "phone": zod.string().optional(),
+  "contactEmail": zod.string().optional(),
+  "address": zod.string().optional()
+})
+
+export const UpdateMyContactResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "active": zod.boolean(),
+  "isDemo": zod.boolean(),
+  "email": zod.string().optional(),
+  "signInEnabled": zod.boolean(),
+  "phone": zod.string().optional(),
+  "contactEmail": zod.string().optional(),
+  "address": zod.string().optional()
+})
+
+
+/**
  * @summary List roster profiles a signed-in but unlinked person can claim
  */
 export const ListClaimableEmployeesResponseItem = zod.object({
