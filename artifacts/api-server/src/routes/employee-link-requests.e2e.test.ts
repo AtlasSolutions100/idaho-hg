@@ -194,6 +194,45 @@ describe("self-serve profile linking", () => {
     expect(row.email).toBeNull();
   });
 
+  it("anonymous and non-admin callers can't write employee emails directly", async () => {
+    // Anonymous: the manual email endpoint is admin-only.
+    mockState.email = null;
+    const anon = await api("PATCH", `/employees/${UNLINKED_ID}`, {
+      email: "bypass-anon-e2e@example.com",
+    });
+    expect(anon.status).toBe(401);
+
+    // A signed-in non-admin (e.g. the claimant) can't either.
+    mockState.email = NEW_EMAIL;
+    const claimant = await api("PATCH", `/employees/${UNLINKED_ID}`, {
+      email: NEW_EMAIL,
+    });
+    expect(claimant.status).toBe(403);
+    expect(claimant.body.message).toContain("Only Molly");
+
+    // Nor can anyone self-provision access by creating an employee with an
+    // email attached.
+    mockState.email = null;
+    const create = await api("POST", "/employees", {
+      name: "Self Provision E2E",
+      role: "RN",
+      email: "self-provision-e2e@example.com",
+      hourlyRate: 40,
+      visitRate: 70,
+      mileageRate: 0.65,
+      perDiemRate: 45,
+      weekendMultiplier: 1.5,
+      holidayMultiplier: 2,
+    });
+    expect(create.status).toBe(401);
+
+    const [row] = await db
+      .select()
+      .from(employeesTable)
+      .where(eq(employeesTable.id, UNLINKED_ID));
+    expect(row.email).toBeNull();
+  });
+
   it("anonymous callers get 401 for list, approve, and deny", async () => {
     const [request] = await db
       .select()
@@ -445,8 +484,8 @@ describe("self-serve profile linking", () => {
     const claim = await api("POST", "/link-requests", { employeeId: MANUAL_ID });
     expect(claim.status).toBe(201);
 
-    // Old path still works: Molly types the email in directly.
-    mockState.email = null;
+    // Old path still works: Molly (admin session) types the email in directly.
+    mockState.email = ADMIN_EMAIL;
     const manual = await api("PATCH", `/employees/${MANUAL_ID}`, { email: typedEmail });
     expect(manual.status).toBe(200);
     expect(manual.body.email).toBe(typedEmail);

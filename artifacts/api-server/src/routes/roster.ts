@@ -21,6 +21,7 @@ import {
 import {
   ensureClerkUserForEmail,
   requireAdmin,
+  verifyAdminRequest,
   requireEmployee,
   revokeClerkSessionsForEmail,
 } from "../lib/employee-auth";
@@ -387,6 +388,14 @@ router.post("/employees", async (req, res, next) => {
     }
     let email: string | null = null;
     if (body.email !== undefined) {
+      // Creating an employee WITH a sign-in email grants app access, so that
+      // variant is admin-only (plain roster creation stays as it was; the
+      // full admin lockdown of every roster route is a separate task).
+      const verdict = await verifyAdminRequest(req);
+      if (!verdict.ok) {
+        res.status(verdict.status).json({ message: verdict.message });
+        return;
+      }
       const prepared = await prepareEmployeeEmail(body.email);
       if ("error" in prepared) {
         res.status(prepared.status).json({ message: prepared.error });
@@ -441,7 +450,10 @@ router.get("/me", requireEmployee, async (req, res, next) => {
   }
 });
 
-router.patch("/employees/:id", async (req, res, next) => {
+// Admin-only: changing a profile's sign-in email grants (or moves) app
+// access, so it must come from Molly's verified session — otherwise anyone
+// could bypass the link-request approval flow.
+router.patch("/employees/:id", requireAdmin, async (req, res, next) => {
   try {
     await ensureRosterSeeded();
     const parsed = UpdateEmployeeEmailBody.safeParse(req.body);
@@ -451,7 +463,7 @@ router.patch("/employees/:id", async (req, res, next) => {
         .json({ message: parsed.error.issues[0]?.message ?? "Invalid email" });
       return;
     }
-    const prepared = await prepareEmployeeEmail(parsed.data.email, req.params.id);
+    const prepared = await prepareEmployeeEmail(parsed.data.email, String(req.params.id));
     if ("error" in prepared) {
       res.status(prepared.status).json({ message: prepared.error });
       return;

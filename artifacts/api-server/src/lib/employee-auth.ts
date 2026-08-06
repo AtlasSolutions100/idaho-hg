@@ -129,34 +129,43 @@ export function getConfiguredAdminEmail(): string | null {
  * employee, unknown, or Molly-unconfigured — → 403. Fails closed when
  * ADMIN_EMAIL is not configured.
  */
+export async function verifyAdminRequest(
+  req: Request,
+): Promise<{ ok: true } | { ok: false; status: 401 | 403; message: string }> {
+  const auth = getAuth(req);
+  if (!auth?.userId) {
+    return { ok: false, status: 401, message: "Please sign in first." };
+  }
+  const adminEmail = getConfiguredAdminEmail();
+  if (!adminEmail) {
+    // Fail closed: without a configured admin, nobody is the admin.
+    return {
+      ok: false,
+      status: 403,
+      message: "Admin access isn't set up yet, so this can't be changed.",
+    };
+  }
+  // Compare against the Clerk-verified session email — never anything the
+  // caller supplies or anything stored in the mutable roster.
+  const user = await clerkClient.users.getUser(auth.userId);
+  const email = (
+    user.primaryEmailAddress?.emailAddress ??
+    user.emailAddresses[0]?.emailAddress ??
+    ""
+  )
+    .trim()
+    .toLowerCase();
+  if (!email || email !== adminEmail) {
+    return { ok: false, status: 403, message: "Only Molly can make this change." };
+  }
+  return { ok: true };
+}
+
 export const requireAdmin: RequestHandler = async (req, res, next) => {
   try {
-    const auth = getAuth(req);
-    if (!auth?.userId) {
-      res.status(401).json({ message: "Please sign in first." });
-      return;
-    }
-    const adminEmail = getConfiguredAdminEmail();
-    if (!adminEmail) {
-      // Fail closed: without a configured admin, nobody is the admin.
-      res.status(403).json({
-        message:
-          "Admin access isn't set up yet, so sign-in access can't be changed.",
-      });
-      return;
-    }
-    // Compare against the Clerk-verified session email — never anything the
-    // caller supplies or anything stored in the mutable roster.
-    const user = await clerkClient.users.getUser(auth.userId);
-    const email = (
-      user.primaryEmailAddress?.emailAddress ??
-      user.emailAddresses[0]?.emailAddress ??
-      ""
-    )
-      .trim()
-      .toLowerCase();
-    if (!email || email !== adminEmail) {
-      res.status(403).json({ message: "Only Molly can change sign-in access." });
+    const verdict = await verifyAdminRequest(req);
+    if (!verdict.ok) {
+      res.status(verdict.status).json({ message: verdict.message });
       return;
     }
     next();

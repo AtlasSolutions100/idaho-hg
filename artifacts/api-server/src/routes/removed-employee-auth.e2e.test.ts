@@ -336,11 +336,17 @@ describe("Molly can turn an employee's sign-in off and on", () => {
     // bound to the Clerk-verified session email matching server config, not
     // to anything stored on the roster.
     const attackerEmail = "attacker-signin-e2e@example.com";
+    // The email endpoint is now admin-only, so an anonymous plant fails…
     mockState.email = null;
     const planted = await api("PATCH", `/employees/${EMPLOYEE_ID}`, {
       email: attackerEmail,
     });
-    expect(planted.status).toBe(200);
+    expect(planted.status).toBe(401);
+    // …but even a direct DB tamper (worst case) must not grant admin.
+    await db
+      .update(employeesTable)
+      .set({ email: attackerEmail })
+      .where(eq(employeesTable.id, EMPLOYEE_ID));
 
     mockState.email = attackerEmail;
     const attempt = await api("PATCH", `/employees/${EMPLOYEE_ID}/sign-in-access`, {
@@ -349,8 +355,9 @@ describe("Molly can turn an employee's sign-in off and on", () => {
     expect(attempt.status).toBe(403);
     expect(attempt.body.message).toContain("Only Molly");
 
-    // Restore the row's real email for the remaining tests.
-    mockState.email = null;
+    // Restore the row's real email for the remaining tests (as the admin —
+    // the email endpoint requires Molly's session now).
+    mockState.email = ADMIN_EMAIL;
     const restored = await api("PATCH", `/employees/${EMPLOYEE_ID}`, { email: EMAIL });
     expect(restored.status).toBe(200);
     const [row] = await db
