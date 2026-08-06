@@ -16,6 +16,22 @@ import { format } from 'date-fns';
 import { Check, X, Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
+/** Monday (local) of the week containing a YYYY-MM-DD date, as YYYY-MM-DD. */
+export function mondayOf(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  const day = date.getDay(); // 0 = Sunday
+  const diff = day === 0 ? 6 : day - 1;
+  const monday = new Date(y, m - 1, d - diff);
+  return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+}
+
+/** Human label for a week key, e.g. "Week of Aug 3, 2026". */
+export function weekLabel(mondayKey: string): string {
+  const [y, m, d] = mondayKey.split('-').map(Number);
+  return `Week of ${format(new Date(y, m - 1, d), 'MMM d, yyyy')}`;
+}
+
 export function ApprovePayrollTable() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -69,7 +85,7 @@ export function ApprovePayrollTable() {
         invalidate();
         toast({
           title: `Approved ${result.approvedCount} entries`,
-          description: 'All pending entries have been approved for payroll.',
+          description: 'Every entry that was waiting — across all weeks — is now approved for payroll.',
         });
       },
       onError: () => {
@@ -86,6 +102,17 @@ export function ApprovePayrollTable() {
   const isActing =
     approveMutation.isPending || rejectMutation.isPending || approveAllMutation.isPending;
 
+  // Group waiting entries by the Monday of their week, newest week first,
+  // so it's always clear which week each entry belongs to.
+  const weekGroups = new Map<string, typeof pendingEntries>();
+  for (const entry of pendingEntries) {
+    const key = mondayOf(entry.date);
+    const group = weekGroups.get(key);
+    if (group) group.push(entry);
+    else weekGroups.set(key, [entry]);
+  }
+  const sortedWeeks = [...weekGroups.keys()].sort((a, b) => (a < b ? 1 : -1));
+
   return (
     <Card>
       <CardHeader>
@@ -93,7 +120,8 @@ export function ApprovePayrollTable() {
           <div>
             <CardTitle>Approve Payroll</CardTitle>
             <CardDescription>
-              Review and approve submitted time entries
+              Review and approve submitted time entries, grouped by week. "Approve
+              all" approves every entry waiting for approval, across all weeks.
             </CardDescription>
           </div>
           {pendingEntries.length > 0 && (
@@ -108,7 +136,7 @@ export function ApprovePayrollTable() {
               ) : (
                 <Check className="h-4 w-4" />
               )}
-              Approve All ({pendingEntries.length})
+              Approve all {pendingEntries.length} waiting
             </Button>
           )}
         </div>
@@ -129,13 +157,22 @@ export function ApprovePayrollTable() {
         ) : pendingEntries.length === 0 ? (
           <div className="py-12 text-center text-muted-foreground">
             <Check className="h-12 w-12 mx-auto mb-3 opacity-20" />
-            <p>All time entries have been reviewed.</p>
-            <p className="text-sm mt-1">New submissions will appear here.</p>
+            <p>Nothing is waiting for approval right now.</p>
+            <p className="text-sm mt-1">When your team submits time, it will show up here grouped by week.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
+          <div className="space-y-6">
+            {sortedWeeks.map(weekKey => (
+              <div key={weekKey}>
+                <h3
+                  className="text-sm font-semibold text-muted-foreground mb-2"
+                  data-testid={`week-heading-${weekKey}`}
+                >
+                  {weekLabel(weekKey)}
+                </h3>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
                 <TableRow>
                   <TableHead>Employee</TableHead>
                   <TableHead>Client</TableHead>
@@ -149,7 +186,7 @@ export function ApprovePayrollTable() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pendingEntries.map(entry => (
+                {weekGroups.get(weekKey)!.map(entry => (
                   <TableRow key={entry.id} data-testid={`payroll-entry-${entry.id}`}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
@@ -226,7 +263,10 @@ export function ApprovePayrollTable() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+                  </Table>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </CardContent>

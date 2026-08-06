@@ -1,9 +1,14 @@
 import { Link } from 'wouter';
+import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { ApprovePayrollTable } from '@/components/admin/approve-payroll-table';
+import { currentPeriodKey } from '@/components/admin/workflow-progress';
 import { ChevronLeft } from 'lucide-react';
 
 export default function ApprovePayrollPage() {
+  // Monday of the actual current week — never a typed-in date.
+  const [y, m, d] = currentPeriodKey().split('-').map(Number);
+  const weekLabel = format(new Date(y, m - 1, d), 'MMM d, yyyy');
   return (
     <div className="min-h-[100dvh] bg-background">
       {/* Header */}
@@ -18,7 +23,9 @@ export default function ApprovePayrollPage() {
             </Link>
             <div>
               <h1 className="text-xl font-semibold">Approve Payroll</h1>
-              <p className="text-sm text-muted-foreground">Week of Jan 15, 2024</p>
+              <p className="text-sm text-muted-foreground" data-testid="text-current-week">
+                Week of {weekLabel}
+              </p>
             </div>
           </div>
         </div>
