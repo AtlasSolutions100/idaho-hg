@@ -13,7 +13,7 @@ import {
   CreateTimeEntryBody,
   ListTimeEntriesQueryParams,
 } from "@workspace/api-zod";
-import { resolveSessionEmployee } from "../lib/employee-auth";
+import { resolveSessionEmployee, verifyAdminRequest } from "../lib/employee-auth";
 
 const router: IRouter = Router();
 
@@ -45,8 +45,14 @@ router.get("/time-entries", async (req, res, next) => {
     const query = ListTimeEntriesQueryParams.parse(req.query);
     // Signed-in employees (mobile app) only ever see their own entries,
     // regardless of what filter the client sent.
-    const session = await resolveSessionEmployee(req);
-    if (session.kind === "employee") {
+    // Molly (the verified admin sign-in) sees everything — her email isn't a
+    // roster profile, so without this check she'd be turned away as
+    // "not linked" and the payroll page would show nothing.
+    const admin = await verifyAdminRequest(req);
+    const session = admin.ok ? null : await resolveSessionEmployee(req);
+    if (session == null) {
+      // admin — no per-employee scoping
+    } else if (session.kind === "employee") {
       query.employeeId = session.employee.id;
     } else if (session.kind === "disabled") {
       res.status(403).json({
