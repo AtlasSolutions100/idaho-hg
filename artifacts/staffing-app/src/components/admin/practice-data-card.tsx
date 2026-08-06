@@ -37,7 +37,7 @@ export function PracticeDataCard() {
         refreshAll();
         toast({
           title: 'Demo data loaded',
-          description: `${s.clientCount} demo clients, ${s.employeeCount} demo employees, and ${s.entryCount} sample time entries are ready to practice with.`,
+          description: `${s.clientCount} demo clients, ${s.employeeCount} demo employees, and ${s.entryCount} sample time entries are ready — plus rate history, a join request, onboarding progress, feedback, and an example invoice.`,
         });
       },
       onError: () =>
@@ -74,8 +74,11 @@ export function PracticeDataCard() {
           )}
         </div>
         <CardDescription>
-          Try out the app with clearly labeled demo clients and employees. Demo records show up in
-          reports and invoices until you remove them — your real data is never touched.
+          Try out every part of the app with clearly labeled practice records: demo clients with
+          billing addresses, demo employees with contact info and pay-rate history, two months of
+          time entries (including some waiting for approval), a pending join request, onboarding
+          checklist progress, sample feedback, and an example sent invoice. Everything is removed
+          with one click — your real data is never touched.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-wrap gap-3">
@@ -110,9 +113,10 @@ export function PracticeDataCard() {
           <AlertDialogHeader>
             <AlertDialogTitle>Remove all demo data?</AlertDialogTitle>
             <AlertDialogDescription>
-              Every demo client, demo employee, and their sample time entries and rates will be
-              deleted — including any practice entries you logged against them. Real clients and
-              employees are not affected.
+              Every practice record will be deleted: demo clients, demo employees, their time
+              entries and rates, the sample join request, onboarding progress, sample feedback,
+              and the example invoice — including any practice entries you logged against demo
+              records. Real clients and employees are not affected.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

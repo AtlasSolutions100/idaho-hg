@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request } from "express";
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { db, qboSentInvoicesTable, type QboSentInvoiceRow } from "@workspace/db";
+import { db, qboSentInvoicesTable, clientsTable, type QboSentInvoiceRow } from "@workspace/db";
 import { logger } from "../lib/logger";
 import {
   INTUIT_AUTHORIZE_URL,
@@ -251,6 +251,20 @@ router.post("/qbo/invoice", async (req, res, next) => {
       !DATE_RE.test(start) || !DATE_RE.test(end) || start > end
     ) {
       return res.status(400).json({ message: "Provide a valid date range (start <= end, YYYY-MM-DD)" });
+    }
+
+    // Practice (demo) clients never touch QuickBooks — nothing real should
+    // ever be created from practice data, and their local sent-invoice
+    // records are removed with the rest of the demo data.
+    const [clientRow] = await db
+      .select({ isDemo: clientsTable.isDemo })
+      .from(clientsTable)
+      .where(eq(clientsTable.id, clientId));
+    if (clientRow?.isDemo) {
+      return res.status(400).json({
+        message:
+          "Demo clients can't be sent to QuickBooks. Practice invoices stay inside the app — use a real client for actual billing.",
+      });
     }
 
     // Warn about a repeat send before anything else — even before checking

@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, timestamp, index } from "drizzle-orm/pg-core";
 
 // Every successful "Send to QuickBooks" is recorded here so the app can warn
 // before the same client + billing period is sent again. Append-only: a
@@ -14,6 +14,9 @@ export const qboSentInvoicesTable = pgTable(
     qboInvoiceId: text("qbo_invoice_id").notNull(),
     docNumber: text("doc_number"), // QuickBooks invoice number, when assigned
     sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+    // Practice rows seeded by the demo-data loader (never actually sent to
+    // QuickBooks); removed with the rest of the demo data.
+    isDemo: boolean("is_demo").notNull().default(false),
   },
   (table) => [
     index("qbo_sent_invoices_client_period_idx").on(
