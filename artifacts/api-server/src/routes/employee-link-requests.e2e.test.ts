@@ -507,6 +507,61 @@ describe("self-serve profile linking", () => {
     await db.delete(employeesTable).where(eq(employeesTable.id, MANUAL_ID));
   });
 
+  it("a claimant can cancel their own pending request and pick again", async () => {
+    const CANCEL_ID = "e2e-link-cancel-own";
+    const cancelEmail = "cancel-own-e2e@example.com";
+    await db.delete(employeesTable).where(eq(employeesTable.id, CANCEL_ID));
+    await db
+      .delete(employeeLinkRequestsTable)
+      .where(eq(employeeLinkRequestsTable.email, cancelEmail));
+    await db
+      .insert(employeesTable)
+      .values({ id: CANCEL_ID, name: "Cancel Own E2E", role: "RN", email: null });
+
+    // Not signed in → 401.
+    mockState.email = null;
+    const anon = await api("DELETE", "/link-requests/mine");
+    expect(anon.status).toBe(401);
+
+    // Nothing pending yet → 404.
+    mockState.email = cancelEmail;
+    const nothing = await api("DELETE", "/link-requests/mine");
+    expect(nothing.status).toBe(404);
+
+    // Claim, then a DIFFERENT signed-in email can't cancel it.
+    const claim = await api("POST", "/link-requests", { employeeId: CANCEL_ID });
+    expect(claim.status).toBe(201);
+    mockState.email = "someone-else-cancel-e2e@example.com";
+    const other = await api("DELETE", "/link-requests/mine");
+    expect(other.status).toBe(404);
+    const [stillThere] = await db
+      .select()
+      .from(employeeLinkRequestsTable)
+      .where(eq(employeeLinkRequestsTable.id, claim.body.id));
+    expect(stillThere).toBeDefined();
+
+    // The claimant cancels their own request → back to NOT_LINKED, and the
+    // name is claimable again.
+    mockState.email = cancelEmail;
+    const cancelled = await api("DELETE", "/link-requests/mine");
+    expect(cancelled.status).toBe(200);
+    expect(cancelled.body.id).toBe(claim.body.id);
+    const me = await api("GET", "/me");
+    expect(me.status).toBe(403);
+    expect(me.body.code).toBe("NOT_LINKED");
+    const claimable = await api("GET", "/link-requests/claimable");
+    expect(claimable.status).toBe(200);
+    expect(claimable.body.map((e: { id: string }) => e.id)).toContain(CANCEL_ID);
+
+    // Molly's admin list no longer shows it.
+    mockState.email = ADMIN_EMAIL;
+    const list = await api("GET", "/link-requests");
+    expect(list.status).toBe(200);
+    expect(list.body.map((r: { id: string }) => r.id)).not.toContain(claim.body.id);
+
+    await db.delete(employeesTable).where(eq(employeesTable.id, CANCEL_ID));
+  });
+
   it("rejects a claim for an unknown or invalid employee", async () => {
     mockState.email = "invalid-claim-e2e@example.com";
     const missing = await api("POST", "/link-requests", { employeeId: "does-not-exist" });

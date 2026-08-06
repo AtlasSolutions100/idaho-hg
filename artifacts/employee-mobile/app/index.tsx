@@ -12,11 +12,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ApiError,
   getGetMyEmployeeQueryKey,
+  getListClaimableEmployeesQueryKey,
   getListTimeEntriesQueryKey,
+  useCancelMyLinkRequest,
   useGetMyEmployee,
   useListTimeEntries,
   type TimeEntry,
 } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth, useClerk } from '@clerk/expo';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -108,46 +111,7 @@ export default function HomeScreen() {
       return <ClaimProfile onSignOut={() => signOut()} />;
     }
     if (errorCode === 'LINK_REQUEST_PENDING') {
-      return (
-        <View
-          style={[
-            styles.container,
-            {
-              backgroundColor: c.background,
-              alignItems: 'center',
-              justifyContent: 'center',
-              paddingHorizontal: 32,
-            },
-          ]}
-        >
-          <Feather name="clock" size={44} color={c.mutedForeground} />
-          <Text style={[styles.emptyTitle, { color: c.foreground, textAlign: 'center' }]}>
-            Waiting for Molly to confirm
-          </Text>
-          <Text style={[styles.emptyText, { color: c.mutedForeground }]}>
-            You asked to link this email to your profile. Once Molly confirms
-            it's you, you're in — check back in a bit.
-          </Text>
-          <Pressable
-            onPress={() => refetchMe()}
-            style={[styles.retryButton, { backgroundColor: c.primary }]}
-            testID="button-check-again"
-          >
-            <Text style={[styles.retryText, { color: c.primaryForeground }]}>
-              Check again
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => signOut()}
-            style={[styles.retryButton, { backgroundColor: c.secondary }]}
-            testID="button-sign-out"
-          >
-            <Text style={[styles.retryText, { color: c.secondaryForeground }]}>
-              Sign out
-            </Text>
-          </Pressable>
-        </View>
-      );
+      return <WaitingForApproval onSignOut={() => signOut()} onCheckAgain={() => refetchMe()} />;
     }
     const signInTurnedOff = errorCode === 'SIGN_IN_DISABLED';
     return (
@@ -359,6 +323,102 @@ export default function HomeScreen() {
         <Feather name="plus" size={22} color={c.primaryForeground} />
         <Text style={[styles.fabText, { color: c.primaryForeground }]}>
           Log Hours
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/**
+ * "Waiting for Molly to confirm" screen. Besides checking again, the person
+ * can cancel their own pending request ("That's not me — pick again") and
+ * return to the name list — no need for Molly to deny a mistaken pick.
+ */
+function WaitingForApproval({
+  onSignOut,
+  onCheckAgain,
+}: {
+  onSignOut: () => void;
+  onCheckAgain: () => void;
+}) {
+  const c = useColors();
+  const queryClient = useQueryClient();
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
+  const cancelMutation = useCancelMyLinkRequest({
+    mutation: {
+      onSuccess: () => {
+        // /me now returns NOT_LINKED, which brings back the name list.
+        queryClient.invalidateQueries({ queryKey: getListClaimableEmployeesQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetMyEmployeeQueryKey() });
+      },
+      onError: (error) => {
+        // 404 means Molly already handled it — refetch /me to land on the
+        // right screen instead of showing a scary error.
+        if (error instanceof ApiError && error.response.status === 404) {
+          queryClient.invalidateQueries({ queryKey: getGetMyEmployeeQueryKey() });
+          return;
+        }
+        setCancelError("Couldn't cancel that. Check your connection and try again.");
+      },
+    },
+  });
+
+  return (
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: c.background,
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingHorizontal: 32,
+        },
+      ]}
+    >
+      <Feather name="clock" size={44} color={c.mutedForeground} />
+      <Text style={[styles.emptyTitle, { color: c.foreground, textAlign: 'center' }]}>
+        Waiting for Molly to confirm
+      </Text>
+      <Text style={[styles.emptyText, { color: c.mutedForeground }]}>
+        You asked to link this email to your profile. Once Molly confirms
+        it's you, you're in — check back in a bit.
+      </Text>
+      {cancelError ? (
+        <Text style={[styles.emptyText, { color: c.destructive }]}>{cancelError}</Text>
+      ) : null}
+      <Pressable
+        onPress={onCheckAgain}
+        style={[styles.retryButton, { backgroundColor: c.primary }]}
+        testID="button-check-again"
+      >
+        <Text style={[styles.retryText, { color: c.primaryForeground }]}>
+          Check again
+        </Text>
+      </Pressable>
+      <Pressable
+        onPress={() => {
+          setCancelError(null);
+          cancelMutation.mutate();
+        }}
+        disabled={cancelMutation.isPending}
+        style={[
+          styles.retryButton,
+          { backgroundColor: c.secondary, opacity: cancelMutation.isPending ? 0.5 : 1 },
+        ]}
+        testID="button-cancel-claim"
+      >
+        <Text style={[styles.retryText, { color: c.secondaryForeground }]}>
+          {cancelMutation.isPending ? 'Cancelling…' : "That's not me — pick again"}
+        </Text>
+      </Pressable>
+      <Pressable
+        onPress={onSignOut}
+        style={[styles.retryButton, { backgroundColor: c.secondary }]}
+        testID="button-sign-out"
+      >
+        <Text style={[styles.retryText, { color: c.secondaryForeground }]}>
+          Sign out
         </Text>
       </Pressable>
     </View>

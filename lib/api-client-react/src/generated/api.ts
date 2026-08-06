@@ -1805,6 +1805,77 @@ export const useCreateLinkRequest = <TError = ErrorType<ApiError>,
       return useMutation(getCreateLinkRequestMutationOptions(options));
     }
 
+export const getCancelMyLinkRequestUrl = () => {
+
+
+
+
+  return `/api/link-requests/mine`
+}
+
+/**
+ * @summary Cancel the signed-in email's own pending link request
+ */
+export const cancelMyLinkRequest = async ( options?: Parameters<typeof customFetch>[1]): Promise<LinkRequest> => {
+
+  return customFetch<LinkRequest>(getCancelMyLinkRequestUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getCancelMyLinkRequestMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelMyLinkRequest>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelMyLinkRequest>>, TError,void, TContext> => {
+
+const mutationKey = ['cancelMyLinkRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelMyLinkRequest>>, void> = () => {
+
+
+          return  cancelMyLinkRequest(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelMyLinkRequestMutationResult = NonNullable<Awaited<ReturnType<typeof cancelMyLinkRequest>>>
+
+    export type CancelMyLinkRequestMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Cancel the signed-in email's own pending link request
+ */
+export const useCancelMyLinkRequest = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelMyLinkRequest>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelMyLinkRequest>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getCancelMyLinkRequestMutationOptions(options));
+    }
+
 export const getApproveLinkRequestUrl = (id: string,) => {
 
 

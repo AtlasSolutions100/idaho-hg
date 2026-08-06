@@ -526,6 +526,19 @@ export const CreateLinkRequestResponse = zod.object({
 
 
 /**
+ * @summary Cancel the signed-in email's own pending link request
+ */
+export const CancelMyLinkRequestResponse = zod.object({
+  "id": zod.string(),
+  "employeeId": zod.string(),
+  "employeeName": zod.string(),
+  "employeeRole": zod.string(),
+  "email": zod.string(),
+  "requestedAt": zod.string()
+})
+
+
+/**
  * @summary Approve a link request, attaching the email to the profile
  */
 export const ApproveLinkRequestParams = zod.object({

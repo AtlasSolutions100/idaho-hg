@@ -179,6 +179,34 @@ router.post("/link-requests", async (req, res, next) => {
   }
 });
 
+// Cancel my own pending request ("That's not me — pick again"). Scoped to the
+// session's verified email, so nobody can cancel anyone else's request, and
+// Molly's approve/deny flow is untouched. A concurrent approve holds the row
+// lock and deletes it on commit, so this then matches zero rows and reports
+// "already handled" instead of silently unlinking an approved profile.
+router.delete("/link-requests/mine", async (req, res, next) => {
+  try {
+    const email = await sessionEmail(req);
+    if (!email) {
+      res.status(401).json({ message: "Please sign in first." });
+      return;
+    }
+    const [row] = await db
+      .delete(employeeLinkRequestsTable)
+      .where(eq(employeeLinkRequestsTable.email, email))
+      .returning();
+    if (!row) {
+      res.status(404).json({
+        message: "No pending request found. It may have already been handled.",
+      });
+      return;
+    }
+    res.json(await serializeRequest(row));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Pending requests for Molly's admin page.
 router.get("/link-requests", requireAdmin, async (_req, res, next) => {
   try {

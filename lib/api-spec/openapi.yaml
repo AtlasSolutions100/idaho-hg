@@ -572,6 +572,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /link-requests/mine:
+    delete:
+      operationId: cancelMyLinkRequest
+      tags: [roster]
+      summary: Cancel the signed-in email's own pending link request
+      responses:
+        "200":
+          description: The cancelled (removed) link request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LinkRequest"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No pending request for this email
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /link-requests/{id}/approve:
     post:
       operationId: approveLinkRequest
