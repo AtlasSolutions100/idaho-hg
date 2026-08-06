@@ -99,3 +99,27 @@ export async function ensureClerkUserForEmail(email: string): Promise<void> {
     skipPasswordRequirement: true,
   });
 }
+
+/**
+ * Revoke all active Clerk sessions for the user(s) matching this email, so a
+ * disabled employee is signed out of the app immediately instead of only
+ * being blocked per-request. Best-effort: any Clerk failure is logged and
+ * swallowed — the server-side SIGN_IN_DISABLED block already guarantees no
+ * access either way.
+ */
+export async function revokeClerkSessionsForEmail(email: string): Promise<void> {
+  try {
+    const users = await clerkClient.users.getUserList({ emailAddress: [email] });
+    for (const user of users.data) {
+      const sessions = await clerkClient.sessions.getSessionList({
+        userId: user.id,
+        status: "active",
+      });
+      for (const session of sessions.data) {
+        await clerkClient.sessions.revokeSession(session.id);
+      }
+    }
+  } catch (err) {
+    console.error(`Failed to revoke Clerk sessions for ${email}:`, err);
+  }
+}

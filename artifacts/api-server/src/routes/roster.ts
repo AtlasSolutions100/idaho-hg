@@ -21,6 +21,7 @@ import {
   ensureClerkUserForEmail,
   requireEmployee,
   resolveSessionEmployee,
+  revokeClerkSessionsForEmail,
 } from "../lib/employee-auth";
 import {
   hasDemoEmployeeData,
@@ -507,6 +508,13 @@ router.patch("/employees/:id/sign-in-access", async (req, res, next) => {
     if (!row) {
       res.status(404).json({ message: "Employee not found" });
       return;
+    }
+    // Disabling sign-in also ends the employee's live app session(s) so they
+    // drop to the sign-in screen right away instead of only seeing blocked
+    // requests. Best-effort: a Clerk hiccup never fails the toggle — the
+    // per-request SIGN_IN_DISABLED block still guarantees no access.
+    if (!parsed.data.signInEnabled && row.email) {
+      await revokeClerkSessionsForEmail(row.email);
     }
     res.json(serializeEmployee(row));
   } catch (err) {

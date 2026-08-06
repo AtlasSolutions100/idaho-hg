@@ -17,7 +17,10 @@ import type { Server } from "node:http";
 import { eq } from "drizzle-orm";
 import { db, pool, employeesTable, timeEntriesTable, employeeRatesTable } from "@workspace/db";
 
-const mockState: { email: string | null } = { email: null };
+const mockState: { email: string | null; revokedSessionIds: string[] } = {
+  email: null,
+  revokedSessionIds: [],
+};
 
 vi.mock("@clerk/express", () => ({
   clerkMiddleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
@@ -30,6 +33,15 @@ vi.mock("@clerk/express", () => ({
       }),
       getUserList: async () => ({ data: [{ id: "user_removed_e2e" }] }),
       createUser: async () => ({ id: "user_removed_e2e" }),
+    },
+    sessions: {
+      getSessionList: async ({ userId }: { userId: string }) => ({
+        data: [{ id: `sess_active_${userId}` }],
+      }),
+      revokeSession: async (sessionId: string) => {
+        mockState.revokedSessionIds.push(sessionId);
+        return { id: sessionId, status: "revoked" };
+      },
     },
   },
 }));
@@ -150,11 +162,16 @@ describe("Molly can turn an employee's sign-in off and on", () => {
   it("turning sign-in off blocks the employee with a distinct friendly message", async () => {
     // Molly's admin app carries no employee session.
     mockState.email = null;
+    mockState.revokedSessionIds = [];
     const off = await api("PATCH", `/employees/${EMPLOYEE_ID}/sign-in-access`, {
       signInEnabled: false,
     });
     expect(off.status).toBe(200);
     expect(off.body.signInEnabled).toBe(false);
+
+    // Disabling also revokes the employee's active Clerk session(s) so the
+    // app drops them to the sign-in screen right away.
+    expect(mockState.revokedSessionIds).toEqual(["sess_active_user_removed_e2e"]);
 
     mockState.email = EMAIL;
 
@@ -177,11 +194,14 @@ describe("Molly can turn an employee's sign-in off and on", () => {
 
   it("turning sign-in back on restores access", async () => {
     mockState.email = null;
+    mockState.revokedSessionIds = [];
     const on = await api("PATCH", `/employees/${EMPLOYEE_ID}/sign-in-access`, {
       signInEnabled: true,
     });
     expect(on.status).toBe(200);
     expect(on.body.signInEnabled).toBe(true);
+    // Re-enabling never touches sessions — the employee just signs in again.
+    expect(mockState.revokedSessionIds).toEqual([]);
 
     mockState.email = EMAIL;
     const me = await api("GET", "/me");
