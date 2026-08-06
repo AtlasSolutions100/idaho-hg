@@ -39,6 +39,12 @@ Phase 2 (done): working time entry → approval loop. Employees submit real entr
 
 Phase 1 (done): clickable visual shell, no backend. Role switcher at `/`; employee side (`/employee`, mobile-first Log Hours flow + entries list); admin side (`/admin` dashboard, Approve Payroll, Client Rates, Employee Rates, Reports placeholders — Pezwise payroll / invoices / reconciliation — and Onboarding checklist). All data is hardcoded placeholder content.
 
+## QuickBooks callback address (one-time Intuit setup)
+
+- The server builds the QuickBooks OAuth callback from `QBO_REDIRECT_BASE_URL` first (see `callbackBaseUrl()` in `artifacts/api-server/src/routes/qbo.ts`), so once the app is published, set `QBO_REDIRECT_BASE_URL` = the permanent published URL (e.g. `https://<app>.replit.app`) in the **production** environment. Development keeps using the dev domain fallback.
+- One-time Intuit registration: in the [Intuit developer portal](https://developer.intuit.com) open the app → **Keys & credentials** → **Redirect URIs**, add `<published URL>/api/qbo/callback` exactly (the Admin → QuickBooks card shows and copies this address). Intuit's save sometimes fails silently — refresh the portal page afterwards to confirm the URI is still listed.
+- After that, always connect QuickBooks from the published app, not the dev preview; the published address never changes, so the link can't break again.
+
 ## User preferences
 
 - Tone: calm, clear, professional (healthcare staffing, not flashy startup); clean typography, generous spacing, mobile-first employee views
