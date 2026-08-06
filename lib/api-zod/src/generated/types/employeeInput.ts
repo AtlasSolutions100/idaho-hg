@@ -24,4 +24,7 @@ export interface EmployeeInput {
   /** @minimum 1 */
   holidayMultiplier: number;
   email?: string;
+  phone?: string;
+  contactEmail?: string;
+  address?: string;
 }

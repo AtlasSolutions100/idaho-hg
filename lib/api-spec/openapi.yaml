@@ -650,6 +650,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /employees/{id}/contact:
+    patch:
+      operationId: updateEmployeeContact
+      tags: [roster]
+      summary: Update an employee's contact details (phone, contact email, address)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEmployeeContact"
+      responses:
+        "200":
+          description: Updated employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /employees/{id}:
     patch:
       operationId: updateEmployeeEmail
@@ -1781,6 +1817,12 @@ components:
           type: string
         signInEnabled:
           type: boolean
+        phone:
+          type: string
+        contactEmail:
+          type: string
+        address:
+          type: string
       required:
         - id
         - name
@@ -1817,6 +1859,12 @@ components:
           minimum: 1
         email:
           type: string
+        phone:
+          type: string
+        contactEmail:
+          type: string
+        address:
+          type: string
       required:
         - name
         - role
@@ -1833,6 +1881,15 @@ components:
           type: string
       required:
         - email
+    UpdateEmployeeContact:
+      type: object
+      properties:
+        phone:
+          type: string
+        contactEmail:
+          type: string
+        address:
+          type: string
     UpdateEmployeeSignInAccess:
       type: object
       properties:

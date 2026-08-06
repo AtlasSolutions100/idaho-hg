@@ -70,8 +70,8 @@ export default function AdminDashboard() {
       testId: 'link-client-rates',
     },
     {
-      title: 'Employee Rates',
-      description: 'Manage employee pay rates',
+      title: 'Employees',
+      description: 'Contact info, app sign-in, and pay rates',
       icon: Users,
       href: '/admin/employee-rates',
       testId: 'link-employee-rates',

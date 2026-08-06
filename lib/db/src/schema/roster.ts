@@ -23,6 +23,11 @@ export const employeesTable = pgTable("employees", {
   // separate from `active` (removal) so re-adding a removed employee doesn't
   // silently re-enable a deliberately disabled sign-in.
   signInEnabled: boolean("sign_in_enabled").notNull().default(true),
+  // Optional contact details Molly keeps for the employee (separate from the
+  // sign-in email above — this is how she reaches them, not how they log in).
+  phone: text("phone"),
+  contactEmail: text("contact_email"),
+  address: text("address"),
 });
 
 // A signed-in person's request to link their email to a roster profile,

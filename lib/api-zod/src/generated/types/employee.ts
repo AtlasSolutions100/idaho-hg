@@ -14,4 +14,7 @@ export interface Employee {
   isDemo: boolean;
   email?: string;
   signInEnabled: boolean;
+  phone?: string;
+  contactEmail?: string;
+  address?: string;
 }

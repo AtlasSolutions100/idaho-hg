@@ -18,8 +18,8 @@ export default function EmployeeRatesPage() {
               </Button>
             </Link>
             <div>
-              <h1 className="text-xl font-semibold">Employee Pay Rates</h1>
-              <p className="text-sm text-muted-foreground">Manage compensation for active employees</p>
+              <h1 className="text-xl font-semibold">Employees</h1>
+              <p className="text-sm text-muted-foreground">Contact info, app sign-in, and pay rates in one place</p>
             </div>
           </div>
         </div>

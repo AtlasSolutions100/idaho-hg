@@ -327,6 +327,9 @@ export interface Employee {
   isDemo: boolean;
   email?: string;
   signInEnabled: boolean;
+  phone?: string;
+  contactEmail?: string;
+  address?: string;
 }
 
 export interface EmployeeInput {
@@ -347,10 +350,19 @@ export interface EmployeeInput {
   /** @minimum 1 */
   holidayMultiplier: number;
   email?: string;
+  phone?: string;
+  contactEmail?: string;
+  address?: string;
 }
 
 export interface UpdateEmployeeEmail {
   email: string;
+}
+
+export interface UpdateEmployeeContact {
+  phone?: string;
+  contactEmail?: string;
+  address?: string;
 }
 
 export interface UpdateEmployeeSignInAccess {

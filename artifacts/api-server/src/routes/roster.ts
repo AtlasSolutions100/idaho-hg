@@ -15,6 +15,7 @@ import {
   CreateClientBody,
   CreateEmployeeBody,
   UpdateClientBillingBody,
+  UpdateEmployeeContactBody,
   UpdateEmployeeEmailBody,
   UpdateEmployeeSignInAccessBody,
 } from "@workspace/api-zod";
@@ -176,7 +177,7 @@ function serializeClient(row: ClientRow) {
   };
 }
 
-function serializeEmployee(row: EmployeeRow) {
+function serializeEmployee(row: EmployeeRow, opts?: { includeContact?: boolean }) {
   return {
     id: row.id,
     name: row.name,
@@ -185,6 +186,15 @@ function serializeEmployee(row: EmployeeRow) {
     isDemo: row.isDemo,
     ...(row.email ? { email: row.email } : {}),
     signInEnabled: row.signInEnabled,
+    // Contact details are personal info — only included for Molly's verified
+    // admin session (default off so no caller gets them by accident).
+    ...(opts?.includeContact
+      ? {
+          ...(row.phone ? { phone: row.phone } : {}),
+          ...(row.contactEmail ? { contactEmail: row.contactEmail } : {}),
+          ...(row.address ? { address: row.address } : {}),
+        }
+      : {}),
   };
 }
 
@@ -345,7 +355,7 @@ router.delete("/clients/:id", async (req, res, next) => {
   }
 });
 
-router.get("/employees", async (_req, res, next) => {
+router.get("/employees", async (req, res, next) => {
   try {
     await ensureRosterSeeded();
     const rows = await db
@@ -353,7 +363,11 @@ router.get("/employees", async (_req, res, next) => {
       .from(employeesTable)
       .where(eq(employeesTable.active, true));
     rows.sort((a, b) => a.name.localeCompare(b.name));
-    res.json(rows.map(serializeEmployee));
+    // Contact details (phone, personal email, home address) are only shown
+    // to Molly's verified admin session — the list itself stays available to
+    // the app's other consumers without exposing personal info.
+    const includeContact = (await verifyAdminRequest(req).catch(() => ({ ok: false }))).ok;
+    res.json(rows.map((row) => serializeEmployee(row, { includeContact })));
   } catch (err) {
     next(err);
   }
@@ -386,16 +400,26 @@ router.post("/employees", async (req, res, next) => {
       });
       return;
     }
+    const phone = body.phone?.trim() || null;
+    const contactEmail = body.contactEmail?.trim().toLowerCase() || null;
+    const address = body.address?.trim() || null;
+    if (contactEmail && !EMAIL_PATTERN.test(contactEmail)) {
+      res.status(400).json({ message: "That doesn't look like a valid contact email address." });
+      return;
+    }
     let email: string | null = null;
-    if (body.email !== undefined) {
-      // Creating an employee WITH a sign-in email grants app access, so that
-      // variant is admin-only (plain roster creation stays as it was; the
-      // full admin lockdown of every roster route is a separate task).
+    if (body.email !== undefined || phone || contactEmail || address) {
+      // Creating an employee WITH a sign-in email grants app access, and
+      // contact details are personal info — both variants are admin-only
+      // (plain roster creation stays as it was; the full admin lockdown of
+      // every roster route is a separate task).
       const verdict = await verifyAdminRequest(req);
       if (!verdict.ok) {
         res.status(verdict.status).json({ message: verdict.message });
         return;
       }
+    }
+    if (body.email !== undefined) {
       const prepared = await prepareEmployeeEmail(body.email);
       if ("error" in prepared) {
         res.status(prepared.status).json({ message: prepared.error });
@@ -412,7 +436,7 @@ router.post("/employees", async (req, res, next) => {
     const row = await db.transaction(async (tx) => {
       const [inserted] = await tx
         .insert(employeesTable)
-        .values({ id, name, role, email })
+        .values({ id, name, role, email, phone, contactEmail, address })
         .returning();
       await tx.insert(employeeRatesTable).values({
         employeeId: id,
@@ -428,7 +452,7 @@ router.post("/employees", async (req, res, next) => {
       });
       return inserted;
     });
-    res.status(201).json(serializeEmployee(row));
+    res.status(201).json(serializeEmployee(row, { includeContact: true }));
   } catch (err) {
     if (isUniqueEmailViolation(err)) {
       res.status(409).json({ message: "That email is already used by another employee." });
@@ -444,7 +468,53 @@ router.get("/me", requireEmployee, async (req, res, next) => {
     const { employee } = req as typeof req & {
       employee: import("@workspace/db").EmployeeRow;
     };
-    res.json(serializeEmployee(employee));
+    res.json(serializeEmployee(employee, { includeContact: true }));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Admin-only: contact details live on the same roster row Molly manages, so
+// writes go through her verified session like the other employee edits.
+router.patch("/employees/:id/contact", requireAdmin, async (req, res, next) => {
+  try {
+    await ensureRosterSeeded();
+    const parsed = UpdateEmployeeContactBody.safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ message: parsed.error.issues[0]?.message ?? "Invalid contact details" });
+      return;
+    }
+    const contactEmail = parsed.data.contactEmail?.trim().toLowerCase() || null;
+    if (contactEmail && !EMAIL_PATTERN.test(contactEmail)) {
+      res.status(400).json({ message: "That doesn't look like a valid email address." });
+      return;
+    }
+    // Blank strings clear a field — Molly can remove outdated info. Fields
+    // left out of the request are unchanged.
+    const updates: Partial<{
+      phone: string | null;
+      contactEmail: string | null;
+      address: string | null;
+    }> = {};
+    if (parsed.data.phone !== undefined) updates.phone = parsed.data.phone.trim() || null;
+    if (parsed.data.contactEmail !== undefined) updates.contactEmail = contactEmail;
+    if (parsed.data.address !== undefined) updates.address = parsed.data.address.trim() || null;
+    if (Object.keys(updates).length === 0) {
+      res.status(400).json({ message: "Nothing to update." });
+      return;
+    }
+    const [row] = await db
+      .update(employeesTable)
+      .set(updates)
+      .where(eq(employeesTable.id, String(req.params.id)))
+      .returning();
+    if (!row) {
+      res.status(404).json({ message: "Employee not found" });
+      return;
+    }
+    res.json(serializeEmployee(row, { includeContact: true }));
   } catch (err) {
     next(err);
   }
@@ -504,7 +574,7 @@ router.patch("/employees/:id", requireAdmin, async (req, res, next) => {
       res.status(404).json({ message: "Employee not found" });
       return;
     }
-    res.json(serializeEmployee(row));
+    res.json(serializeEmployee(row, { includeContact: true }));
   } catch (err) {
     if (isUniqueEmailViolation(err)) {
       res.status(409).json({ message: "That email is already used by another employee." });
@@ -542,7 +612,7 @@ router.patch("/employees/:id/sign-in-access", requireAdmin, async (req, res, nex
     if (!parsed.data.signInEnabled && row.email) {
       await revokeClerkSessionsForEmail(row.email);
     }
-    res.json(serializeEmployee(row));
+    res.json(serializeEmployee(row, { includeContact: true }));
   } catch (err) {
     next(err);
   }

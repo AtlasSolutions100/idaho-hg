@@ -59,6 +59,7 @@ import type {
   UpdateBusinessSettings,
   UpdateClientBilling,
   UpdateClientRate,
+  UpdateEmployeeContact,
   UpdateEmployeeEmail,
   UpdateEmployeeRate,
   UpdateEmployeeSignInAccess,
@@ -2016,6 +2017,78 @@ export const useDenyLinkRequest = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getDenyLinkRequestMutationOptions(options));
+    }
+
+export const getUpdateEmployeeContactUrl = (id: string,) => {
+
+
+
+
+  return `/api/employees/${id}/contact`
+}
+
+/**
+ * @summary Update an employee's contact details (phone, contact email, address)
+ */
+export const updateEmployeeContact = async (id: string,
+    updateEmployeeContact: UpdateEmployeeContact, options?: Parameters<typeof customFetch>[1]): Promise<Employee> => {
+
+  return customFetch<Employee>(getUpdateEmployeeContactUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateEmployeeContact)
+  }
+);}
+
+
+
+
+
+export const getUpdateEmployeeContactMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEmployeeContact>>, TError,{id: string;data: BodyType<UpdateEmployeeContact>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateEmployeeContact>>, TError,{id: string;data: BodyType<UpdateEmployeeContact>}, TContext> => {
+
+const mutationKey = ['updateEmployeeContact'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateEmployeeContact>>, {id: string;data: BodyType<UpdateEmployeeContact>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateEmployeeContact(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateEmployeeContactMutationResult = NonNullable<Awaited<ReturnType<typeof updateEmployeeContact>>>
+    export type UpdateEmployeeContactMutationBody = BodyType<UpdateEmployeeContact>
+    export type UpdateEmployeeContactMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update an employee's contact details (phone, contact email, address)
+ */
+export const useUpdateEmployeeContact = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEmployeeContact>>, TError,{id: string;data: BodyType<UpdateEmployeeContact>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateEmployeeContact>>,
+        TError,
+        {id: string;data: BodyType<UpdateEmployeeContact>},
+        TContext
+      > => {
+      return useMutation(getUpdateEmployeeContactMutationOptions(options));
     }
 
 export const getUpdateEmployeeEmailUrl = (id: string,) => {

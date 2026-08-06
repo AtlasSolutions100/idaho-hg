@@ -421,7 +421,10 @@ export const ListEmployeesResponseItem = zod.object({
   "active": zod.boolean(),
   "isDemo": zod.boolean(),
   "email": zod.string().optional(),
-  "signInEnabled": zod.boolean()
+  "signInEnabled": zod.boolean(),
+  "phone": zod.string().optional(),
+  "contactEmail": zod.string().optional(),
+  "address": zod.string().optional()
 })
 export const ListEmployeesResponse = zod.array(ListEmployeesResponseItem)
 
@@ -452,7 +455,10 @@ export const CreateEmployeeBody = zod.object({
   "perDiemRate": zod.number().min(createEmployeeBodyPerDiemRateMin),
   "weekendMultiplier": zod.number().min(1),
   "holidayMultiplier": zod.number().min(1),
-  "email": zod.string().optional()
+  "email": zod.string().optional(),
+  "phone": zod.string().optional(),
+  "contactEmail": zod.string().optional(),
+  "address": zod.string().optional()
 })
 
 export const CreateEmployeeResponse = zod.object({
@@ -462,7 +468,10 @@ export const CreateEmployeeResponse = zod.object({
   "active": zod.boolean(),
   "isDemo": zod.boolean(),
   "email": zod.string().optional(),
-  "signInEnabled": zod.boolean()
+  "signInEnabled": zod.boolean(),
+  "phone": zod.string().optional(),
+  "contactEmail": zod.string().optional(),
+  "address": zod.string().optional()
 })
 
 
@@ -476,7 +485,10 @@ export const GetMyEmployeeResponse = zod.object({
   "active": zod.boolean(),
   "isDemo": zod.boolean(),
   "email": zod.string().optional(),
-  "signInEnabled": zod.boolean()
+  "signInEnabled": zod.boolean(),
+  "phone": zod.string().optional(),
+  "contactEmail": zod.string().optional(),
+  "address": zod.string().optional()
 })
 
 
@@ -552,7 +564,10 @@ export const ApproveLinkRequestResponse = zod.object({
   "active": zod.boolean(),
   "isDemo": zod.boolean(),
   "email": zod.string().optional(),
-  "signInEnabled": zod.boolean()
+  "signInEnabled": zod.boolean(),
+  "phone": zod.string().optional(),
+  "contactEmail": zod.string().optional(),
+  "address": zod.string().optional()
 })
 
 
@@ -574,6 +589,33 @@ export const DenyLinkRequestResponse = zod.object({
 
 
 /**
+ * @summary Update an employee's contact details (phone, contact email, address)
+ */
+export const UpdateEmployeeContactParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const UpdateEmployeeContactBody = zod.object({
+  "phone": zod.string().optional(),
+  "contactEmail": zod.string().optional(),
+  "address": zod.string().optional()
+})
+
+export const UpdateEmployeeContactResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "active": zod.boolean(),
+  "isDemo": zod.boolean(),
+  "email": zod.string().optional(),
+  "signInEnabled": zod.boolean(),
+  "phone": zod.string().optional(),
+  "contactEmail": zod.string().optional(),
+  "address": zod.string().optional()
+})
+
+
+/**
  * @summary Set or clear an employee's sign-in email
  */
 export const UpdateEmployeeEmailParams = zod.object({
@@ -591,7 +633,10 @@ export const UpdateEmployeeEmailResponse = zod.object({
   "active": zod.boolean(),
   "isDemo": zod.boolean(),
   "email": zod.string().optional(),
-  "signInEnabled": zod.boolean()
+  "signInEnabled": zod.boolean(),
+  "phone": zod.string().optional(),
+  "contactEmail": zod.string().optional(),
+  "address": zod.string().optional()
 })
 
 
@@ -609,7 +654,10 @@ export const RemoveEmployeeResponse = zod.object({
   "active": zod.boolean(),
   "isDemo": zod.boolean(),
   "email": zod.string().optional(),
-  "signInEnabled": zod.boolean()
+  "signInEnabled": zod.boolean(),
+  "phone": zod.string().optional(),
+  "contactEmail": zod.string().optional(),
+  "address": zod.string().optional()
 })
 
 
@@ -631,7 +679,10 @@ export const UpdateEmployeeSignInAccessResponse = zod.object({
   "active": zod.boolean(),
   "isDemo": zod.boolean(),
   "email": zod.string().optional(),
-  "signInEnabled": zod.boolean()
+  "signInEnabled": zod.boolean(),
+  "phone": zod.string().optional(),
+  "contactEmail": zod.string().optional(),
+  "address": zod.string().optional()
 })
 
 

@@ -8,6 +8,7 @@ import {
   useRemoveEmployee,
   useListEmployees,
   useUpdateEmployeeEmail,
+  useUpdateEmployeeContact,
   useUpdateEmployeeSignInAccess,
   getListEmployeeRatesQueryKey,
   getListEmployeeRateHistoryQueryKey,
@@ -30,7 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Pencil, Loader2, AlertCircle, History, Plus, Trash2, Mail } from 'lucide-react';
+import { Pencil, Loader2, AlertCircle, History, Plus, Trash2, Mail, Phone, MapPin, ContactRound } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface EditForm {
@@ -84,6 +85,12 @@ export function EmployeeRatesTable() {
   const [emailFor, setEmailFor] = useState<{ employeeId: string; employeeName: string } | null>(null);
   const [emailValue, setEmailValue] = useState('');
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [newPhone, setNewPhone] = useState('');
+  const [newContactEmail, setNewContactEmail] = useState('');
+  const [newAddress, setNewAddress] = useState('');
+  const [contactFor, setContactFor] = useState<{ employeeId: string; employeeName: string } | null>(null);
+  const [contactForm, setContactForm] = useState({ phone: '', contactEmail: '', address: '' });
+  const [contactError, setContactError] = useState<string | null>(null);
 
   // Roster (with sign-in emails + login status) so each row can show whether
   // the employee can sign in to the mobile app.
@@ -212,6 +219,52 @@ export function EmployeeRatesTable() {
     },
   });
 
+  const contactMutation = useUpdateEmployeeContact({
+    mutation: {
+      onSuccess: (employee) => {
+        invalidateEmployees();
+        setContactFor(null);
+        toast({
+          title: 'Contact info saved',
+          description: `${employee.name}'s contact details were updated.`,
+        });
+      },
+      onError: (error) => {
+        const serverMessage =
+          error && typeof error === 'object' && 'data' in error &&
+          error.data && typeof error.data === 'object' && 'message' in error.data &&
+          typeof (error.data as { message?: unknown }).message === 'string'
+            ? (error.data as { message: string }).message
+            : null;
+        setContactError(serverMessage ?? 'Could not save the contact details. Please try again.');
+      },
+    },
+  });
+
+  const openContact = (employeeId: string, employeeName: string) => {
+    const emp = employeeById.get(employeeId);
+    setContactFor({ employeeId, employeeName });
+    setContactForm({
+      phone: emp?.phone ?? '',
+      contactEmail: emp?.contactEmail ?? '',
+      address: emp?.address ?? '',
+    });
+    setContactError(null);
+  };
+
+  const handleSaveContact = () => {
+    if (!contactFor) return;
+    setContactError(null);
+    contactMutation.mutate({
+      id: contactFor.employeeId,
+      data: {
+        phone: contactForm.phone,
+        contactEmail: contactForm.contactEmail,
+        address: contactForm.address,
+      },
+    });
+  };
+
   const openEmail = (employeeId: string, employeeName: string) => {
     setEmailFor({ employeeId, employeeName });
     setEmailValue(emailByEmployeeId.get(employeeId) ?? '');
@@ -228,6 +281,9 @@ export function EmployeeRatesTable() {
     setNewName('');
     setNewRole('');
     setNewEmail('');
+    setNewPhone('');
+    setNewContactEmail('');
+    setNewAddress('');
     setNewRates({
       hourlyRate: '',
       visitRate: '',
@@ -268,6 +324,9 @@ export function EmployeeRatesTable() {
         name: newName.trim(),
         role: newRole.trim(),
         ...(newEmail.trim() ? { email: newEmail.trim() } : {}),
+        ...(newPhone.trim() ? { phone: newPhone.trim() } : {}),
+        ...(newContactEmail.trim() ? { contactEmail: newContactEmail.trim() } : {}),
+        ...(newAddress.trim() ? { address: newAddress.trim() } : {}),
         hourlyRate: values.hourlyRate,
         visitRate: values.visitRate,
         mileageRate: values.mileageRate,
@@ -332,9 +391,9 @@ export function EmployeeRatesTable() {
     <Card>
       <CardHeader className="flex flex-row items-start justify-between space-y-0">
         <div className="space-y-1.5">
-          <CardTitle>Employee Pay Rates</CardTitle>
+          <CardTitle>Employees</CardTitle>
           <CardDescription>
-            Current pay rates for all active employees
+            Contact info, app sign-in, and pay rates for everyone on your team
           </CardDescription>
         </div>
         <Button size="sm" className="gap-2" onClick={openAdd} data-testid="button-add-employee">
@@ -361,6 +420,7 @@ export function EmployeeRatesTable() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Employee</TableHead>
+                  <TableHead>Contact</TableHead>
                   <TableHead className="text-right">Hourly</TableHead>
                   <TableHead className="text-right">Visit</TableHead>
                   <TableHead className="text-right">Mileage</TableHead>
@@ -420,6 +480,43 @@ export function EmployeeRatesTable() {
                           >
                             Sign-in disabled
                           </Badge>
+                        );
+                      })()}
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const emp = employeeById.get(rate.employeeId);
+                        const hasContact = !!(emp?.phone || emp?.contactEmail || emp?.address);
+                        return (
+                          <div className="space-y-0.5 text-xs text-muted-foreground" data-testid={`contact-info-${rate.employeeId}`}>
+                            {emp?.phone && (
+                              <div className="flex items-center gap-1">
+                                <Phone className="h-3 w-3 shrink-0" />
+                                {emp.phone}
+                              </div>
+                            )}
+                            {emp?.contactEmail && (
+                              <div className="flex items-center gap-1">
+                                <Mail className="h-3 w-3 shrink-0" />
+                                {emp.contactEmail}
+                              </div>
+                            )}
+                            {emp?.address && (
+                              <div className="flex items-start gap-1">
+                                <MapPin className="h-3 w-3 shrink-0 mt-0.5" />
+                                <span className="whitespace-pre-line">{emp.address}</span>
+                              </div>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => openContact(rate.employeeId, rate.employeeName)}
+                              className="flex items-center gap-1 underline-offset-2 hover:underline"
+                              data-testid={`button-contact-employee-${rate.employeeId}`}
+                            >
+                              <ContactRound className="h-3 w-3" />
+                              {hasContact ? 'Edit contact info' : 'Add contact info'}
+                            </button>
+                          </div>
                         );
                       })()}
                     </TableCell>
@@ -529,6 +626,38 @@ export function EmployeeRatesTable() {
                 Lets the employee sign in to the mobile app with a code sent to this email.
               </p>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-employee-phone">Phone (optional)</Label>
+              <Input
+                id="new-employee-phone"
+                type="tel"
+                value={newPhone}
+                onChange={(e) => setNewPhone(e.target.value)}
+                placeholder="e.g. (208) 555-0142"
+                data-testid="input-new-employee-phone"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-employee-contact-email">Contact email (optional)</Label>
+              <Input
+                id="new-employee-contact-email"
+                type="email"
+                value={newContactEmail}
+                onChange={(e) => setNewContactEmail(e.target.value)}
+                placeholder="e.g. jane@gmail.com"
+                data-testid="input-new-employee-contact-email"
+              />
+            </div>
+            <div className="space-y-2 col-span-2">
+              <Label htmlFor="new-employee-address">Address (optional)</Label>
+              <Input
+                id="new-employee-address"
+                value={newAddress}
+                onChange={(e) => setNewAddress(e.target.value)}
+                placeholder="e.g. 123 Main St, Boise, ID 83702"
+                data-testid="input-new-employee-address"
+              />
+            </div>
             {numericFields.map(field => (
               <div key={field.key} className="space-y-2">
                 <Label htmlFor={`new-employee-${field.key}`}>{field.label}</Label>
@@ -565,6 +694,76 @@ export function EmployeeRatesTable() {
             >
               {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
               Add Employee
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!contactFor} onOpenChange={(open) => !open && setContactFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Contact Info</DialogTitle>
+            <DialogDescription>
+              {contactFor
+                ? `How you reach ${contactFor.employeeName} — separate from their app sign-in email. Leave a field blank to clear it.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="contact-phone">Phone</Label>
+              <Input
+                id="contact-phone"
+                type="tel"
+                value={contactForm.phone}
+                onChange={(e) => setContactForm((prev) => ({ ...prev, phone: e.target.value }))}
+                placeholder="e.g. (208) 555-0142"
+                data-testid="input-contact-phone"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="contact-email">Contact email</Label>
+              <Input
+                id="contact-email"
+                type="email"
+                value={contactForm.contactEmail}
+                onChange={(e) => setContactForm((prev) => ({ ...prev, contactEmail: e.target.value }))}
+                placeholder="e.g. jane@gmail.com"
+                data-testid="input-contact-email"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="contact-address">Address</Label>
+              <Input
+                id="contact-address"
+                value={contactForm.address}
+                onChange={(e) => setContactForm((prev) => ({ ...prev, address: e.target.value }))}
+                placeholder="e.g. 123 Main St, Boise, ID 83702"
+                data-testid="input-contact-address"
+              />
+            </div>
+            {contactError && (
+              <div
+                className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+                data-testid="error-contact-info"
+              >
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>{contactError}</span>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setContactFor(null)} data-testid="button-cancel-contact-info">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveContact}
+              disabled={contactMutation.isPending}
+              className="gap-2"
+              data-testid="button-save-contact-info"
+            >
+              {contactMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -56,6 +56,7 @@ export * from './timeEntry';
 export * from './updateBusinessSettings';
 export * from './updateClientBilling';
 export * from './updateClientRate';
+export * from './updateEmployeeContact';
 export * from './updateEmployeeEmail';
 export * from './updateEmployeeRate';
 export * from './updateEmployeeSignInAccess';
