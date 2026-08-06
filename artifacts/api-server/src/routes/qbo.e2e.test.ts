@@ -43,6 +43,36 @@ describe("GET /qbo/status", () => {
     expect(JSON.stringify(body)).not.toMatch(/token/i);
   });
 
+  it("reports which QuickBooks environment is active (sandbox vs production)", async () => {
+    const prevEnv = process.env["QBO_ENV"];
+    const prevDeploy = process.env["REPLIT_DEPLOYMENT"];
+    try {
+      // Sandbox in development: practice mode, but not the scary mismatch.
+      process.env["QBO_ENV"] = "sandbox";
+      delete process.env["REPLIT_DEPLOYMENT"];
+      let body = (await (await fetch(`${base}/qbo/status`)).json()) as Record<string, unknown>;
+      expect(body["environment"]).toBe("sandbox");
+      expect(body["sandboxInProduction"]).toBe(false);
+
+      // Sandbox while deployed: the dangerous combination gets flagged.
+      process.env["REPLIT_DEPLOYMENT"] = "1";
+      body = (await (await fetch(`${base}/qbo/status`)).json()) as Record<string, unknown>;
+      expect(body["environment"]).toBe("sandbox");
+      expect(body["sandboxInProduction"]).toBe(true);
+
+      // Real mode: production environment, no flag even when deployed.
+      delete process.env["QBO_ENV"];
+      body = (await (await fetch(`${base}/qbo/status`)).json()) as Record<string, unknown>;
+      expect(body["environment"]).toBe("production");
+      expect(body["sandboxInProduction"]).toBe(false);
+    } finally {
+      if (prevEnv === undefined) delete process.env["QBO_ENV"];
+      else process.env["QBO_ENV"] = prevEnv;
+      if (prevDeploy === undefined) delete process.env["REPLIT_DEPLOYMENT"];
+      else process.env["REPLIT_DEPLOYMENT"] = prevDeploy;
+    }
+  });
+
   it("reports an expired connection as not connected with a friendly note", async () => {
     const past = new Date(Date.now() - 60 * 60 * 1000);
     await db.insert(qboConnectionTable).values({

@@ -1028,7 +1028,9 @@ export const GetQboStatusResponse = zod.object({
   "companyName": zod.string().nullish().describe('Company name from QuickBooks when connected and reachable'),
   "connectedAt": zod.string().nullish(),
   "problem": zod.string().nullish().describe('Plain-language note when the connection needs attention (e.g. needs reconnecting)'),
-  "callbackUrl": zod.string().nullable().describe('The exact redirect URI Intuit must have registered for the connect flow to return')
+  "callbackUrl": zod.string().nullable().describe('The exact redirect URI Intuit must have registered for the connect flow to return'),
+  "environment": zod.enum(['sandbox', 'production']).describe('Which QuickBooks environment invoices go to — Intuit\'s practice sandbox or real QuickBooks'),
+  "sandboxInProduction": zod.boolean().describe('True when the published (deployed) app is still pointed at the sandbox — a misconfiguration worth a loud warning')
 })
 
 

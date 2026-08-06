@@ -1309,10 +1309,19 @@ components:
           type: string
           nullable: true
           description: The exact redirect URI Intuit must have registered for the connect flow to return
+        environment:
+          type: string
+          enum: [sandbox, production]
+          description: Which QuickBooks environment invoices go to — Intuit's practice sandbox or real QuickBooks
+        sandboxInProduction:
+          type: boolean
+          description: True when the published (deployed) app is still pointed at the sandbox — a misconfiguration worth a loud warning
       required:
         - configured
         - connected
         - callbackUrl
+        - environment
+        - sandboxInProduction
     QboInvoiceSend:
       type: object
       properties:

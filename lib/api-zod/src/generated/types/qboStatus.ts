@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { QboStatusEnvironment } from './qboStatusEnvironment';
 
 export interface QboStatus {
   /** Whether Intuit app credentials (Client ID/Secret) are set up */
@@ -17,4 +18,8 @@ export interface QboStatus {
   problem?: string | null;
   /** The exact redirect URI Intuit must have registered for the connect flow to return */
   callbackUrl: string | null;
+  /** Which QuickBooks environment invoices go to — Intuit's practice sandbox or real QuickBooks */
+  environment: QboStatusEnvironment;
+  /** True when the published (deployed) app is still pointed at the sandbox — a misconfiguration worth a loud warning */
+  sandboxInProduction: boolean;
 }

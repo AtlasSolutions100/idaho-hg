@@ -13,6 +13,8 @@ const STATUS = {
   connectedAt: null,
   problem: null,
   callbackUrl: 'https://example.replit.dev/api/qbo/callback',
+  environment: 'production',
+  sandboxInProduction: false,
 };
 
 let status: Record<string, unknown>;
@@ -102,5 +104,33 @@ describe('QuickBooksCard', () => {
     renderCard();
     await screen.findByTestId('badge-qbo-not-connected');
     expect(screen.queryByTestId('alert-qbo-never-returned')).toBeNull();
+  });
+
+  it('shows nothing about practice mode when QuickBooks is in real mode', async () => {
+    renderCard();
+    await screen.findByTestId('badge-qbo-not-connected');
+    expect(screen.queryByTestId('badge-qbo-practice-mode')).toBeNull();
+    expect(screen.queryByTestId('text-qbo-practice-note')).toBeNull();
+    expect(screen.queryByTestId('alert-qbo-sandbox-in-production')).toBeNull();
+  });
+
+  it('labels practice (sandbox) mode plainly', async () => {
+    status = { ...STATUS, environment: 'sandbox' };
+    renderCard();
+    const badge = await screen.findByTestId('badge-qbo-practice-mode');
+    expect(badge.textContent).toContain('Practice mode');
+    const note = screen.getByTestId('text-qbo-practice-note');
+    expect(note.textContent).toContain('sandbox');
+    expect(note.textContent).toContain('not your real QuickBooks books');
+    expect(screen.queryByTestId('alert-qbo-sandbox-in-production')).toBeNull();
+  });
+
+  it('warns loudly when the published app is still in practice mode', async () => {
+    status = { ...STATUS, environment: 'sandbox', sandboxInProduction: true };
+    renderCard();
+    const alert = await screen.findByTestId('alert-qbo-sandbox-in-production');
+    expect(alert.textContent).toContain('practice mode');
+    expect(alert.textContent).toContain('NOT reach your real books');
+    expect(screen.getByTestId('badge-qbo-practice-mode')).toBeTruthy();
   });
 });

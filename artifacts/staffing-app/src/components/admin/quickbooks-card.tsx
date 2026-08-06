@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Link2, CircleCheck, CircleAlert, Copy, Check } from 'lucide-react';
+import { Link2, CircleCheck, CircleAlert, Copy, Check, FlaskConical, TriangleAlert } from 'lucide-react';
 
 // Remembers that Molly clicked Connect, so if Intuit never sends her back
 // (usually because this address isn't registered in the Intuit portal) we can
@@ -107,6 +107,17 @@ export function QuickBooksCard() {
             <Link2 className="h-4 w-4 text-primary" aria-hidden="true" />
             QuickBooks
           </CardTitle>
+          <div className="flex items-center gap-2 flex-wrap">
+          {status && status.environment === 'sandbox' && (
+            <Badge
+              variant="outline"
+              className="border-amber-500/60 text-amber-700 dark:text-amber-400 gap-1"
+              data-testid="badge-qbo-practice-mode"
+            >
+              <FlaskConical className="h-3 w-3" aria-hidden="true" />
+              Practice mode
+            </Badge>
+          )}
           {status &&
             (status.connected ? (
               <Badge variant="outline" className="border-primary/40 text-primary" data-testid="badge-qbo-connected">
@@ -117,12 +128,30 @@ export function QuickBooksCard() {
                 Not connected
               </Badge>
             ))}
+          </div>
         </div>
         <CardDescription>
           Link your real QuickBooks account so invoices can be sent there later.
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {status?.sandboxInProduction && (
+          <Alert variant="destructive" className="mb-4" data-testid="alert-qbo-sandbox-in-production">
+            <TriangleAlert className="h-4 w-4" aria-hidden="true" />
+            <AlertTitle>This live app is still in practice mode</AlertTitle>
+            <AlertDescription>
+              The published app is pointed at QuickBooks' practice (sandbox) company, so any
+              invoices sent from here will NOT reach your real books. Ask your developer to
+              switch QuickBooks out of practice mode before sending real invoices.
+            </AlertDescription>
+          </Alert>
+        )}
+        {status && !status.sandboxInProduction && status.environment === 'sandbox' && (
+          <p className="mb-4 text-sm text-muted-foreground" data-testid="text-qbo-practice-note">
+            Practice mode — invoices go to the sandbox (practice) company, not your real
+            QuickBooks books. Safe for testing.
+          </p>
+        )}
         {connectOutcome === 'error' && (
           <Alert variant="destructive" className="mb-4" data-testid="alert-qbo-connect-error">
             <CircleAlert className="h-4 w-4" aria-hidden="true" />

@@ -11,6 +11,7 @@ import {
   fetchCompanyName,
   getConnection,
   getValidAccess,
+  isProductionDeployment,
   isQboSandbox,
   qboCredentials,
   revokeWithIntuit,
@@ -138,15 +139,31 @@ router.get("/qbo/status", async (_req, res) => {
   // Surface the exact redirect URI so the Admin page can tell Molly what to
   // register in the Intuit developer portal when the connect flow breaks.
   const cb = callbackUrl();
+  // Tell the UI plainly whether invoices go to Intuit's sandbox (practice)
+  // company or a real QuickBooks account — and flag the dangerous combination
+  // of a published deployment still pointed at the sandbox.
+  const environment = isQboSandbox() ? ("sandbox" as const) : ("production" as const);
+  const sandboxInProduction = isQboSandbox() && isProductionDeployment();
   const conn = await getConnection();
   if (!conn) {
-    return res.json({ configured, connected: false, companyName: null, connectedAt: null, problem: null, callbackUrl: cb });
+    return res.json({
+      configured,
+      connected: false,
+      companyName: null,
+      connectedAt: null,
+      problem: null,
+      callbackUrl: cb,
+      environment,
+      sandboxInProduction,
+    });
   }
 
   const access = await getValidAccess();
   if (!access) {
     return res.json({
       configured,
+      environment,
+      sandboxInProduction,
       connected: false,
       companyName: null,
       connectedAt: conn.connectedAt.toISOString(),
@@ -159,6 +176,8 @@ router.get("/qbo/status", async (_req, res) => {
     const companyName = await fetchCompanyName(access.accessToken, access.realmId);
     return res.json({
       configured,
+      environment,
+      sandboxInProduction,
       connected: true,
       companyName: companyName || null,
       connectedAt: conn.connectedAt.toISOString(),
@@ -169,6 +188,8 @@ router.get("/qbo/status", async (_req, res) => {
     logger.warn({ err }, "QuickBooks company info check failed");
     return res.json({
       configured,
+      environment,
+      sandboxInProduction,
       connected: true,
       companyName: null,
       connectedAt: conn.connectedAt.toISOString(),

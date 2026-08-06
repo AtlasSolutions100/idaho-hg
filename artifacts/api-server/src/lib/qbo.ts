@@ -26,6 +26,14 @@ export function isQboSandbox(): boolean {
   return process.env["QBO_ENV"]?.trim().toLowerCase() === "sandbox";
 }
 
+/**
+ * True when this process is running as a published (production) deployment.
+ * Replit sets REPLIT_DEPLOYMENT in deployed environments only.
+ */
+export function isProductionDeployment(): boolean {
+  return Boolean(process.env["REPLIT_DEPLOYMENT"]?.trim());
+}
+
 /** Company API base — sandbox vs production, controlled by QBO_ENV (default production). */
 export function qboApiBase(): string {
   return isQboSandbox()

@@ -22,6 +22,17 @@ export interface UpdateBusinessSettings {
   nextInvoiceNumber?: number;
 }
 
+/**
+ * Which QuickBooks environment invoices go to — Intuit's practice sandbox or real QuickBooks
+ */
+export type QboStatusEnvironment = typeof QboStatusEnvironment[keyof typeof QboStatusEnvironment];
+
+
+export const QboStatusEnvironment = {
+  sandbox: 'sandbox',
+  production: 'production',
+} as const;
+
 export interface QboStatus {
   /** Whether Intuit app credentials (Client ID/Secret) are set up */
   configured: boolean;
@@ -33,6 +44,10 @@ export interface QboStatus {
   problem?: string | null;
   /** The exact redirect URI Intuit must have registered for the connect flow to return */
   callbackUrl: string | null;
+  /** Which QuickBooks environment invoices go to — Intuit's practice sandbox or real QuickBooks */
+  environment: QboStatusEnvironment;
+  /** True when the published (deployed) app is still pointed at the sandbox — a misconfiguration worth a loud warning */
+  sandboxInProduction: boolean;
 }
 
 export interface QboInvoiceSend {

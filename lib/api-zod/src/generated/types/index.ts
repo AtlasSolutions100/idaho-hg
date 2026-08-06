@@ -48,6 +48,7 @@ export * from './qboSendConflict';
 export * from './qboSentInvoice';
 export * from './qboSentInvoiceLookup';
 export * from './qboStatus';
+export * from './qboStatusEnvironment';
 export * from './reconciliationEmployeeGroup';
 export * from './reconciliationReport';
 export * from './reconciliationReportLine';
