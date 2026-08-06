@@ -36,6 +36,9 @@ describe("GET /qbo/status", () => {
     expect(body["configured"]).toBe(false);
     expect(body["connected"]).toBe(false);
     expect(body["companyName"]).toBeNull();
+    // The exact redirect URI is surfaced so the Admin page can tell Molly
+    // what to register in the Intuit developer portal.
+    expect(String(body["callbackUrl"])).toMatch(/\/api\/qbo\/callback$/);
     // Tokens must never appear in the response.
     expect(JSON.stringify(body)).not.toMatch(/token/i);
   });

@@ -22,18 +22,28 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Link2, CircleCheck, CircleAlert } from 'lucide-react';
+import { Link2, CircleCheck, CircleAlert, Copy, Check } from 'lucide-react';
+
+// Remembers that Molly clicked Connect, so if Intuit never sends her back
+// (usually because this address isn't registered in the Intuit portal) we can
+// explain what went wrong instead of staying silent.
+const CONNECT_ATTEMPT_KEY = 'qbo-connect-attempt';
+// Only treat a not-completed attempt as worth mentioning if it happened
+// recently. Older flags (Molly wandered off, came back the next day) are
+// cleared quietly to avoid crying wolf.
+const CONNECT_ATTEMPT_MAX_AGE_MS = 15 * 60 * 1000;
 
 /**
  * QuickBooks connection card for the Admin dashboard.
  * Calm status + one clear action: Connect or Disconnect.
  */
-type ConnectOutcome = 'error' | 'cancelled';
+type ConnectOutcome = 'error' | 'cancelled' | 'never-returned';
 
 export function QuickBooksCard() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [connectOutcome, setConnectOutcome] = useState<ConnectOutcome | null>(null);
+  const [copied, setCopied] = useState(false);
 
   // After Intuit sends Molly back, the server redirects to
   // /admin?quickbooks=connected|cancelled|error. Read it once, tell her what
@@ -42,7 +52,23 @@ export function QuickBooksCard() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const result = params.get('quickbooks');
-    if (!result) return;
+    if (!result) {
+      // No result in the address bar — but if a connect attempt was started
+      // and we're back here without one, Intuit never sent her back. That
+      // almost always means this app's address isn't registered (or the
+      // registration didn't stick) in the Intuit developer portal.
+      const startedAt = Number(sessionStorage.getItem(CONNECT_ATTEMPT_KEY));
+      if (startedAt) {
+        sessionStorage.removeItem(CONNECT_ATTEMPT_KEY);
+        // Only mention a recent attempt; a stale flag from long ago is
+        // cleared without alarming anyone.
+        if (Date.now() - startedAt < CONNECT_ATTEMPT_MAX_AGE_MS) {
+          setConnectOutcome('never-returned');
+        }
+      }
+      return;
+    }
+    sessionStorage.removeItem(CONNECT_ATTEMPT_KEY);
 
     if (result === 'connected') {
       toast({
@@ -104,6 +130,20 @@ export function QuickBooksCard() {
             <AlertDescription>
               This usually happens when an older QuickBooks tab was still open. Close any other
               QuickBooks tabs, then click "Connect to QuickBooks" again in one fresh tab.
+            </AlertDescription>
+          </Alert>
+        )}
+        {connectOutcome === 'never-returned' && (
+          <Alert variant="destructive" className="mb-4" data-testid="alert-qbo-never-returned">
+            <CircleAlert className="h-4 w-4" aria-hidden="true" />
+            <AlertTitle>The last QuickBooks connection attempt didn't finish</AlertTitle>
+            <AlertDescription>
+              If you closed the QuickBooks page yourself, no problem — just try again. But if
+              QuickBooks showed an error or never brought you back here, the usual cause is that
+              this app's address below isn't saved in the Intuit developer portal (or the save
+              didn't stick). Copy the address below, add it under your Intuit app's Redirect
+              URIs, refresh that Intuit page to confirm it really saved, then try connecting
+              again — in one tab only.
             </AlertDescription>
           </Alert>
         )}
@@ -178,11 +218,58 @@ export function QuickBooksCard() {
                 "You'll sign in on QuickBooks' own page and approve the connection there."}
             </p>
             <Button asChild size="sm" className="gap-1.5" data-testid="button-qbo-connect">
-              <a href="/api/qbo/connect">
+              <a
+                href="/api/qbo/connect"
+                onClick={() => sessionStorage.setItem(CONNECT_ATTEMPT_KEY, String(Date.now()))}
+              >
                 <Link2 className="h-4 w-4" />
                 Connect to QuickBooks
               </a>
             </Button>
+          </div>
+        )}
+        {!statusQuery.isLoading && status && !status.connected && status.configured && status.callbackUrl && (
+          <div className="mt-4 rounded-md border bg-muted/40 p-3" data-testid="section-qbo-callback">
+            <p className="text-xs font-medium mb-1">
+              Before connecting works, Intuit needs this exact address saved in your Intuit
+              developer app (Keys &amp; credentials → Redirect URIs):
+            </p>
+            <div className="flex items-center gap-2">
+              <code
+                className="text-xs break-all bg-background border rounded px-2 py-1 flex-1"
+                data-testid="text-qbo-callback-url"
+              >
+                {status.callbackUrl}
+              </code>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 gap-1.5"
+                data-testid="button-qbo-copy-callback"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(status.callbackUrl!);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  } catch {
+                    toast({
+                      title: "Couldn't copy automatically",
+                      description: 'Select the address and copy it by hand instead.',
+                      variant: 'destructive',
+                    });
+                  }
+                }}
+              >
+                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied ? 'Copied' : 'Copy'}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Intuit's save button sometimes fails quietly — after saving, refresh their page and
+              make sure the address is still listed. This address changes while the app is in
+              development; once the app is published, register the permanent published address
+              instead so this stops recurring.
+            </p>
           </div>
         )}
         {disconnect.isError && (

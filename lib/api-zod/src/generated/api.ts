@@ -1027,7 +1027,8 @@ export const GetQboStatusResponse = zod.object({
   "connected": zod.boolean(),
   "companyName": zod.string().nullish().describe('Company name from QuickBooks when connected and reachable'),
   "connectedAt": zod.string().nullish(),
-  "problem": zod.string().nullish().describe('Plain-language note when the connection needs attention (e.g. needs reconnecting)')
+  "problem": zod.string().nullish().describe('Plain-language note when the connection needs attention (e.g. needs reconnecting)'),
+  "callbackUrl": zod.string().nullable().describe('The exact redirect URI Intuit must have registered for the connect flow to return')
 })
 
 

@@ -134,9 +134,12 @@ router.get("/qbo/callback", async (req, res) => {
 // ---- Connection status (+ live company-name check when connected).
 router.get("/qbo/status", async (_req, res) => {
   const configured = qboCredentials() !== null;
+  // Surface the exact redirect URI so the Admin page can tell Molly what to
+  // register in the Intuit developer portal when the connect flow breaks.
+  const cb = callbackUrl();
   const conn = await getConnection();
   if (!conn) {
-    return res.json({ configured, connected: false, companyName: null, connectedAt: null, problem: null });
+    return res.json({ configured, connected: false, companyName: null, connectedAt: null, problem: null, callbackUrl: cb });
   }
 
   const access = await getValidAccess();
@@ -147,6 +150,7 @@ router.get("/qbo/status", async (_req, res) => {
       companyName: null,
       connectedAt: conn.connectedAt.toISOString(),
       problem: "The QuickBooks connection has expired or was revoked. Please connect again.",
+      callbackUrl: cb,
     });
   }
 
@@ -158,6 +162,7 @@ router.get("/qbo/status", async (_req, res) => {
       companyName: companyName || null,
       connectedAt: conn.connectedAt.toISOString(),
       problem: null,
+      callbackUrl: cb,
     });
   } catch (err) {
     logger.warn({ err }, "QuickBooks company info check failed");
@@ -167,6 +172,7 @@ router.get("/qbo/status", async (_req, res) => {
       companyName: null,
       connectedAt: conn.connectedAt.toISOString(),
       problem: "Connected, but QuickBooks couldn't be reached just now.",
+      callbackUrl: cb,
     });
   }
 });

@@ -1305,9 +1305,14 @@ components:
           type: string
           nullable: true
           description: Plain-language note when the connection needs attention (e.g. needs reconnecting)
+        callbackUrl:
+          type: string
+          nullable: true
+          description: The exact redirect URI Intuit must have registered for the connect flow to return
       required:
         - configured
         - connected
+        - callbackUrl
     QboInvoiceSend:
       type: object
       properties:

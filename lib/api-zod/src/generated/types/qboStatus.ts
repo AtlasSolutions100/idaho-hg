@@ -15,4 +15,6 @@ export interface QboStatus {
   connectedAt?: string | null;
   /** Plain-language note when the connection needs attention (e.g. needs reconnecting) */
   problem?: string | null;
+  /** The exact redirect URI Intuit must have registered for the connect flow to return */
+  callbackUrl: string | null;
 }
