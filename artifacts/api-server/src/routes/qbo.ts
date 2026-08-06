@@ -11,6 +11,7 @@ import {
   fetchCompanyName,
   getConnection,
   getValidAccess,
+  isQboSandbox,
   qboCredentials,
   revokeWithIntuit,
   saveConnection,
@@ -259,17 +260,21 @@ router.post("/qbo/invoice", async (req, res, next) => {
       return res.status(400).json({ message: "Provide a valid date range (start <= end, YYYY-MM-DD)" });
     }
 
-    // Practice (demo) clients never touch QuickBooks — nothing real should
-    // ever be created from practice data, and their local sent-invoice
-    // records are removed with the rest of the demo data.
+    // Practice (demo) clients never touch a real QuickBooks account —
+    // nothing real should ever be created from practice data. The one
+    // exception: when the server is pointed at Intuit's sandbox environment
+    // (QBO_ENV=sandbox), practice sends are harmless and let the full flow
+    // be tested end-to-end. Sandbox or not, their sent-invoice records stay
+    // labeled as practice data and are removed with the rest of it.
     const [clientRow] = await db
       .select({ isDemo: clientsTable.isDemo })
       .from(clientsTable)
       .where(eq(clientsTable.id, clientId));
-    if (clientRow?.isDemo) {
+    const isDemoClient = clientRow?.isDemo === true;
+    if (isDemoClient && !isQboSandbox()) {
       return res.status(400).json({
         message:
-          "Demo clients can't be sent to QuickBooks. Practice invoices stay inside the app — use a real client for actual billing.",
+          "Demo clients can't be sent to a real QuickBooks account. Practice invoices stay inside the app — use a real client for actual billing, or connect a sandbox QuickBooks account for testing.",
       });
     }
 
@@ -351,6 +356,9 @@ router.post("/qbo/invoice", async (req, res, next) => {
         periodEnd: end,
         qboInvoiceId: invoice.id,
         docNumber: invoice.docNumber,
+        // Practice sends stay labeled as practice data so they're removed
+        // together with the rest of the demo data.
+        isDemo: isDemoClient,
       });
       return { invoice } as const;
     });

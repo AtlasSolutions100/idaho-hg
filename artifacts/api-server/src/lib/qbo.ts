@@ -21,9 +21,14 @@ export function qboCredentials(): { clientId: string; clientSecret: string } | n
   return { clientId, clientSecret };
 }
 
+/** True when the server talks to Intuit's harmless sandbox environment. */
+export function isQboSandbox(): boolean {
+  return process.env["QBO_ENV"]?.trim().toLowerCase() === "sandbox";
+}
+
 /** Company API base — sandbox vs production, controlled by QBO_ENV (default production). */
 export function qboApiBase(): string {
-  return process.env["QBO_ENV"]?.trim().toLowerCase() === "sandbox"
+  return isQboSandbox()
     ? "https://sandbox-quickbooks.api.intuit.com"
     : "https://quickbooks.api.intuit.com";
 }

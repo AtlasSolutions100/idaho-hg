@@ -2,7 +2,7 @@
 // fills every feature — contact info, join request, billing addresses, rate
 // history, onboarding, two months of entries, feedback, and a recorded
 // practice invoice — and one click removes it all without touching real data.
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { Server } from "node:http";
 import { eq, inArray } from "drizzle-orm";
 import {
@@ -18,6 +18,29 @@ import {
   feedbackTable,
   qboSentInvoicesTable,
 } from "@workspace/db";
+
+// Pretend QuickBooks is connected and fake the QBO API wrappers, so the
+// sandbox-mode practice send below can go end-to-end without external calls.
+vi.mock("../lib/qbo", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/qbo")>();
+  return {
+    ...actual,
+    getValidAccess: vi.fn(async () => ({ accessToken: "fake-token", realmId: "fake-realm" })),
+  };
+});
+let qboCreatedCount = 0;
+vi.mock("../lib/qbo-invoice", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/qbo-invoice")>();
+  return {
+    ...actual,
+    findOrCreateCustomer: vi.fn(async (_a: unknown, name: string) => ({ value: "cust-1", name })),
+    findOrCreateItem: vi.fn(async (_a: unknown, name: string) => ({ value: "item-1", name })),
+    createQboInvoice: vi.fn(async () => {
+      qboCreatedCount += 1;
+      return { id: `qbo-demo-inv-${qboCreatedCount}`, docNumber: `${2040 + qboCreatedCount}` };
+    }),
+  };
+});
 
 const { default: app } = await import("../app");
 
@@ -186,15 +209,60 @@ describe("expanded practice data", () => {
     expect(clientRates.length).toBe(20);
   });
 
-  it("demo clients can never be sent to QuickBooks", async () => {
-    const res = await fetch(`${baseUrl}/api/qbo/invoice`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientId: "demo-client-1", start: "2023-10-01", end: "2023-10-31" }),
-    });
-    expect(res.status).toBe(400);
-    const body = (await res.json()) as { message: string };
-    expect(body.message).toContain("Demo clients can't be sent to QuickBooks");
+  it("demo clients can never be sent to a real QuickBooks account", async () => {
+    // Pin to non-sandbox: the workspace may have QBO_ENV=sandbox set, which
+    // deliberately relaxes this block (covered in qbo-demo-sandbox.e2e.test.ts).
+    const savedEnv = process.env["QBO_ENV"];
+    delete process.env["QBO_ENV"];
+    try {
+      const res = await fetch(`${baseUrl}/api/qbo/invoice`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: "demo-client-1", start: "2023-10-01", end: "2023-10-31" }),
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { message: string };
+      expect(body.message).toContain("Demo clients can't be sent to a real QuickBooks account");
+    } finally {
+      if (savedEnv === undefined) delete process.env["QBO_ENV"];
+      else process.env["QBO_ENV"] = savedEnv;
+    }
+  });
+
+  it("demo clients CAN be sent when pointed at a sandbox QuickBooks account", async () => {
+    const savedEnv = process.env["QBO_ENV"];
+    process.env["QBO_ENV"] = "sandbox";
+    try {
+      // Bill everything the demo data seeded, whatever months it landed in.
+      // confirmDuplicate skips the repeat-send warning (a practice invoice
+      // record is part of the seeded data).
+      const before = qboCreatedCount;
+      const res = await fetch(`${baseUrl}/api/qbo/invoice`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: "demo-client-1",
+          start: "2020-01-01",
+          end: "2030-12-31",
+          confirmDuplicate: true,
+        }),
+      });
+      const body = (await res.json()) as Record<string, unknown>;
+      expect(res.status).toBe(200);
+      expect(body["qboInvoiceId"]).toBe(`qbo-demo-inv-${before + 1}`);
+
+      // The recorded send stays labeled as practice data, so it's removed
+      // with the rest of the demo set.
+      const rows = await db
+        .select()
+        .from(qboSentInvoicesTable)
+        .where(eq(qboSentInvoicesTable.qboInvoiceId, `qbo-demo-inv-${before + 1}`));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.isDemo).toBe(true);
+    } finally {
+      if (savedEnv === undefined) delete process.env["QBO_ENV"];
+      else process.env["QBO_ENV"] = savedEnv;
+    }
   });
 
   it("reload after the demo join request was approved doesn't create an invalid new request", async () => {
