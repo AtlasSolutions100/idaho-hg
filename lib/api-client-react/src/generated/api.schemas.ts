@@ -484,6 +484,27 @@ export interface ApproveAllResult {
 
 export interface ApiError {
   message: string;
+  code?: string;
+}
+
+export interface ClaimableEmployee {
+  id: string;
+  name: string;
+  role: string;
+}
+
+export interface CreateLinkRequest {
+  /** @minLength 1 */
+  employeeId: string;
+}
+
+export interface LinkRequest {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  employeeRole: string;
+  email: string;
+  requestedAt: string;
 }
 
 export type ListTimeEntriesParams = {

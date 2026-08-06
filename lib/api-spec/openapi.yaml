@@ -497,6 +497,135 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /link-requests/claimable:
+    get:
+      operationId: listClaimableEmployees
+      tags: [roster]
+      summary: List roster profiles a signed-in but unlinked person can claim
+      responses:
+        "200":
+          description: Active employees without a linked sign-in email
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ClaimableEmployee"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /link-requests:
+    get:
+      operationId: listLinkRequests
+      tags: [roster]
+      summary: List pending profile link requests awaiting Molly's approval
+      responses:
+        "200":
+          description: Pending link requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LinkRequest"
+    post:
+      operationId: createLinkRequest
+      tags: [roster]
+      summary: Ask to link the signed-in email to a roster profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLinkRequest"
+      responses:
+        "201":
+          description: Created link request (waiting for Molly)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LinkRequest"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Employee not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Profile already linked, or this email already has a claim or profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /link-requests/{id}/approve:
+    post:
+      operationId: approveLinkRequest
+      tags: [roster]
+      summary: Approve a link request, attaching the email to the profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The employee with the newly linked email
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "404":
+          description: Request not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The profile or email was linked in the meantime
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /link-requests/{id}/deny:
+    post:
+      operationId: denyLinkRequest
+      tags: [roster]
+      summary: Deny a link request; the person stays blocked
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The denied (removed) link request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LinkRequest"
+        "404":
+          description: Request not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /employees/{id}:
     patch:
       operationId: updateEmployeeEmail
@@ -1919,5 +2048,53 @@ components:
       properties:
         message:
           type: string
+        # Optional stable machine-readable code so apps can branch without
+        # matching on human wording (e.g. SIGN_IN_DISABLED, LINK_REQUEST_PENDING,
+        # NOT_LINKED).
+        code:
+          type: string
       required:
         - message
+    ClaimableEmployee:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+      required:
+        - id
+        - name
+        - role
+    CreateLinkRequest:
+      type: object
+      properties:
+        employeeId:
+          type: string
+          minLength: 1
+      required:
+        - employeeId
+    LinkRequest:
+      type: object
+      properties:
+        id:
+          type: string
+        employeeId:
+          type: string
+        employeeName:
+          type: string
+        employeeRole:
+          type: string
+        email:
+          type: string
+        requestedAt:
+          type: string
+      required:
+        - id
+        - employeeId
+        - employeeName
+        - employeeRole
+        - email
+        - requestedAt

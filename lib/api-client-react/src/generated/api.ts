@@ -24,10 +24,12 @@ import type {
   ApiError,
   ApproveAllResult,
   BusinessSettings,
+  ClaimableEmployee,
   Client,
   ClientInput,
   ClientRate,
   CreateClientRate,
+  CreateLinkRequest,
   CreateTimeEntry,
   DemoDataStatus,
   Employee,
@@ -42,6 +44,7 @@ import type {
   GetWorkflowStatusParams,
   HealthStatus,
   InvoiceReport,
+  LinkRequest,
   ListTimeEntriesParams,
   OnboardingItem,
   PayrollReport,
@@ -1576,6 +1579,373 @@ export function useGetMyEmployee<TData = Awaited<ReturnType<typeof getMyEmployee
 
 
 
+
+export const getListClaimableEmployeesUrl = () => {
+
+
+
+
+  return `/api/link-requests/claimable`
+}
+
+/**
+ * @summary List roster profiles a signed-in but unlinked person can claim
+ */
+export const listClaimableEmployees = async ( options?: Parameters<typeof customFetch>[1]): Promise<ClaimableEmployee[]> => {
+
+  return customFetch<ClaimableEmployee[]>(getListClaimableEmployeesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListClaimableEmployeesQueryKey = () => {
+    return [
+    `/api/link-requests/claimable`
+    ] as const;
+    }
+
+
+export const getListClaimableEmployeesQueryOptions = <TData = Awaited<ReturnType<typeof listClaimableEmployees>>, TError = ErrorType<ApiError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listClaimableEmployees>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListClaimableEmployeesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listClaimableEmployees>>> = ({ signal }) => listClaimableEmployees({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listClaimableEmployees>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListClaimableEmployeesQueryResult = NonNullable<Awaited<ReturnType<typeof listClaimableEmployees>>>
+export type ListClaimableEmployeesQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List roster profiles a signed-in but unlinked person can claim
+ */
+
+export function useListClaimableEmployees<TData = Awaited<ReturnType<typeof listClaimableEmployees>>, TError = ErrorType<ApiError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listClaimableEmployees>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListClaimableEmployeesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListLinkRequestsUrl = () => {
+
+
+
+
+  return `/api/link-requests`
+}
+
+/**
+ * @summary List pending profile link requests awaiting Molly's approval
+ */
+export const listLinkRequests = async ( options?: Parameters<typeof customFetch>[1]): Promise<LinkRequest[]> => {
+
+  return customFetch<LinkRequest[]>(getListLinkRequestsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLinkRequestsQueryKey = () => {
+    return [
+    `/api/link-requests`
+    ] as const;
+    }
+
+
+export const getListLinkRequestsQueryOptions = <TData = Awaited<ReturnType<typeof listLinkRequests>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLinkRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLinkRequestsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLinkRequests>>> = ({ signal }) => listLinkRequests({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLinkRequests>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLinkRequestsQueryResult = NonNullable<Awaited<ReturnType<typeof listLinkRequests>>>
+export type ListLinkRequestsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List pending profile link requests awaiting Molly's approval
+ */
+
+export function useListLinkRequests<TData = Awaited<ReturnType<typeof listLinkRequests>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLinkRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLinkRequestsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateLinkRequestUrl = () => {
+
+
+
+
+  return `/api/link-requests`
+}
+
+/**
+ * @summary Ask to link the signed-in email to a roster profile
+ */
+export const createLinkRequest = async (createLinkRequest: CreateLinkRequest, options?: Parameters<typeof customFetch>[1]): Promise<LinkRequest> => {
+
+  return customFetch<LinkRequest>(getCreateLinkRequestUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createLinkRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateLinkRequestMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLinkRequest>>, TError,{data: BodyType<CreateLinkRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createLinkRequest>>, TError,{data: BodyType<CreateLinkRequest>}, TContext> => {
+
+const mutationKey = ['createLinkRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createLinkRequest>>, {data: BodyType<CreateLinkRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createLinkRequest(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateLinkRequestMutationResult = NonNullable<Awaited<ReturnType<typeof createLinkRequest>>>
+    export type CreateLinkRequestMutationBody = BodyType<CreateLinkRequest>
+    export type CreateLinkRequestMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Ask to link the signed-in email to a roster profile
+ */
+export const useCreateLinkRequest = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLinkRequest>>, TError,{data: BodyType<CreateLinkRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createLinkRequest>>,
+        TError,
+        {data: BodyType<CreateLinkRequest>},
+        TContext
+      > => {
+      return useMutation(getCreateLinkRequestMutationOptions(options));
+    }
+
+export const getApproveLinkRequestUrl = (id: string,) => {
+
+
+
+
+  return `/api/link-requests/${id}/approve`
+}
+
+/**
+ * @summary Approve a link request, attaching the email to the profile
+ */
+export const approveLinkRequest = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<Employee> => {
+
+  return customFetch<Employee>(getApproveLinkRequestUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getApproveLinkRequestMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveLinkRequest>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveLinkRequest>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['approveLinkRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveLinkRequest>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  approveLinkRequest(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveLinkRequestMutationResult = NonNullable<Awaited<ReturnType<typeof approveLinkRequest>>>
+
+    export type ApproveLinkRequestMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Approve a link request, attaching the email to the profile
+ */
+export const useApproveLinkRequest = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveLinkRequest>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveLinkRequest>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getApproveLinkRequestMutationOptions(options));
+    }
+
+export const getDenyLinkRequestUrl = (id: string,) => {
+
+
+
+
+  return `/api/link-requests/${id}/deny`
+}
+
+/**
+ * @summary Deny a link request; the person stays blocked
+ */
+export const denyLinkRequest = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<LinkRequest> => {
+
+  return customFetch<LinkRequest>(getDenyLinkRequestUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDenyLinkRequestMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof denyLinkRequest>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof denyLinkRequest>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['denyLinkRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof denyLinkRequest>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  denyLinkRequest(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DenyLinkRequestMutationResult = NonNullable<Awaited<ReturnType<typeof denyLinkRequest>>>
+
+    export type DenyLinkRequestMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Deny a link request; the person stays blocked
+ */
+export const useDenyLinkRequest = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof denyLinkRequest>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof denyLinkRequest>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getDenyLinkRequestMutationOptions(options));
+    }
 
 export const getUpdateEmployeeEmailUrl = (id: string,) => {
 

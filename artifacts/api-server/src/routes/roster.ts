@@ -5,6 +5,7 @@ import {
   db,
   clientsTable,
   employeesTable,
+  employeeLinkRequestsTable,
   clientRatesTable,
   employeeRatesTable,
   type ClientRow,
@@ -460,11 +461,33 @@ router.patch("/employees/:id", async (req, res, next) => {
     if (prepared.email) {
       await ensureClerkUserForEmail(prepared.email);
     }
-    const [row] = await db
-      .update(employeesTable)
-      .set({ email: prepared.email })
-      .where(eq(employeesTable.id, req.params.id))
-      .returning();
+    // Transaction with a row lock so manual edits serialize with link-request
+    // approval (which locks the same employee row). Setting an email manually
+    // also clears any pending link requests for this profile — they are stale
+    // the moment Molly types an email in herself.
+    const row = await db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select()
+        .from(employeesTable)
+        .where(eq(employeesTable.id, String(req.params.id)))
+        .for("update");
+      if (!locked) return null;
+      const [updated] = await tx
+        .update(employeesTable)
+        .set({ email: prepared.email })
+        .where(eq(employeesTable.id, locked.id))
+        .returning();
+      await tx
+        .delete(employeeLinkRequestsTable)
+        .where(eq(employeeLinkRequestsTable.employeeId, locked.id));
+      if (prepared.email) {
+        // The email can no longer claim anything else either.
+        await tx
+          .delete(employeeLinkRequestsTable)
+          .where(eq(employeeLinkRequestsTable.email, prepared.email));
+      }
+      return updated ?? null;
+    });
     if (!row) {
       res.status(404).json({ message: "Employee not found" });
       return;

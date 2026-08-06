@@ -1,4 +1,4 @@
-import { pgTable, text, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, timestamp } from "drizzle-orm/pg-core";
 
 export const clientsTable = pgTable("clients", {
   id: text("id").primaryKey(),
@@ -25,5 +25,22 @@ export const employeesTable = pgTable("employees", {
   signInEnabled: boolean("sign_in_enabled").notNull().default(true),
 });
 
+// A signed-in person's request to link their email to a roster profile,
+// waiting for Molly's approval. Only pending requests live here: approving
+// copies the email onto the employee row and deletes the request; denying
+// just deletes it. `email` is unique so one email can only have one pending
+// claim at a time.
+export const employeeLinkRequestsTable = pgTable("employee_link_requests", {
+  id: text("id").primaryKey(),
+  // Unique: one pending claim per profile, so Molly never sees competing
+  // requests for the same name — the second claimant gets a clear conflict.
+  employeeId: text("employee_id").notNull().unique(),
+  email: text("email").notNull().unique(),
+  requestedAt: timestamp("requested_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export type ClientRow = typeof clientsTable.$inferSelect;
 export type EmployeeRow = typeof employeesTable.$inferSelect;
+export type EmployeeLinkRequestRow = typeof employeeLinkRequestsTable.$inferSelect;

@@ -481,6 +481,86 @@ export const GetMyEmployeeResponse = zod.object({
 
 
 /**
+ * @summary List roster profiles a signed-in but unlinked person can claim
+ */
+export const ListClaimableEmployeesResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "role": zod.string()
+})
+export const ListClaimableEmployeesResponse = zod.array(ListClaimableEmployeesResponseItem)
+
+
+/**
+ * @summary List pending profile link requests awaiting Molly's approval
+ */
+export const ListLinkRequestsResponseItem = zod.object({
+  "id": zod.string(),
+  "employeeId": zod.string(),
+  "employeeName": zod.string(),
+  "employeeRole": zod.string(),
+  "email": zod.string(),
+  "requestedAt": zod.string()
+})
+export const ListLinkRequestsResponse = zod.array(ListLinkRequestsResponseItem)
+
+
+/**
+ * @summary Ask to link the signed-in email to a roster profile
+ */
+
+
+
+export const CreateLinkRequestBody = zod.object({
+  "employeeId": zod.string().min(1)
+})
+
+export const CreateLinkRequestResponse = zod.object({
+  "id": zod.string(),
+  "employeeId": zod.string(),
+  "employeeName": zod.string(),
+  "employeeRole": zod.string(),
+  "email": zod.string(),
+  "requestedAt": zod.string()
+})
+
+
+/**
+ * @summary Approve a link request, attaching the email to the profile
+ */
+export const ApproveLinkRequestParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const ApproveLinkRequestResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "active": zod.boolean(),
+  "isDemo": zod.boolean(),
+  "email": zod.string().optional(),
+  "signInEnabled": zod.boolean()
+})
+
+
+/**
+ * @summary Deny a link request; the person stays blocked
+ */
+export const DenyLinkRequestParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DenyLinkRequestResponse = zod.object({
+  "id": zod.string(),
+  "employeeId": zod.string(),
+  "employeeName": zod.string(),
+  "employeeRole": zod.string(),
+  "email": zod.string(),
+  "requestedAt": zod.string()
+})
+
+
+/**
  * @summary Set or clear an employee's sign-in email
  */
 export const UpdateEmployeeEmailParams = zod.object({

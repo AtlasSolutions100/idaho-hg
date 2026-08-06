@@ -1,7 +1,12 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { clerkClient, getAuth } from "@clerk/express";
 import { eq } from "drizzle-orm";
-import { db, employeesTable, type EmployeeRow } from "@workspace/db";
+import {
+  db,
+  employeesTable,
+  employeeLinkRequestsTable,
+  type EmployeeRow,
+} from "@workspace/db";
 import { ensureRosterSeeded } from "../routes/roster";
 
 /**
@@ -10,6 +15,7 @@ import { ensureRosterSeeded } from "../routes/roster";
  * Returns one of:
  * - { kind: "none" }        — no Clerk session on the request
  * - { kind: "unknown" }     — signed in, but email is not on the roster
+ * - { kind: "pending" }     — signed in; asked to link a profile, waiting on Molly
  * - { kind: "disabled" }    — on the roster, but Molly turned sign-in off
  * - { kind: "employee" }    — signed in and matched to an active employee
  */
@@ -18,6 +24,7 @@ export async function resolveSessionEmployee(
 ): Promise<
   | { kind: "none" }
   | { kind: "unknown"; email: string | null }
+  | { kind: "pending"; email: string }
   | { kind: "disabled"; email: string }
   | { kind: "employee"; employee: EmployeeRow; email: string }
 > {
@@ -42,6 +49,16 @@ export async function resolveSessionEmployee(
     .from(employeesTable)
     .where(eq(employeesTable.email, normalized));
   if (!employee || !employee.active) {
+    // Not linked to a profile — but they may already have asked Molly to
+    // link them, in which case the apps show a "waiting" screen instead of
+    // the pick-your-name flow.
+    const [pending] = await db
+      .select()
+      .from(employeeLinkRequestsTable)
+      .where(eq(employeeLinkRequestsTable.email, normalized));
+    if (pending) {
+      return { kind: "pending", email: normalized };
+    }
     return { kind: "unknown", email: normalized };
   }
   if (!employee.signInEnabled) {
@@ -71,10 +88,19 @@ export async function requireEmployee(
       });
       return;
     }
+    if (session.kind === "pending") {
+      res.status(403).json({
+        code: "LINK_REQUEST_PENDING",
+        message:
+          "Molly still needs to confirm it's you. Check back in a bit.",
+      });
+      return;
+    }
     if (session.kind === "unknown") {
       res.status(403).json({
+        code: "NOT_LINKED",
         message:
-          "This email isn't on the team roster yet. Ask Molly to add your email, then try again.",
+          "This email isn't linked to a team profile yet. Pick your name to get set up.",
       });
       return;
     }

@@ -55,10 +55,17 @@ router.get("/time-entries", async (req, res, next) => {
           "Your sign-in has been turned off. Ask Molly if you think this is a mistake.",
       });
       return;
+    } else if (session.kind === "pending") {
+      res.status(403).json({
+        code: "LINK_REQUEST_PENDING",
+        message: "Molly still needs to confirm it's you. Check back in a bit.",
+      });
+      return;
     } else if (session.kind === "unknown") {
       res.status(403).json({
+        code: "NOT_LINKED",
         message:
-          "This email isn't on the team roster yet. Ask Molly to add your email, then try again.",
+          "This email isn't linked to a team profile yet. Pick your name to get set up.",
       });
       return;
     }
@@ -99,10 +106,17 @@ router.post("/time-entries", async (req, res, next) => {
           "Your sign-in has been turned off. Ask Molly if you think this is a mistake.",
       });
       return;
+    } else if (session.kind === "pending") {
+      res.status(403).json({
+        code: "LINK_REQUEST_PENDING",
+        message: "Molly still needs to confirm it's you. Check back in a bit.",
+      });
+      return;
     } else if (session.kind === "unknown") {
       res.status(403).json({
+        code: "NOT_LINKED",
         message:
-          "This email isn't on the team roster yet. Ask Molly to add your email, then try again.",
+          "This email isn't linked to a team profile yet. Pick your name to get set up.",
       });
       return;
     }

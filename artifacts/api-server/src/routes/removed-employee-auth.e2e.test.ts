@@ -145,11 +145,11 @@ describe("removed employees lose mobile-app access", () => {
 
     const me = await api("GET", "/me");
     expect(me.status).toBe(403);
-    expect(me.body.message).toContain("Ask Molly");
+    expect(me.body.code).toBe("NOT_LINKED");
 
     const entry = await api("POST", "/time-entries", timeEntryBody());
     expect(entry.status).toBe(403);
-    expect(entry.body.message).toContain("Ask Molly");
+    expect(entry.body.code).toBe("NOT_LINKED");
 
     const list = await api("GET", "/time-entries");
     expect(list.status).toBe(403);

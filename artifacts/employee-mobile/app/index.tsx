@@ -21,6 +21,7 @@ import { useAuth, useClerk } from '@clerk/expo';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Redirect, useRouter } from 'expo-router';
+import { ClaimProfile } from '@/components/ClaimProfile';
 import colors from '@/constants/colors';
 import { useColors } from '@/hooks/useColors';
 import { statusLabels, visitTypeLabels } from '@/lib/labels';
@@ -94,13 +95,61 @@ export default function HomeScreen() {
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const bottomInset = Platform.OS === 'web' ? 34 : insets.bottom;
 
-  // Signed in, but the server won't let this email in — either the email
-  // isn't on Molly's roster, or Molly turned this employee's sign-in off.
+  // Signed in, but the server won't let this email in — the email isn't
+  // linked to a profile yet, a link request is waiting on Molly, or Molly
+  // turned this employee's sign-in off. Branch on the stable error code.
   if (meError instanceof ApiError && meError.response.status === 403) {
-    const signInTurnedOff =
-      !!meError.data &&
-      typeof meError.data === 'object' &&
-      (meError.data as { code?: unknown }).code === 'SIGN_IN_DISABLED';
+    const errorCode =
+      !!meError.data && typeof meError.data === 'object'
+        ? (meError.data as { code?: unknown }).code
+        : undefined;
+    if (errorCode === 'NOT_LINKED') {
+      // Pick-your-name flow: claim a roster profile; Molly approves it.
+      return <ClaimProfile onSignOut={() => signOut()} />;
+    }
+    if (errorCode === 'LINK_REQUEST_PENDING') {
+      return (
+        <View
+          style={[
+            styles.container,
+            {
+              backgroundColor: c.background,
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingHorizontal: 32,
+            },
+          ]}
+        >
+          <Feather name="clock" size={44} color={c.mutedForeground} />
+          <Text style={[styles.emptyTitle, { color: c.foreground, textAlign: 'center' }]}>
+            Waiting for Molly to confirm
+          </Text>
+          <Text style={[styles.emptyText, { color: c.mutedForeground }]}>
+            You asked to link this email to your profile. Once Molly confirms
+            it's you, you're in — check back in a bit.
+          </Text>
+          <Pressable
+            onPress={() => refetchMe()}
+            style={[styles.retryButton, { backgroundColor: c.primary }]}
+            testID="button-check-again"
+          >
+            <Text style={[styles.retryText, { color: c.primaryForeground }]}>
+              Check again
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => signOut()}
+            style={[styles.retryButton, { backgroundColor: c.secondary }]}
+            testID="button-sign-out"
+          >
+            <Text style={[styles.retryText, { color: c.secondaryForeground }]}>
+              Sign out
+            </Text>
+          </Pressable>
+        </View>
+      );
+    }
+    const signInTurnedOff = errorCode === 'SIGN_IN_DISABLED';
     return (
       <View
         style={[
