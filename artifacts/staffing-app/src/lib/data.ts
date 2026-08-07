@@ -1,6 +1,22 @@
 // Realistic placeholder data for the Phase 1 shell
 
-export type VisitType = 'skilled-nursing' | 'physical-therapy' | 'occupational-therapy' | 'speech-therapy';
+export type VisitType =
+  | 'skilled-nursing'
+  | 'physical-therapy'
+  | 'occupational-therapy'
+  | 'speech-therapy'
+  | 'soc'
+  | 'routine-visit'
+  | 'eval'
+  | 'recert'
+  | 'roc'
+  | 'discharge'
+  | 'non-visit'
+  | 'hospital-at-home'
+  | 'hospice'
+  | 'training'
+  | 'non-billable'
+  | 'on-call';
 export type EntryStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
 
 export interface Client {
@@ -185,10 +201,22 @@ export const mockTimeEntries: TimeEntry[] = [
 
 
 export const visitTypeLabels: Record<VisitType, string> = {
-  'skilled-nursing': 'Skilled Nursing',
-  'physical-therapy': 'Physical Therapy',
+  'skilled-nursing': 'Skilled Nursing (SNV)',
+  'physical-therapy': 'Physical Therapy (PTV)',
   'occupational-therapy': 'Occupational Therapy',
   'speech-therapy': 'Speech Therapy',
+  'soc': 'Start of Care (SOC)',
+  'routine-visit': 'Routine Visit',
+  'eval': 'Eval / Eval RA',
+  'recert': 'Recert / Recert RA',
+  'roc': 'Resumption of Care (ROC)',
+  'discharge': 'Discharge (DC)',
+  'non-visit': 'Non-visit (doc/meeting)',
+  'hospital-at-home': 'Hospital at Home',
+  'hospice': 'Hospice',
+  'training': 'Training',
+  'non-billable': 'Non-billable Visit',
+  'on-call': 'On Call',
 };
 
 export const clientRateTypeLabels: Record<string, string> = {

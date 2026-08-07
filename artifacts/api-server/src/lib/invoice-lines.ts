@@ -56,6 +56,18 @@ export const visitAbbreviations: Record<string, string> = {
   "physical-therapy": "PT visit",
   "occupational-therapy": "OT visit",
   "speech-therapy": "ST visit",
+  "soc": "SOC",
+  "routine-visit": "SNV",
+  "eval": "Eval",
+  "recert": "Recert",
+  "roc": "ROC",
+  "discharge": "DC",
+  "non-visit": "Non-visit",
+  "hospital-at-home": "Hospital at Home",
+  "hospice": "Hospice",
+  "training": "Training",
+  "non-billable": "Non-billable",
+  "on-call": "On call",
 };
 
 /** "Molly Clark" -> "MC"; single names fall back to the first letter. */

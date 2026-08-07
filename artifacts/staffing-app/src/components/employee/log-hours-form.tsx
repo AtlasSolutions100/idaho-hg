@@ -1,22 +1,24 @@
 import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
+  useBatchCreateTimeEntries,
   useCreateTimeEntry,
   useListClients,
   getListTimeEntriesQueryKey,
   type PerDiemType,
+  type VisitType,
 } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { visitTypeLabels, type VisitType } from '@/lib/data';
+import { Badge } from '@/components/ui/badge';
+import { visitTypeLabels } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
-import { Check, Loader2 } from 'lucide-react';
+import { Check, Loader2, Plus, X } from 'lucide-react';
 
 interface LogHoursFormProps {
   employeeId?: string;
@@ -38,7 +40,8 @@ export function calculateHours(timeIn: string, timeOut: string): number | null {
 export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursFormProps) {
   const [entryType, setEntryType] = useState<'visit' | 'hourly'>('visit');
   const [clientId, setClientId] = useState('');
-  const [visitType, setVisitType] = useState<VisitType | ''>('');
+  // Multi-visit: track a set of selected visit types
+  const [selectedVisitTypes, setSelectedVisitTypes] = useState<Set<VisitType>>(new Set());
   const [timeIn, setTimeIn] = useState('');
   const [timeOut, setTimeOut] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -46,25 +49,13 @@ export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursF
   const [mileage, setMileage] = useState('');
   const [perDiemType, setPerDiemType] = useState<PerDiemType | ''>('');
   const [note, setNote] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: clients, isLoading: clientsLoading } = useListClients();
-  const createEntry = useCreateTimeEntry({
-    mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListTimeEntriesQueryKey() });
-        onSubmit();
-      },
-      onError: (error) => {
-        toast({
-          title: 'Could not submit hours',
-          description: error?.message ?? 'Something went wrong. Please try again.',
-          variant: 'destructive',
-        });
-      },
-    },
-  });
+  const createEntry = useCreateTimeEntry();
+  const batchCreateEntries = useBatchCreateTimeEntries();
 
   const selectedClient = (clients ?? []).find((c) => c.id === clientId);
   // Hide (and never submit) mileage for clients whose contract doesn't include it.
@@ -72,23 +63,73 @@ export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursF
   const calculatedHours = useMemo(() => calculateHours(timeIn, timeOut), [timeIn, timeOut]);
   const overnight = calculatedHours != null && timeIn >= timeOut;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (entryType === 'visit' && !visitType) return;
-    if (entryType === 'hourly' && (!timeIn || !timeOut)) return;
-    createEntry.mutate({
-      data: {
-        employeeId,
-        clientId,
-        date,
-        ...(entryType === 'visit' && visitType ? { visitType } : {}),
-        ...(entryType === 'hourly' && timeIn && timeOut ? { timeIn, timeOut } : {}),
-        ...(mileageAllowed && hasMileage && mileage ? { mileage: parseFloat(mileage) } : {}),
-        ...(perDiemType ? { perDiemType } : {}),
-        ...(note.trim() ? { note: note.trim() } : {}),
-      },
+  const toggleVisitType = (vt: VisitType) => {
+    setSelectedVisitTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(vt)) {
+        next.delete(vt);
+      } else {
+        next.add(vt);
+      }
+      return next;
     });
   };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (entryType === 'visit' && selectedVisitTypes.size === 0) return;
+    if (entryType === 'hourly' && (!timeIn || !timeOut)) return;
+
+    setIsSubmitting(true);
+    try {
+      if (entryType === 'visit') {
+        // Single atomic batch request — all visit types inserted in one transaction.
+        // If anything fails the whole batch rolls back; no partial state.
+        await batchCreateEntries.mutateAsync({
+          data: {
+            employeeId,
+            clientId,
+            date,
+            visitTypes: [...selectedVisitTypes],
+            ...(mileageAllowed && hasMileage && mileage ? { mileage: parseFloat(mileage) } : {}),
+            ...(perDiemType ? { perDiemType } : {}),
+            ...(note.trim() ? { note: note.trim() } : {}),
+          },
+        });
+      } else {
+        await createEntry.mutateAsync({
+          data: {
+            employeeId,
+            clientId,
+            date,
+            ...(timeIn && timeOut ? { timeIn, timeOut } : {}),
+            ...(mileageAllowed && hasMileage && mileage ? { mileage: parseFloat(mileage) } : {}),
+            ...(perDiemType ? { perDiemType } : {}),
+            ...(note.trim() ? { note: note.trim() } : {}),
+          },
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: getListTimeEntriesQueryKey() });
+      onSubmit();
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : undefined;
+      toast({
+        title: 'Could not submit hours',
+        description: msg ?? 'Something went wrong. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const canSubmit =
+    !!clientId &&
+    !!date &&
+    (entryType === 'visit'
+      ? selectedVisitTypes.size > 0
+      : !!(timeIn && timeOut)) &&
+    !isSubmitting;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -101,18 +142,23 @@ export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursF
           {/* Client Selection */}
           <div className="space-y-2">
             <Label htmlFor="client">Client *</Label>
-            <Select value={clientId} onValueChange={setClientId} required>
-              <SelectTrigger id="client" data-testid="select-client">
-                <SelectValue placeholder={clientsLoading ? 'Loading clients...' : 'Select client'} />
-              </SelectTrigger>
-              <SelectContent>
-                {(clients ?? []).map(client => (
-                  <SelectItem key={client.id} value={client.id} data-testid={`select-client-${client.id}`}>
-                    {client.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <select
+              id="client"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+              required
+              data-testid="select-client"
+            >
+              <option value="" disabled>
+                {clientsLoading ? 'Loading clients...' : 'Select client'}
+              </option>
+              {(clients ?? []).map((client) => (
+                <option key={client.id} value={client.id} data-testid={`select-client-${client.id}`}>
+                  {client.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Date */}
@@ -137,19 +183,70 @@ export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursF
 
             <TabsContent value="visit" className="space-y-4 mt-4">
               <div className="space-y-2">
-                <Label htmlFor="visit-type">Visit Type *</Label>
-                <Select value={visitType} onValueChange={(v) => setVisitType(v as VisitType)} required>
-                  <SelectTrigger id="visit-type" data-testid="select-visit-type">
-                    <SelectValue placeholder="Select visit type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(Object.keys(visitTypeLabels) as VisitType[]).map(type => (
-                      <SelectItem key={type} value={type} data-testid={`select-visit-type-${type}`}>
-                        {visitTypeLabels[type]}
-                      </SelectItem>
+                <Label>
+                  Visit Type(s) *{' '}
+                  <span className="text-xs text-muted-foreground font-normal">
+                    — select all that apply for this day
+                  </span>
+                </Label>
+
+                {/* Selected visit types as removable badges */}
+                {selectedVisitTypes.size > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-2" data-testid="selected-visit-types">
+                    {[...selectedVisitTypes].map((vt) => (
+                      <Badge
+                        key={vt}
+                        variant="default"
+                        className="gap-1 cursor-pointer hover:bg-primary/80"
+                        onClick={() => toggleVisitType(vt)}
+                        data-testid={`badge-visit-${vt}`}
+                      >
+                        {visitTypeLabels[vt]}
+                        <X className="h-3 w-3" />
+                      </Badge>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </div>
+                )}
+
+                {/* Scrollable checklist of all visit types */}
+                <div
+                  className="rounded-md border border-input max-h-64 overflow-y-auto divide-y divide-border"
+                  data-testid="visit-type-list"
+                >
+                  {(Object.keys(visitTypeLabels) as VisitType[]).map((vt) => {
+                    const checked = selectedVisitTypes.has(vt);
+                    return (
+                      <button
+                        key={vt}
+                        type="button"
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-muted ${
+                          checked ? 'bg-primary/10 font-medium' : ''
+                        }`}
+                        onClick={() => toggleVisitType(vt)}
+                        data-testid={`select-visit-type-${vt}`}
+                        aria-pressed={checked}
+                      >
+                        <span
+                          className={`flex-shrink-0 h-4 w-4 rounded border flex items-center justify-center ${
+                            checked
+                              ? 'bg-primary border-primary text-primary-foreground'
+                              : 'border-input'
+                          }`}
+                        >
+                          {checked && <Check className="h-3 w-3" />}
+                        </span>
+                        {visitTypeLabels[vt]}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {selectedVisitTypes.size > 1 && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Plus className="h-3 w-3" />
+                    {selectedVisitTypes.size} visits will be submitted — mileage and per diem attach to the first one
+                  </p>
+                )}
               </div>
             </TabsContent>
 
@@ -194,7 +291,7 @@ export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursF
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label htmlFor="has-mileage">Mileage?</Label>
-                  <p className="text-xs text-muted-foreground">Round-trip miles for this shift</p>
+                  <p className="text-xs text-muted-foreground">Round-trip miles for this day</p>
                 </div>
                 <Switch
                   id="has-mileage"
@@ -271,7 +368,7 @@ export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursF
             variant="outline"
             onClick={onCancel}
             className="flex-1"
-            disabled={createEntry.isPending}
+            disabled={isSubmitting}
             data-testid="button-cancel"
           >
             Cancel
@@ -279,20 +376,19 @@ export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursF
           <Button
             type="submit"
             className="flex-1 gap-2"
-            disabled={
-              !clientId ||
-              !date ||
-              (entryType === 'hourly' && (!timeIn || !timeOut)) ||
-              createEntry.isPending
-            }
+            disabled={!canSubmit}
             data-testid="button-submit"
           >
-            {createEntry.isPending ? (
+            {isSubmitting ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Check className="h-4 w-4" />
             )}
-            {createEntry.isPending ? 'Submitting...' : 'Submit Hours'}
+            {isSubmitting
+              ? 'Submitting...'
+              : entryType === 'visit' && selectedVisitTypes.size > 1
+                ? `Submit ${selectedVisitTypes.size} Visits`
+                : 'Submit Hours'}
           </Button>
         </CardFooter>
       </Card>

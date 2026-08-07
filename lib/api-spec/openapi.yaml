@@ -141,6 +141,36 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /time-entries/batch:
+    post:
+      operationId: batchCreateTimeEntries
+      tags: [time-entries]
+      summary: Submit multiple visit-type entries for one day atomically
+      description: >
+        Inserts one time entry per visit type in a single database transaction.
+        Mileage and per diem are assigned to the first entry only.
+        If any insert fails the entire batch is rolled back — no partial state.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchCreateTimeEntry"
+      responses:
+        "201":
+          description: All entries created
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimeEntry"
+        "400":
+          description: Validation error (nothing was written)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /time-entries/approve-all:
     post:
       operationId: approveAllTimeEntries
@@ -2085,10 +2115,43 @@ components:
       enum: [submitted, approved, rejected]
     VisitType:
       type: string
-      enum: [skilled-nursing, physical-therapy, occupational-therapy, speech-therapy]
+      enum:
+        - skilled-nursing
+        - physical-therapy
+        - occupational-therapy
+        - speech-therapy
+        - soc
+        - routine-visit
+        - eval
+        - recert
+        - roc
+        - discharge
+        - non-visit
+        - hospital-at-home
+        - hospice
+        - training
+        - non-billable
+        - on-call
     ClientRateType:
       type: string
-      enum: [skilled-nursing, physical-therapy, occupational-therapy, speech-therapy, hourly]
+      enum:
+        - skilled-nursing
+        - physical-therapy
+        - occupational-therapy
+        - speech-therapy
+        - soc
+        - routine-visit
+        - eval
+        - recert
+        - roc
+        - discharge
+        - non-visit
+        - hospital-at-home
+        - hospice
+        - training
+        - non-billable
+        - on-call
+        - hourly
     TimeEntry:
       type: object
       properties:
@@ -2194,6 +2257,37 @@ components:
         - employeeId
         - clientId
         - date
+    BatchCreateTimeEntry:
+      type: object
+      description: >
+        Submit multiple visit types for the same client/date in a single atomic
+        request. The server inserts one time entry per visit type inside one
+        transaction; mileage and per diem are recorded on the first entry only.
+      properties:
+        employeeId:
+          type: string
+        clientId:
+          type: string
+        date:
+          type: string
+        visitTypes:
+          type: array
+          items:
+            $ref: "#/components/schemas/VisitType"
+          minItems: 1
+          maxItems: 20
+        mileage:
+          type: number
+          minimum: 0
+        perDiemType:
+          $ref: "#/components/schemas/PerDiemType"
+        note:
+          type: string
+      required:
+        - employeeId
+        - clientId
+        - date
+        - visitTypes
     PerDiemType:
       type: string
       enum: [first_last, full]

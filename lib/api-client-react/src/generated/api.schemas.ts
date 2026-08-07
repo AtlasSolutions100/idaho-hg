@@ -133,6 +133,18 @@ export const VisitType = {
   'physical-therapy': 'physical-therapy',
   'occupational-therapy': 'occupational-therapy',
   'speech-therapy': 'speech-therapy',
+  'soc': 'soc',
+  'routine-visit': 'routine-visit',
+  'eval': 'eval',
+  'recert': 'recert',
+  'roc': 'roc',
+  'discharge': 'discharge',
+  'non-visit': 'non-visit',
+  'hospital-at-home': 'hospital-at-home',
+  'hospice': 'hospice',
+  'training': 'training',
+  'non-billable': 'non-billable',
+  'on-call': 'on-call',
 } as const;
 
 export interface PayrollReportLine {
@@ -603,3 +615,14 @@ start: string;
 end: string;
 };
 
+
+export interface BatchCreateTimeEntry {
+  employeeId: string;
+  clientId: string;
+  date: string;
+  /** One or more visit types to log for this day — each becomes its own entry in one atomic transaction */
+  visitTypes: VisitType[];
+  mileage?: number;
+  perDiemType?: PerDiemType;
+  note?: string;
+}

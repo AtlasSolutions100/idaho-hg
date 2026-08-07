@@ -10,6 +10,7 @@ import {
 import { ensureRosterSeeded } from "./roster";
 import { DEMO_LOCK_KEY } from "./demo-data";
 import {
+  BatchCreateTimeEntryBody,
   CreateTimeEntryBody,
   ListTimeEntriesQueryParams,
 } from "@workspace/api-zod";
@@ -245,6 +246,107 @@ router.post("/time-entries", async (req, res, next) => {
       return;
     }
     res.status(201).json(serialize(row));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Batch: one transaction inserts all selected visit types for the same day.
+// Mileage and per diem go on the first entry only so they're never doubled.
+router.post("/time-entries/batch", async (req, res, next) => {
+  try {
+    const parsed = BatchCreateTimeEntryBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: parsed.error.issues[0]?.message ?? "Invalid batch request" });
+      return;
+    }
+    const body = parsed.data;
+    await ensureRosterSeeded();
+    const session = await resolveSessionEmployee(req);
+    if (session.kind === "employee") {
+      body.employeeId = session.employee.id;
+    } else if (session.kind === "disabled") {
+      res.status(403).json({ code: "SIGN_IN_DISABLED", message: "Your sign-in has been turned off. Ask Molly if you think this is a mistake." });
+      return;
+    } else if (session.kind === "pending") {
+      res.status(403).json({ code: "LINK_REQUEST_PENDING", message: "Molly still needs to confirm it's you. Check back in a bit." });
+      return;
+    } else if (session.kind === "unknown") {
+      res.status(403).json({ code: "NOT_LINKED", message: "This email isn't linked to a team profile yet. Pick your name to get set up." });
+      return;
+    }
+    const [employee] = await db
+      .select()
+      .from(employeesTable)
+      .where(and(eq(employeesTable.id, body.employeeId), eq(employeesTable.active, true)));
+    const [client] = await db
+      .select()
+      .from(clientsTable)
+      .where(and(eq(clientsTable.id, body.clientId), eq(clientsTable.active, true)));
+    if (!employee) {
+      res.status(400).json({ message: "Unknown employee" });
+      return;
+    }
+    if (!client) {
+      res.status(400).json({ message: "Unknown client" });
+      return;
+    }
+    if (!isValidDateString(body.date)) {
+      res.status(400).json({ message: "That date doesn't exist — please check it" });
+      return;
+    }
+    if (body.mileage != null && body.mileage > 0 && !client.mileageOnContract) {
+      res.status(400).json({ message: `${client.name} doesn't include mileage on their contract.` });
+      return;
+    }
+    const isWeekend = isWeekendDate(body.date);
+    const isHoliday = isHolidayDate(body.date);
+    const isDemo = employee.isDemo || client.isDemo;
+    const perDiemType = body.perDiemType ?? null;
+    const perDiem = perDiemType ? 1 : null;
+    // Insert all visit types in one transaction — any failure rolls back everything.
+    const rows = await db.transaction(async (tx) => {
+      if (isDemo) {
+        await tx.execute(sql`select pg_advisory_xact_lock(${DEMO_LOCK_KEY})`);
+        const [emp] = await tx.select({ id: employeesTable.id }).from(employeesTable)
+          .where(and(eq(employeesTable.id, body.employeeId), eq(employeesTable.active, true)));
+        const [cli] = await tx.select({ id: clientsTable.id }).from(clientsTable)
+          .where(and(eq(clientsTable.id, body.clientId), eq(clientsTable.active, true)));
+        if (!emp || !cli) return null;
+      }
+      const inserted: TimeEntryRow[] = [];
+      for (let i = 0; i < body.visitTypes.length; i++) {
+        const vt = body.visitTypes[i]!;
+        // Mileage and per diem on first entry only — never double-billed.
+        const [row] = await tx
+          .insert(timeEntriesTable)
+          .values({
+            employeeId: body.employeeId,
+            employeeName: employee.name,
+            employeeRole: employee.role,
+            clientId: body.clientId,
+            clientName: client.name,
+            date: body.date,
+            visitType: vt,
+            mileage: i === 0 ? (body.mileage ?? null) : null,
+            perDiem: i === 0 ? perDiem : null,
+            perDiemType: i === 0 ? perDiemType : null,
+            isWeekend,
+            isHoliday,
+            note: body.note ?? null,
+            status: "submitted",
+            isDemo,
+          })
+          .returning();
+        if (row) inserted.push(row);
+      }
+      return inserted;
+    });
+    if (rows === null) {
+      res.status(400).json({ message: "Unknown employee or client" });
+      return;
+    }
+    res.status(201).json(rows.map(serialize));
   } catch (err) {
     next(err);
   }

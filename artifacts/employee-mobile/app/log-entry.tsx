@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   getListTimeEntriesQueryKey,
+  useBatchCreateTimeEntries,
   useCreateTimeEntry,
   useGetMyEmployee,
   useListClients,
@@ -87,7 +88,8 @@ export default function LogEntryScreen() {
 
   const [entryType, setEntryType] = useState<'visit' | 'hourly'>('visit');
   const [clientId, setClientId] = useState('');
-  const [visitType, setVisitType] = useState<VisitType | ''>('');
+  // Multi-visit: a set of selected visit types
+  const [selectedVisitTypes, setSelectedVisitTypes] = useState<Set<VisitType>>(new Set());
   const [timeIn, setTimeIn] = useState('');
   const [timeOut, setTimeOut] = useState('');
   const [date, setDate] = useState(toDateString(new Date()));
@@ -97,30 +99,13 @@ export default function LogEntryScreen() {
   const [note, setNote] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const dates = useMemo(recentDates, []);
   const { data: clients, isLoading: clientsLoading } = useListClients();
 
-  const createEntry = useCreateTimeEntry({
-    mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({
-          queryKey: getListTimeEntriesQueryKey(),
-        });
-        if (Platform.OS !== 'web') {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
-        setSaved(true);
-        setTimeout(() => router.back(), 900);
-      },
-      onError: (error) => {
-        setErrorMessage(
-          error?.message ??
-            "We couldn't save your hours. Please check your connection and try again.",
-        );
-      },
-    },
-  });
+  const createEntry = useCreateTimeEntry();
+  const batchCreateEntries = useBatchCreateTimeEntries();
 
   const selectedClient = (clients ?? []).find((cl) => cl.id === clientId);
   // Clients whose contract doesn't include mileage never see the toggle.
@@ -135,34 +120,89 @@ export default function LogEntryScreen() {
     !!employee &&
     !!clientId &&
     !!date &&
-    (entryType === 'visit' ? !!visitType : timesValid) &&
+    (entryType === 'visit' ? selectedVisitTypes.size > 0 : timesValid) &&
     mileageValid &&
-    !createEntry.isPending &&
+    !isSubmitting &&
     !saved;
+
+  const toggleVisitType = (vt: VisitType) => {
+    setSelectedVisitTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(vt)) {
+        next.delete(vt);
+      } else {
+        next.add(vt);
+      }
+      return next;
+    });
+  };
 
   if (!employee) return <Redirect href="/sign-in" />;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!canSubmit || !employee) return;
     setErrorMessage(null);
-    createEntry.mutate({
-      data: {
-        employeeId: employee.id,
-        clientId,
-        date,
-        ...(entryType === 'visit' && visitType ? { visitType } : {}),
-        ...(entryType === 'hourly' && timesValid ? { timeIn, timeOut } : {}),
-        ...(mileageAllowed && hasMileage && mileageNumber > 0
-          ? { mileage: mileageNumber }
-          : {}),
-        ...(perDiemType ? { perDiemType } : {}),
-        ...(note.trim() ? { note: note.trim() } : {}),
-      },
-    });
+    setIsSubmitting(true);
+
+    try {
+      if (entryType === 'visit') {
+        // Single atomic batch request — all visit types in one transaction.
+        // If anything fails the whole batch rolls back; no partial state.
+        await batchCreateEntries.mutateAsync({
+          data: {
+            employeeId: employee.id,
+            clientId,
+            date,
+            visitTypes: [...selectedVisitTypes],
+            ...(mileageAllowed && hasMileage && mileageNumber > 0
+              ? { mileage: mileageNumber }
+              : {}),
+            ...(perDiemType ? { perDiemType } : {}),
+            ...(note.trim() ? { note: note.trim() } : {}),
+          },
+        });
+      } else {
+        await createEntry.mutateAsync({
+          data: {
+            employeeId: employee.id,
+            clientId,
+            date,
+            ...(timesValid ? { timeIn, timeOut } : {}),
+            ...(mileageAllowed && hasMileage && mileageNumber > 0
+              ? { mileage: mileageNumber }
+              : {}),
+            ...(perDiemType ? { perDiemType } : {}),
+            ...(note.trim() ? { note: note.trim() } : {}),
+          },
+        });
+      }
+
+      queryClient.invalidateQueries({ queryKey: getListTimeEntriesQueryKey() });
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      setSaved(true);
+      setTimeout(() => router.back(), 900);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : undefined;
+      setErrorMessage(
+        msg ?? "We couldn't save your hours. Please check your connection and try again.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const topInset = Platform.OS === 'web' ? 67 : Math.max(insets.top, 12);
   const bottomInset = Platform.OS === 'web' ? 34 : insets.bottom;
+
+  const submitLabel = saved
+    ? 'Submitted!'
+    : isSubmitting
+      ? 'Submitting…'
+      : entryType === 'visit' && selectedVisitTypes.size > 1
+        ? `Submit ${selectedVisitTypes.size} Visits`
+        : 'Submit Hours';
 
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
@@ -269,18 +309,26 @@ export default function LogEntryScreen() {
 
         {entryType === 'visit' ? (
           <>
-            <SectionLabel text="Visit type" required />
+            <SectionLabel text="Visit type(s)" required />
+            <Text style={[styles.helperText, { color: c.mutedForeground, marginTop: 0, marginBottom: 8 }]}>
+              Tap to select — you can pick more than one for the same day
+            </Text>
             <View style={styles.chipWrap}>
               {(Object.keys(visitTypeLabels) as VisitType[]).map((t) => (
-                <Chip
+                <MultiChip
                   key={t}
                   label={visitTypeLabels[t]}
-                  selected={visitType === t}
-                  onPress={() => setVisitType(t)}
+                  selected={selectedVisitTypes.has(t)}
+                  onPress={() => toggleVisitType(t)}
                   testID={`chip-visit-${t}`}
                 />
               ))}
             </View>
+            {selectedVisitTypes.size > 1 && (
+              <Text style={[styles.helperText, { color: c.mutedForeground, marginTop: 8 }]}>
+                {selectedVisitTypes.size} visits selected — mileage and per diem attach to the first
+              </Text>
+            )}
           </>
         ) : (
           <>
@@ -343,7 +391,7 @@ export default function LogEntryScreen() {
             <View style={[styles.switchCard, { backgroundColor: c.card, borderColor: c.border }]}>
               <SwitchRow
                 title="Mileage?"
-                subtitle="Round-trip miles for this shift"
+                subtitle="Round-trip miles for this day"
                 value={hasMileage}
                 onValueChange={setHasMileage}
                 testID="switch-mileage"
@@ -424,20 +472,20 @@ export default function LogEntryScreen() {
           ]}
           testID="button-submit"
         >
-          {createEntry.isPending ? (
+          {isSubmitting ? (
             <ActivityIndicator color={c.primaryForeground} />
           ) : saved ? (
             <>
               <Feather name="check" size={18} color={c.accentForeground} />
               <Text style={[styles.submitText, { color: c.accentForeground }]}>
-                Submitted!
+                {submitLabel}
               </Text>
             </>
           ) : (
             <>
               <Feather name="check" size={18} color={c.primaryForeground} />
               <Text style={[styles.submitText, { color: c.primaryForeground }]}>
-                Submit Hours
+                {submitLabel}
               </Text>
             </>
           )}
@@ -457,6 +505,7 @@ function SectionLabel({ text, required }: { text: string; required?: boolean }) 
   );
 }
 
+/** Single-select chip (client, date, per diem) */
 function Chip({
   label,
   selected,
@@ -482,6 +531,52 @@ function Chip({
       ]}
       testID={testID}
     >
+      <Text
+        style={[
+          styles.chipText,
+          { color: selected ? c.primaryForeground : c.foreground },
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+/**
+ * Multi-select chip used for visit types — shows a check indicator when
+ * selected so it's clear multiple can be active at once.
+ */
+function MultiChip({
+  label,
+  selected,
+  onPress,
+  testID,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  testID?: string;
+}) {
+  const c = useColors();
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.chip,
+        styles.multiChip,
+        {
+          backgroundColor: selected ? c.primary : c.card,
+          borderColor: selected ? c.primary : c.input,
+          opacity: pressed ? 0.8 : 1,
+        },
+      ]}
+      testID={testID}
+      aria-pressed={selected}
+    >
+      {selected && (
+        <Feather name="check" size={12} color={c.primaryForeground} style={{ marginRight: 4 }} />
+      )}
       <Text
         style={[
           styles.chipText,
@@ -563,6 +658,10 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: 999,
     borderWidth: 1,
+  },
+  multiChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   chipText: {
     fontFamily: 'Inter_500Medium',
