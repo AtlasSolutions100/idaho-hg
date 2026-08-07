@@ -13,4 +13,6 @@ The staffing web app has its own vitest setup (`pnpm --filter @workspace/staffin
 
 **jsdom also lacks ResizeObserver** (Radix Tabs) — polyfilled in setup.ts.
 
+**Error-path coverage:** always include one stubbed non-2xx response test asserting the server's message reaches the UI — axios-style error extraction against the generated client's `ApiError` fails silently into generic fallback text otherwise.
+
 **How to apply:** new UI tests go in `src/**/*.test.tsx` beside the component; verify generated endpoint paths from `getXUrl()` helpers in `lib/api-client-react/src/generated/api.ts` rather than guessing (e.g. send is `/api/qbo/invoice`, singular).

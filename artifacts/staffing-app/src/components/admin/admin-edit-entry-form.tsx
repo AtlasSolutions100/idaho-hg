@@ -49,8 +49,9 @@ export function AdminEditEntryForm({
     mutation: {
       onSuccess: () => onSaved(),
       onError: (err) => {
+        // The generated client throws ApiError with the parsed body on `data`.
         const message =
-          (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+          (err as { data?: { message?: string } })?.data?.message ??
           'Could not save the changes. Please try again.';
         onError(message);
       },
