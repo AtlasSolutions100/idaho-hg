@@ -65,6 +65,7 @@ export * from './updateEmployeeEmail';
 export * from './updateEmployeeRate';
 export * from './updateEmployeeSignInAccess';
 export * from './updateOnboardingItem';
+export * from './visitEntryCount';
 export * from './visitType';
 export * from './visitTypeCount';
 export * from './workflowStatus';

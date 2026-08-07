@@ -407,6 +407,28 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /clients/{id}/visit-entry-count:
+    get:
+      operationId: getClientVisitEntryCount
+      tags: [time-entries]
+      summary: Count a client's visit-type time entries in recent months
+      description: >
+        Returns how many time entries with a visit type exist for the client
+        in the current and previous two calendar months. Used to warn before
+        turning off visit-type billing for a client that already has entries.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Visit-type entry count for recent months
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VisitEntryCount"
   /clients/{id}:
     patch:
       operationId: updateClientBilling
@@ -1832,6 +1854,13 @@ components:
         - clientCount
         - employeeCount
         - entryCount
+    VisitEntryCount:
+      type: object
+      required: [count]
+      properties:
+        count:
+          type: number
+          description: Number of visit-type time entries in the current and previous two calendar months
     Client:
       type: object
       properties:

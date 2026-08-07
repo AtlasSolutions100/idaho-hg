@@ -441,6 +441,19 @@ export const CreateClientResponse = zod.object({
 
 
 /**
+ * Returns how many time entries with a visit type exist for the client in the current and previous two calendar months. Used to warn before turning off visit-type billing for a client that already has entries.
+ * @summary Count a client's visit-type time entries in recent months
+ */
+export const GetClientVisitEntryCountParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const GetClientVisitEntryCountResponse = zod.object({
+  "count": zod.number().describe('Number of visit-type time entries in the current and previous two calendar months')
+})
+
+
+/**
  * @summary Update a client's optional billing contact and address
  */
 export const UpdateClientBillingParams = zod.object({

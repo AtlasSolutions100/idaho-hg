@@ -101,6 +101,31 @@ router.get("/time-entries", async (req, res, next) => {
   }
 });
 
+// How many visit-type entries the client has in the current and previous two
+// calendar months — used to warn Molly before turning off visit-type billing
+// for a client that employees are actively logging visits against.
+router.get("/clients/:id/visit-entry-count", async (req, res, next) => {
+  try {
+    const clientId = String(req.params.id);
+    const now = new Date();
+    const since = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+    const sinceStr = `${since.getFullYear()}-${String(since.getMonth() + 1).padStart(2, "0")}-01`;
+    const [row] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(timeEntriesTable)
+      .where(
+        and(
+          eq(timeEntriesTable.clientId, clientId),
+          sql`${timeEntriesTable.visitType} is not null`,
+          sql`${timeEntriesTable.date} >= ${sinceStr}`,
+        ),
+      );
+    res.json({ count: row?.count ?? 0 });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post("/time-entries", async (req, res, next) => {
   try {
     const parsed = CreateTimeEntryBody.safeParse(req.body);

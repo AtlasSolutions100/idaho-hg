@@ -325,6 +325,11 @@ export interface DemoDataStatus {
   entryCount: number;
 }
 
+export interface VisitEntryCount {
+  /** Number of visit-type time entries in the current and previous two calendar months */
+  count: number;
+}
+
 export interface Client {
   id: string;
   name: string;

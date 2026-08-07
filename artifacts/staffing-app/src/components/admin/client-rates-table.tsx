@@ -9,6 +9,8 @@ import {
   useRemoveClient,
   useListClients,
   useUpdateClientBilling,
+  useGetClientVisitEntryCount,
+  getGetClientVisitEntryCountQueryKey,
   getListClientRatesQueryKey,
   getListClientRateHistoryQueryKey,
   getListClientsQueryKey,
@@ -87,6 +89,9 @@ export function ClientRatesTable() {
   const [billingAddress, setBillingAddress] = useState('');
   const [mileageOnContract, setMileageOnContract] = useState(true);
   const [billsByVisitType, setBillsByVisitType] = useState(false);
+  // Set when Molly tries to turn off visit billing for a client that still has
+  // recent visit-type entries — she must confirm before the change saves.
+  const [confirmVisitOff, setConfirmVisitOff] = useState(false);
   const [removing, setRemoving] = useState<{ clientId: string; clientName: string } | null>(null);
 
   const [hourlyFor, setHourlyFor] = useState<{ clientId: string; clientName: string } | null>(null);
@@ -182,6 +187,7 @@ export function ClientRatesTable() {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListClientsQueryKey() });
+        setConfirmVisitOff(false);
         setBillingFor(null);
         toast({
           title: 'Billing details saved',
@@ -197,6 +203,41 @@ export function ClientRatesTable() {
       },
     },
   });
+
+  // What the client is currently saved as — used to detect turning visit billing off.
+  const billingClient = billingFor
+    ? (clientList ?? []).find((c) => c.id === billingFor.clientId)
+    : undefined;
+  const savedBillsByVisitType = billingClient?.billsByVisitType ?? false;
+
+  // Recent visit-type entry count, fetched while the billing dialog is open so
+  // the warning can say how many entries would be affected.
+  const visitCountQuery = useGetClientVisitEntryCount(billingFor?.clientId ?? '', {
+    query: {
+      enabled: !!billingFor,
+      queryKey: getGetClientVisitEntryCountQueryKey(billingFor?.clientId ?? ''),
+    },
+  });
+  const recentVisitCount = visitCountQuery.data?.count ?? 0;
+
+  const saveBilling = () => {
+    if (!billingFor) return;
+    billingMutation.mutate({
+      id: billingFor.clientId,
+      data: { billingContact, billingAddress, mileageOnContract, billsByVisitType },
+    });
+  };
+
+  const handleSaveBilling = () => {
+    if (!billingFor) return;
+    // Turning visit billing OFF for a client with recent visit entries changes
+    // how employees log time — make Molly confirm before saving.
+    if (savedBillsByVisitType && !billsByVisitType && recentVisitCount > 0) {
+      setConfirmVisitOff(true);
+      return;
+    }
+    saveBilling();
+  };
 
   const openBilling = (clientId: string, clientName: string) => {
     const client = (clientList ?? []).find((c) => c.id === clientId);
@@ -753,19 +794,48 @@ export function ClientRatesTable() {
               Cancel
             </Button>
             <Button
-              onClick={() =>
-                billingFor &&
-                billingMutation.mutate({
-                  id: billingFor.clientId,
-                  data: { billingContact, billingAddress, mileageOnContract, billsByVisitType },
-                })
-              }
+              onClick={handleSaveBilling}
               disabled={billingMutation.isPending}
               className="gap-2"
               data-testid="button-save-billing"
             >
               {billingMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
               Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation before turning off visit billing for a client with recent visit entries */}
+      <Dialog open={confirmVisitOff} onOpenChange={(open) => !open && setConfirmVisitOff(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Turn off visit billing?</DialogTitle>
+            <DialogDescription data-testid="text-confirm-visit-off">
+              {billingFor
+                ? `${billingFor.clientName} has ${recentVisitCount} visit-type ${
+                    recentVisitCount === 1 ? 'entry' : 'entries'
+                  } in recent months. Turning this off means employees can no longer log visit types for this client, and reports may look inconsistent this billing period. Past entries are kept.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmVisitOff(false)}
+              data-testid="button-cancel-visit-off"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={saveBilling}
+              disabled={billingMutation.isPending}
+              className="gap-2"
+              data-testid="button-confirm-visit-off"
+            >
+              {billingMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Turn Off Visit Billing
             </Button>
           </DialogFooter>
         </DialogContent>

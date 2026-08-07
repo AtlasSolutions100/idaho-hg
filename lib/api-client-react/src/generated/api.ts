@@ -65,6 +65,7 @@ import type {
   UpdateEmployeeRate,
   UpdateEmployeeSignInAccess,
   UpdateOnboardingItem,
+  VisitEntryCount,
   WorkflowStatus,
   WorkflowStatusUpdate
 } from './api.schemas';
@@ -1285,6 +1286,84 @@ export const useCreateClient = <TError = ErrorType<ApiError>,
       > => {
       return useMutation(getCreateClientMutationOptions(options));
     }
+
+export const getGetClientVisitEntryCountUrl = (id: string,) => {
+
+
+
+
+  return `/api/clients/${id}/visit-entry-count`
+}
+
+/**
+ * Returns how many time entries with a visit type exist for the client in the current and previous two calendar months. Used to warn before turning off visit-type billing for a client that already has entries.
+ * @summary Count a client's visit-type time entries in recent months
+ */
+export const getClientVisitEntryCount = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<VisitEntryCount> => {
+
+  return customFetch<VisitEntryCount>(getGetClientVisitEntryCountUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetClientVisitEntryCountQueryKey = (id: string,) => {
+    return [
+    `/api/clients/${id}/visit-entry-count`
+    ] as const;
+    }
+
+
+export const getGetClientVisitEntryCountQueryOptions = <TData = Awaited<ReturnType<typeof getClientVisitEntryCount>>, TError = ErrorType<unknown>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClientVisitEntryCount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetClientVisitEntryCountQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getClientVisitEntryCount>>> = ({ signal }) => getClientVisitEntryCount(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getClientVisitEntryCount>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetClientVisitEntryCountQueryResult = NonNullable<Awaited<ReturnType<typeof getClientVisitEntryCount>>>
+export type GetClientVisitEntryCountQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Count a client's visit-type time entries in recent months
+ */
+
+export function useGetClientVisitEntryCount<TData = Awaited<ReturnType<typeof getClientVisitEntryCount>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClientVisitEntryCount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetClientVisitEntryCountQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getUpdateClientBillingUrl = (id: string,) => {
 
