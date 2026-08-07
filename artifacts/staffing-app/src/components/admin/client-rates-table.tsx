@@ -383,6 +383,14 @@ export function ClientRatesTable() {
     });
   };
 
+  // A client "bills by visit type" when the flag is on in Billing Details.
+  // Only flag rows when we affirmatively know the flag is off — unknown
+  // clients (not in the list yet) are left alone.
+  const clientBillsByVisitType = (clientId: string): boolean | undefined => {
+    const client = (clientList ?? []).find((c) => c.id === clientId);
+    return client?.billsByVisitType;
+  };
+
   // Group by client
   const clientGroups = (rates ?? []).reduce((acc, rate) => {
     if (!acc[rate.clientId]) {
@@ -486,9 +494,28 @@ export function ClientRatesTable() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {clientRates.map(rate => (
-                        <TableRow key={rate.id} data-testid={`client-rate-${rate.id}`}>
-                          <TableCell>{rateTypeLabel(rate.visitType)}</TableCell>
+                      {clientRates.map(rate => {
+                        const unusedVisitRate =
+                          !isHourlyRateType(rate.visitType) &&
+                          clientBillsByVisitType(rate.clientId) === false;
+                        return (
+                        <TableRow
+                          key={rate.id}
+                          data-testid={`client-rate-${rate.id}`}
+                          className={unusedVisitRate ? 'opacity-60' : undefined}
+                        >
+                          <TableCell>
+                            {rateTypeLabel(rate.visitType)}
+                            {unusedVisitRate && (
+                              <Badge
+                                variant="outline"
+                                className="ml-2 text-xs font-normal text-muted-foreground"
+                                data-testid={`badge-unused-visit-rate-${rate.id}`}
+                              >
+                                Not used — hourly client
+                              </Badge>
+                            )}
+                          </TableCell>
                           <TableCell className="text-right font-mono font-medium">
                             ${rate.rate.toFixed(2)}
                             <span className="text-xs text-muted-foreground font-sans">
@@ -523,7 +550,8 @@ export function ClientRatesTable() {
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))}
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
@@ -931,6 +959,19 @@ export function ClientRatesTable() {
                 data-testid="input-visit-rate-date"
               />
             </div>
+            {visitRateFor && clientBillsByVisitType(visitRateFor.clientId) === false && (
+              <div
+                className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400"
+                data-testid="warning-visit-rate-hourly-client"
+              >
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>
+                  {visitRateFor.clientName} doesn't bill by visit type — employees only log time
+                  in and out, so this visit rate won't be used on invoices. Turn on "Bills by
+                  visit type" in Billing Details first if this client should bill per visit.
+                </span>
+              </div>
+            )}
             {visitRateError && (
               <div
                 className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
