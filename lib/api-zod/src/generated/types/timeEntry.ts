@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { EntryStatus } from './entryStatus';
+import type { PerDiemType } from './perDiemType';
 import type { VisitType } from './visitType';
 
 export interface TimeEntry {
@@ -17,9 +18,14 @@ export interface TimeEntry {
   clientName: string;
   date: string;
   visitType?: VisitType;
+  /** Clock-in time "HH:MM" (24-hour) */
+  timeIn?: string;
+  /** Clock-out time "HH:MM" (24-hour) */
+  timeOut?: string;
   hours?: number;
   mileage?: number;
   perDiem?: number;
+  perDiemType?: PerDiemType;
   isWeekend: boolean;
   isHoliday: boolean;
   note?: string;

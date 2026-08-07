@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { PerDiemType } from './perDiemType';
 import type { VisitType } from './visitType';
 
 export interface CreateTimeEntry {
@@ -13,6 +14,17 @@ export interface CreateTimeEntry {
   date: string;
   visitType?: VisitType;
   /**
+     * Clock-in time "HH:MM" (24-hour). Provide with timeOut instead of hours.
+     * @pattern ^([01][0-9]|2[0-3]):[0-5][0-9]$
+     */
+  timeIn?: string;
+  /**
+     * Clock-out time "HH:MM" (24-hour); an earlier time than timeIn means the shift crossed midnight
+     * @pattern ^([01][0-9]|2[0-3]):[0-5][0-9]$
+     */
+  timeOut?: string;
+  /**
+     * Legacy direct hours; ignored when timeIn/timeOut are provided
      * @minimum 0
      * @maximum 24
      */
@@ -20,11 +32,15 @@ export interface CreateTimeEntry {
   /** @minimum 0 */
   mileage?: number;
   /**
+     * Legacy numeric per-diem days; ignored when perDiemType is provided
      * @minimum 0
      * @maximum 1
      */
   perDiem?: number;
-  isWeekend: boolean;
-  isHoliday: boolean;
+  perDiemType?: PerDiemType;
+  /** Ignored — the server derives weekend from the date */
+  isWeekend?: boolean;
+  /** Ignored — the server determines holidays from its own calendar */
+  isHoliday?: boolean;
   note?: string;
 }

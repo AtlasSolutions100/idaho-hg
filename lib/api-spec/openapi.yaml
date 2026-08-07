@@ -1819,11 +1819,15 @@ components:
         billingAddress:
           type: string
           description: Optional multi-line billing address shown on PDF invoices
+        mileageOnContract:
+          type: boolean
+          description: Whether this client's contract includes mileage reimbursement
       required:
         - id
         - name
         - active
         - isDemo
+        - mileageOnContract
     ClientInput:
       type: object
       properties:
@@ -1850,6 +1854,9 @@ components:
           type: string
         billingAddress:
           type: string
+        mileageOnContract:
+          type: boolean
+          description: Only applied when present; billing fields keep their clear-on-blank behavior
     Employee:
       type: object
       properties:
@@ -2101,12 +2108,20 @@ components:
           type: string
         visitType:
           $ref: "#/components/schemas/VisitType"
+        timeIn:
+          type: string
+          description: Clock-in time "HH:MM" (24-hour)
+        timeOut:
+          type: string
+          description: Clock-out time "HH:MM" (24-hour)
         hours:
           type: number
         mileage:
           type: number
         perDiem:
           type: number
+        perDiemType:
+          $ref: "#/components/schemas/PerDiemType"
         isWeekend:
           type: boolean
         isHoliday:
@@ -2144,10 +2159,19 @@ components:
           type: string
         visitType:
           $ref: "#/components/schemas/VisitType"
+        timeIn:
+          type: string
+          pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          description: Clock-in time "HH:MM" (24-hour). Provide with timeOut instead of hours.
+        timeOut:
+          type: string
+          pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          description: Clock-out time "HH:MM" (24-hour); an earlier time than timeIn means the shift crossed midnight
         hours:
           type: number
           minimum: 0
           maximum: 24
+          description: Legacy direct hours; ignored when timeIn/timeOut are provided
         mileage:
           type: number
           minimum: 0
@@ -2155,18 +2179,25 @@ components:
           type: number
           minimum: 0
           maximum: 1
+          description: Legacy numeric per-diem days; ignored when perDiemType is provided
+        perDiemType:
+          $ref: "#/components/schemas/PerDiemType"
         isWeekend:
           type: boolean
+          description: Ignored — the server derives weekend from the date
         isHoliday:
           type: boolean
+          description: Ignored — the server determines holidays from its own calendar
         note:
           type: string
       required:
         - employeeId
         - clientId
         - date
-        - isWeekend
-        - isHoliday
+    PerDiemType:
+      type: string
+      enum: [first_last, full]
+      description: Per-diem option — "First/Last day" or "Full day"
     ApproveAllResult:
       type: object
       properties:

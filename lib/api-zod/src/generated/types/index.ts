@@ -42,6 +42,7 @@ export * from './onboardingItem';
 export * from './payrollReport';
 export * from './payrollReportEmployee';
 export * from './payrollReportLine';
+export * from './perDiemType';
 export * from './qboDisconnectResult';
 export * from './qboInvoiceSend';
 export * from './qboSendConflict';

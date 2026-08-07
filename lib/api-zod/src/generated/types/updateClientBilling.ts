@@ -9,4 +9,6 @@
 export interface UpdateClientBilling {
   billingContact?: string;
   billingAddress?: string;
+  /** Only applied when present; billing fields keep their clear-on-blank behavior */
+  mileageOnContract?: boolean;
 }

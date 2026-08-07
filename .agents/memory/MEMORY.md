@@ -7,4 +7,5 @@
 - [Seed backfill concurrency](seed-backfill-concurrency.md) — backfills into unconstrained (append-only) tables need pg_advisory_xact_lock; exists-checks alone double-insert under parallel processes.
 - [Clerk email-code testing](clerk-otp-e2e.md) — `+clerk_test` emails always accept code 424242; full FAPI script gets a Bearer JWT for curl-level auth tests.
 - [Admin identity binding](admin-identity-binding.md) — admin status must bind to server config (ADMIN_EMAIL) + Clerk-verified session email, never a mutable roster row/flag.
+- [Admin session is not a roster employee](admin-session-not-roster.md) — employee-scoped routes 403 under the admin's session; clear the mocked session before employee calls in e2e tests.
 - [Duplicate @types/react](types-react-dedupe.md) — one package pinning a different @types/react flips pnpm's hoisted fallback and breaks other apps' typecheck; keep everything on `catalog:`.

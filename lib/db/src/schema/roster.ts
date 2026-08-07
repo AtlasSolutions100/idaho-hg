@@ -8,6 +8,10 @@ export const clientsTable = pgTable("clients", {
   // Optional billing details shown in the PDF invoice "Bill to / Ship to" band.
   billingContact: text("billing_contact"),
   billingAddress: text("billing_address"),
+  // Whether this client's contract includes mileage reimbursement. When off,
+  // employees can't submit mileage for the client. Defaults on so existing
+  // clients keep working unchanged.
+  mileageOnContract: boolean("mileage_on_contract").notNull().default(true),
 });
 
 export const employeesTable = pgTable("employees", {

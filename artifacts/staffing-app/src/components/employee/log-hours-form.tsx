@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useCreateTimeEntry,
   useListClients,
   getListTimeEntriesQueryKey,
+  type PerDiemType,
 } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,16 +24,27 @@ interface LogHoursFormProps {
   onCancel: () => void;
 }
 
+/** Hours between two "HH:MM" times; an earlier (or equal) time out means the shift crossed midnight. */
+export function calculateHours(timeIn: string, timeOut: string): number | null {
+  if (!timeIn || !timeOut) return null;
+  const [inH, inM] = timeIn.split(':').map(Number);
+  const [outH, outM] = timeOut.split(':').map(Number);
+  if ([inH, inM, outH, outM].some((n) => n == null || Number.isNaN(n))) return null;
+  let minutes = outH! * 60 + outM! - (inH! * 60 + inM!);
+  if (minutes <= 0) minutes += 24 * 60;
+  return Math.round((minutes / 60) * 100) / 100;
+}
+
 export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursFormProps) {
   const [entryType, setEntryType] = useState<'visit' | 'hourly'>('visit');
   const [clientId, setClientId] = useState('');
   const [visitType, setVisitType] = useState<VisitType | ''>('');
-  const [hours, setHours] = useState('');
+  const [timeIn, setTimeIn] = useState('');
+  const [timeOut, setTimeOut] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [hasMileage, setHasMileage] = useState(false);
   const [mileage, setMileage] = useState('');
-  const [perDiem, setPerDiem] = useState('0');
-  const [isWeekend, setIsWeekend] = useState(false);
-  const [isHoliday, setIsHoliday] = useState(false);
+  const [perDiemType, setPerDiemType] = useState<PerDiemType | ''>('');
   const [note, setNote] = useState('');
 
   const { toast } = useToast();
@@ -54,21 +66,25 @@ export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursF
     },
   });
 
+  const selectedClient = (clients ?? []).find((c) => c.id === clientId);
+  // Hide (and never submit) mileage for clients whose contract doesn't include it.
+  const mileageAllowed = selectedClient ? selectedClient.mileageOnContract : true;
+  const calculatedHours = useMemo(() => calculateHours(timeIn, timeOut), [timeIn, timeOut]);
+  const overnight = calculatedHours != null && timeIn >= timeOut;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (entryType === 'visit' && !visitType) return;
-    if (entryType === 'hourly' && !hours) return;
+    if (entryType === 'hourly' && (!timeIn || !timeOut)) return;
     createEntry.mutate({
       data: {
         employeeId,
         clientId,
         date,
         ...(entryType === 'visit' && visitType ? { visitType } : {}),
-        ...(entryType === 'hourly' && hours ? { hours: parseFloat(hours) } : {}),
-        ...(mileage ? { mileage: parseFloat(mileage) } : {}),
-        ...(perDiem && parseFloat(perDiem) > 0 ? { perDiem: parseFloat(perDiem) } : {}),
-        isWeekend,
-        isHoliday,
+        ...(entryType === 'hourly' && timeIn && timeOut ? { timeIn, timeOut } : {}),
+        ...(mileageAllowed && hasMileage && mileage ? { mileage: parseFloat(mileage) } : {}),
+        ...(perDiemType ? { perDiemType } : {}),
         ...(note.trim() ? { note: note.trim() } : {}),
       },
     });
@@ -138,88 +154,100 @@ export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursF
             </TabsContent>
 
             <TabsContent value="hourly" className="space-y-4 mt-4">
-              <div className="space-y-2">
-                <Label htmlFor="hours">Hours *</Label>
-                <Input
-                  id="hours"
-                  type="number"
-                  step="0.25"
-                  min="0"
-                  max="24"
-                  value={hours}
-                  onChange={(e) => setHours(e.target.value)}
-                  placeholder="8.0"
-                  required
-                  data-testid="input-hours"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="time-in">Time In *</Label>
+                  <Input
+                    id="time-in"
+                    type="time"
+                    value={timeIn}
+                    onChange={(e) => setTimeIn(e.target.value)}
+                    data-testid="input-time-in"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="time-out">Time Out *</Label>
+                  <Input
+                    id="time-out"
+                    type="time"
+                    value={timeOut}
+                    onChange={(e) => setTimeOut(e.target.value)}
+                    data-testid="input-time-out"
+                  />
+                </div>
               </div>
+              {calculatedHours != null ? (
+                <p className="text-sm text-muted-foreground" data-testid="text-calculated-hours">
+                  {calculatedHours} hours{overnight ? ' (overnight shift)' : ''}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Clocked in and out more than once today? Submit each stretch as its own entry — they add up.
+                </p>
+              )}
             </TabsContent>
           </Tabs>
 
-          {/* Mileage */}
-          <div className="space-y-2">
-            <Label htmlFor="mileage">Mileage (round trip)</Label>
-            <div className="relative">
-              <Input
-                id="mileage"
-                type="number"
-                step="0.1"
-                min="0"
-                value={mileage}
-                onChange={(e) => setMileage(e.target.value)}
-                placeholder="0"
-                data-testid="input-mileage"
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                miles
-              </span>
+          {/* Mileage — only offered when the client's contract includes it */}
+          {mileageAllowed ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="has-mileage">Mileage?</Label>
+                  <p className="text-xs text-muted-foreground">Round-trip miles for this shift</p>
+                </div>
+                <Switch
+                  id="has-mileage"
+                  checked={hasMileage}
+                  onCheckedChange={setHasMileage}
+                  data-testid="switch-mileage"
+                />
+              </div>
+              {hasMileage && (
+                <div className="relative">
+                  <Input
+                    id="mileage"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={mileage}
+                    onChange={(e) => setMileage(e.target.value)}
+                    placeholder="0"
+                    aria-label="Miles (round trip)"
+                    data-testid="input-mileage"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                    miles
+                  </span>
+                </div>
+              )}
             </div>
-          </div>
+          ) : (
+            <p className="text-xs text-muted-foreground" data-testid="text-no-mileage">
+              {selectedClient?.name} doesn't include mileage on their contract.
+            </p>
+          )}
 
           {/* Per Diem */}
           <div className="space-y-2">
-            <Label htmlFor="per-diem">Per Diem Days</Label>
-            <Input
-              id="per-diem"
-              type="number"
-              min="0"
-              max="1"
-              step="0.5"
-              value={perDiem}
-              onChange={(e) => setPerDiem(e.target.value)}
-              data-testid="input-per-diem"
-            />
-            <p className="text-xs text-muted-foreground">
-              Enter 0.5 for half day, 1 for full day
-            </p>
-          </div>
-
-          {/* Weekend / Holiday Flags */}
-          <div className="space-y-4 pt-2">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="weekend">Weekend Rate</Label>
-                <p className="text-xs text-muted-foreground">1.5x pay multiplier</p>
-              </div>
-              <Switch
-                id="weekend"
-                checked={isWeekend}
-                onCheckedChange={setIsWeekend}
-                data-testid="switch-weekend"
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="holiday">Holiday Rate</Label>
-                <p className="text-xs text-muted-foreground">2.0x pay multiplier</p>
-              </div>
-              <Switch
-                id="holiday"
-                checked={isHoliday}
-                onCheckedChange={setIsHoliday}
-                data-testid="switch-holiday"
-              />
+            <Label>Per Diem</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                ['', 'None'],
+                ['first_last', 'First/Last day'],
+                ['full', 'Full day'],
+              ] as const).map(([value, label]) => (
+                <Button
+                  key={label}
+                  type="button"
+                  variant={perDiemType === value ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setPerDiemType(value)}
+                  data-testid={`button-perdiem-${value || 'none'}`}
+                >
+                  {label}
+                </Button>
+              ))}
             </div>
           </div>
 
@@ -251,7 +279,12 @@ export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursF
           <Button
             type="submit"
             className="flex-1 gap-2"
-            disabled={!clientId || !date || createEntry.isPending}
+            disabled={
+              !clientId ||
+              !date ||
+              (entryType === 'hourly' && (!timeIn || !timeOut)) ||
+              createEntry.isPending
+            }
             data-testid="button-submit"
           >
             {createEntry.isPending ? (

@@ -15,4 +15,6 @@ export interface Client {
   billingContact?: string;
   /** Optional multi-line billing address shown on PDF invoices */
   billingAddress?: string;
+  /** Whether this client's contract includes mileage reimbursement */
+  mileageOnContract: boolean;
 }

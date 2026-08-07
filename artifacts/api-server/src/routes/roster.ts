@@ -176,6 +176,7 @@ function serializeClient(row: ClientRow) {
     // without an address are unchanged.
     ...(row.billingContact ? { billingContact: row.billingContact } : {}),
     ...(row.billingAddress ? { billingAddress: row.billingAddress } : {}),
+    mileageOnContract: row.mileageOnContract,
   };
 }
 
@@ -310,7 +311,9 @@ router.post("/clients", async (req, res, next) => {
   }
 });
 
-router.patch("/clients/:id", async (req, res, next) => {
+// Admin-only: billing details and the mileage-on-contract setting drive what
+// invoices show and what employees can submit — only Molly may change them.
+router.patch("/clients/:id", requireAdmin, async (req, res, next) => {
   try {
     await ensureRosterSeeded();
     const parsed = UpdateClientBillingBody.safeParse(req.body);
@@ -321,13 +324,17 @@ router.patch("/clients/:id", async (req, res, next) => {
       return;
     }
     // Blank strings clear the field — Molly can remove an address she added.
+    // mileageOnContract is only touched when the request includes it.
     const [row] = await db
       .update(clientsTable)
       .set({
         billingContact: parsed.data.billingContact?.trim() || null,
         billingAddress: parsed.data.billingAddress?.trim() || null,
+        ...(parsed.data.mileageOnContract !== undefined
+          ? { mileageOnContract: parsed.data.mileageOnContract }
+          : {}),
       })
-      .where(eq(clientsTable.id, req.params.id))
+      .where(eq(clientsTable.id, String(req.params.id)))
       .returning();
     if (!row) {
       res.status(404).json({ message: "Client not found" });

@@ -18,9 +18,16 @@ export const timeEntriesTable = pgTable("time_entries", {
   clientName: text("client_name").notNull(),
   date: text("date").notNull(),
   visitType: text("visit_type"),
+  // Clock times ("HH:MM", 24-hour). When present, `hours` is computed from
+  // them on the server; older entries only have `hours`.
+  timeIn: text("time_in"),
+  timeOut: text("time_out"),
   hours: real("hours"),
   mileage: real("mileage"),
   perDiem: real("per_diem"),
+  // "first_last" | "full" — the option the employee picked. Older entries
+  // only carry the numeric perDiem (which allowed 0.5 half-days).
+  perDiemType: text("per_diem_type"),
   isWeekend: boolean("is_weekend").notNull().default(false),
   isHoliday: boolean("is_holiday").notNull().default(false),
   note: text("note"),

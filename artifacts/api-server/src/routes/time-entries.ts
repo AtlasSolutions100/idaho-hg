@@ -14,6 +14,12 @@ import {
   ListTimeEntriesQueryParams,
 } from "@workspace/api-zod";
 import { resolveSessionEmployee, verifyAdminRequest } from "../lib/employee-auth";
+import {
+  hoursBetween,
+  isHolidayDate,
+  isValidDateString,
+  isWeekendDate,
+} from "../lib/work-calendar";
 
 const router: IRouter = Router();
 
@@ -27,9 +33,12 @@ function serialize(row: TimeEntryRow) {
     clientName: row.clientName,
     date: row.date,
     ...(row.visitType ? { visitType: row.visitType } : {}),
+    ...(row.timeIn ? { timeIn: row.timeIn } : {}),
+    ...(row.timeOut ? { timeOut: row.timeOut } : {}),
     ...(row.hours != null ? { hours: row.hours } : {}),
     ...(row.mileage != null ? { mileage: row.mileage } : {}),
     ...(row.perDiem != null ? { perDiem: row.perDiem } : {}),
+    ...(row.perDiemType ? { perDiemType: row.perDiemType } : {}),
     isWeekend: row.isWeekend,
     isHoliday: row.isHoliday,
     ...(row.note ? { note: row.note } : {}),
@@ -142,10 +151,49 @@ router.post("/time-entries", async (req, res, next) => {
       res.status(400).json({ message: "Unknown client" });
       return;
     }
-    if (!body.visitType && body.hours == null) {
-      res.status(400).json({ message: "Provide a visit type or hours" });
+    // JS Date silently normalizes impossible dates (Feb 30 → Mar 2), which
+    // would derive weekend/holiday flags for the wrong day — reject them.
+    if (!isValidDateString(body.date)) {
+      res.status(400).json({ message: "That date doesn't exist — please check it" });
       return;
     }
+    // Clock times take precedence over a raw hours number; both count as
+    // "hours provided" for the visit-or-hours requirement.
+    const hasTimes = body.timeIn != null || body.timeOut != null;
+    let hours: number | null = body.hours ?? null;
+    if (hasTimes) {
+      if (!body.timeIn || !body.timeOut) {
+        res.status(400).json({ message: "Enter both a time in and a time out" });
+        return;
+      }
+      const computed = hoursBetween(body.timeIn, body.timeOut);
+      if (computed == null || computed <= 0) {
+        res.status(400).json({ message: "Those times don't work out to a valid shift" });
+        return;
+      }
+      hours = computed;
+    }
+    if (!body.visitType && hours == null) {
+      res.status(400).json({ message: "Provide a visit type or your time in and out" });
+      return;
+    }
+    // Mileage is only billable when the client's contract includes it.
+    if (body.mileage != null && body.mileage > 0 && !client.mileageOnContract) {
+      res.status(400).json({
+        message: `${client.name} doesn't include mileage on their contract, so mileage can't be submitted for this client.`,
+      });
+      return;
+    }
+    // Per diem: the form sends one of two options; both count as one
+    // per-diem day for pay. The choice is recorded so pay rules can
+    // differentiate later. Legacy numeric perDiem is still accepted from
+    // older app versions.
+    const perDiemType = body.perDiemType ?? null;
+    const perDiem = perDiemType ? 1 : (body.perDiem ?? null);
+    // Weekend/holiday are the server's call now — anything the client sent
+    // is ignored.
+    const isWeekend = isWeekendDate(body.date);
+    const isHoliday = isHolidayDate(body.date);
     const isDemo = employee.isDemo || client.isDemo;
     const row = await db.transaction(async (tx) => {
       if (isDemo) {
@@ -173,11 +221,14 @@ router.post("/time-entries", async (req, res, next) => {
           clientName: client.name,
           date: body.date,
           visitType: body.visitType ?? null,
-          hours: body.hours ?? null,
+          timeIn: hasTimes ? (body.timeIn ?? null) : null,
+          timeOut: hasTimes ? (body.timeOut ?? null) : null,
+          hours,
           mileage: body.mileage ?? null,
-          perDiem: body.perDiem ?? null,
-          isWeekend: body.isWeekend,
-          isHoliday: body.isHoliday,
+          perDiem,
+          perDiemType,
+          isWeekend,
+          isHoliday,
           note: body.note ?? null,
           status: "submitted",
           isDemo,

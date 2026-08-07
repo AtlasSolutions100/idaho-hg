@@ -35,9 +35,12 @@ export const ListTimeEntriesResponseItem = zod.object({
   "clientName": zod.string(),
   "date": zod.string(),
   "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy']).optional(),
+  "timeIn": zod.string().optional().describe('Clock-in time \"HH:MM\" (24-hour)'),
+  "timeOut": zod.string().optional().describe('Clock-out time \"HH:MM\" (24-hour)'),
   "hours": zod.number().optional(),
   "mileage": zod.number().optional(),
   "perDiem": zod.number().optional(),
+  "perDiemType": zod.enum(['first_last', 'full']).optional().describe('Per-diem option — \"First\/Last day\" or \"Full day\"'),
   "isWeekend": zod.boolean(),
   "isHoliday": zod.boolean(),
   "note": zod.string().optional(),
@@ -52,6 +55,8 @@ export const ListTimeEntriesResponse = zod.array(ListTimeEntriesResponseItem)
 /**
  * @summary Submit a time entry
  */
+export const createTimeEntryBodyTimeInRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const createTimeEntryBodyTimeOutRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
 export const createTimeEntryBodyHoursMin = 0;
 export const createTimeEntryBodyHoursMax = 24;
 
@@ -67,11 +72,14 @@ export const CreateTimeEntryBody = zod.object({
   "clientId": zod.string(),
   "date": zod.string(),
   "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy']).optional(),
-  "hours": zod.number().min(createTimeEntryBodyHoursMin).max(createTimeEntryBodyHoursMax).optional(),
+  "timeIn": zod.string().regex(createTimeEntryBodyTimeInRegExp).optional().describe('Clock-in time \"HH:MM\" (24-hour). Provide with timeOut instead of hours.'),
+  "timeOut": zod.string().regex(createTimeEntryBodyTimeOutRegExp).optional().describe('Clock-out time \"HH:MM\" (24-hour); an earlier time than timeIn means the shift crossed midnight'),
+  "hours": zod.number().min(createTimeEntryBodyHoursMin).max(createTimeEntryBodyHoursMax).optional().describe('Legacy direct hours; ignored when timeIn\/timeOut are provided'),
   "mileage": zod.number().min(createTimeEntryBodyMileageMin).optional(),
-  "perDiem": zod.number().min(createTimeEntryBodyPerDiemMin).max(createTimeEntryBodyPerDiemMax).optional(),
-  "isWeekend": zod.boolean(),
-  "isHoliday": zod.boolean(),
+  "perDiem": zod.number().min(createTimeEntryBodyPerDiemMin).max(createTimeEntryBodyPerDiemMax).optional().describe('Legacy numeric per-diem days; ignored when perDiemType is provided'),
+  "perDiemType": zod.enum(['first_last', 'full']).optional().describe('Per-diem option — \"First\/Last day\" or \"Full day\"'),
+  "isWeekend": zod.boolean().optional().describe('Ignored — the server derives weekend from the date'),
+  "isHoliday": zod.boolean().optional().describe('Ignored — the server determines holidays from its own calendar'),
   "note": zod.string().optional()
 })
 
@@ -84,9 +92,12 @@ export const CreateTimeEntryResponse = zod.object({
   "clientName": zod.string(),
   "date": zod.string(),
   "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy']).optional(),
+  "timeIn": zod.string().optional().describe('Clock-in time \"HH:MM\" (24-hour)'),
+  "timeOut": zod.string().optional().describe('Clock-out time \"HH:MM\" (24-hour)'),
   "hours": zod.number().optional(),
   "mileage": zod.number().optional(),
   "perDiem": zod.number().optional(),
+  "perDiemType": zod.enum(['first_last', 'full']).optional().describe('Per-diem option — \"First\/Last day\" or \"Full day\"'),
   "isWeekend": zod.boolean(),
   "isHoliday": zod.boolean(),
   "note": zod.string().optional(),
@@ -113,9 +124,12 @@ export const ApproveTimeEntryResponse = zod.object({
   "clientName": zod.string(),
   "date": zod.string(),
   "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy']).optional(),
+  "timeIn": zod.string().optional().describe('Clock-in time \"HH:MM\" (24-hour)'),
+  "timeOut": zod.string().optional().describe('Clock-out time \"HH:MM\" (24-hour)'),
   "hours": zod.number().optional(),
   "mileage": zod.number().optional(),
   "perDiem": zod.number().optional(),
+  "perDiemType": zod.enum(['first_last', 'full']).optional().describe('Per-diem option — \"First\/Last day\" or \"Full day\"'),
   "isWeekend": zod.boolean(),
   "isHoliday": zod.boolean(),
   "note": zod.string().optional(),
@@ -142,9 +156,12 @@ export const RejectTimeEntryResponse = zod.object({
   "clientName": zod.string(),
   "date": zod.string(),
   "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy']).optional(),
+  "timeIn": zod.string().optional().describe('Clock-in time \"HH:MM\" (24-hour)'),
+  "timeOut": zod.string().optional().describe('Clock-out time \"HH:MM\" (24-hour)'),
   "hours": zod.number().optional(),
   "mileage": zod.number().optional(),
   "perDiem": zod.number().optional(),
+  "perDiemType": zod.enum(['first_last', 'full']).optional().describe('Per-diem option — \"First\/Last day\" or \"Full day\"'),
   "isWeekend": zod.boolean(),
   "isHoliday": zod.boolean(),
   "note": zod.string().optional(),
@@ -341,7 +358,8 @@ export const ListClientsResponseItem = zod.object({
   "active": zod.boolean(),
   "isDemo": zod.boolean(),
   "billingContact": zod.string().optional().describe('Optional contact person shown on PDF invoices'),
-  "billingAddress": zod.string().optional().describe('Optional multi-line billing address shown on PDF invoices')
+  "billingAddress": zod.string().optional().describe('Optional multi-line billing address shown on PDF invoices'),
+  "mileageOnContract": zod.boolean().describe('Whether this client\'s contract includes mileage reimbursement')
 })
 export const ListClientsResponse = zod.array(ListClientsResponseItem)
 
@@ -368,7 +386,8 @@ export const CreateClientResponse = zod.object({
   "active": zod.boolean(),
   "isDemo": zod.boolean(),
   "billingContact": zod.string().optional().describe('Optional contact person shown on PDF invoices'),
-  "billingAddress": zod.string().optional().describe('Optional multi-line billing address shown on PDF invoices')
+  "billingAddress": zod.string().optional().describe('Optional multi-line billing address shown on PDF invoices'),
+  "mileageOnContract": zod.boolean().describe('Whether this client\'s contract includes mileage reimbursement')
 })
 
 
@@ -381,7 +400,8 @@ export const UpdateClientBillingParams = zod.object({
 
 export const UpdateClientBillingBody = zod.object({
   "billingContact": zod.string().optional(),
-  "billingAddress": zod.string().optional()
+  "billingAddress": zod.string().optional(),
+  "mileageOnContract": zod.boolean().optional().describe('Only applied when present; billing fields keep their clear-on-blank behavior')
 })
 
 export const UpdateClientBillingResponse = zod.object({
@@ -390,7 +410,8 @@ export const UpdateClientBillingResponse = zod.object({
   "active": zod.boolean(),
   "isDemo": zod.boolean(),
   "billingContact": zod.string().optional().describe('Optional contact person shown on PDF invoices'),
-  "billingAddress": zod.string().optional().describe('Optional multi-line billing address shown on PDF invoices')
+  "billingAddress": zod.string().optional().describe('Optional multi-line billing address shown on PDF invoices'),
+  "mileageOnContract": zod.boolean().describe('Whether this client\'s contract includes mileage reimbursement')
 })
 
 
@@ -407,7 +428,8 @@ export const RemoveClientResponse = zod.object({
   "active": zod.boolean(),
   "isDemo": zod.boolean(),
   "billingContact": zod.string().optional().describe('Optional contact person shown on PDF invoices'),
-  "billingAddress": zod.string().optional().describe('Optional multi-line billing address shown on PDF invoices')
+  "billingAddress": zod.string().optional().describe('Optional multi-line billing address shown on PDF invoices'),
+  "mileageOnContract": zod.boolean().describe('Whether this client\'s contract includes mileage reimbursement')
 })
 
 

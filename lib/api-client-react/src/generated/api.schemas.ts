@@ -319,6 +319,8 @@ export interface Client {
   billingContact?: string;
   /** Optional multi-line billing address shown on PDF invoices */
   billingAddress?: string;
+  /** Whether this client's contract includes mileage reimbursement */
+  mileageOnContract: boolean;
 }
 
 export interface ClientInput {
@@ -334,6 +336,8 @@ export interface ClientInput {
 export interface UpdateClientBilling {
   billingContact?: string;
   billingAddress?: string;
+  /** Only applied when present; billing fields keep their clear-on-blank behavior */
+  mileageOnContract?: boolean;
 }
 
 export interface Employee {
@@ -464,6 +468,17 @@ export const EntryStatus = {
   rejected: 'rejected',
 } as const;
 
+/**
+ * Per-diem option — "First/Last day" or "Full day"
+ */
+export type PerDiemType = typeof PerDiemType[keyof typeof PerDiemType];
+
+
+export const PerDiemType = {
+  first_last: 'first_last',
+  full: 'full',
+} as const;
+
 export interface TimeEntry {
   id: string;
   employeeId: string;
@@ -473,9 +488,14 @@ export interface TimeEntry {
   clientName: string;
   date: string;
   visitType?: VisitType;
+  /** Clock-in time "HH:MM" (24-hour) */
+  timeIn?: string;
+  /** Clock-out time "HH:MM" (24-hour) */
+  timeOut?: string;
   hours?: number;
   mileage?: number;
   perDiem?: number;
+  perDiemType?: PerDiemType;
   isWeekend: boolean;
   isHoliday: boolean;
   note?: string;
@@ -491,6 +511,17 @@ export interface CreateTimeEntry {
   date: string;
   visitType?: VisitType;
   /**
+     * Clock-in time "HH:MM" (24-hour). Provide with timeOut instead of hours.
+     * @pattern ^([01][0-9]|2[0-3]):[0-5][0-9]$
+     */
+  timeIn?: string;
+  /**
+     * Clock-out time "HH:MM" (24-hour); an earlier time than timeIn means the shift crossed midnight
+     * @pattern ^([01][0-9]|2[0-3]):[0-5][0-9]$
+     */
+  timeOut?: string;
+  /**
+     * Legacy direct hours; ignored when timeIn/timeOut are provided
      * @minimum 0
      * @maximum 24
      */
@@ -498,12 +529,16 @@ export interface CreateTimeEntry {
   /** @minimum 0 */
   mileage?: number;
   /**
+     * Legacy numeric per-diem days; ignored when perDiemType is provided
      * @minimum 0
      * @maximum 1
      */
   perDiem?: number;
-  isWeekend: boolean;
-  isHoliday: boolean;
+  perDiemType?: PerDiemType;
+  /** Ignored — the server derives weekend from the date */
+  isWeekend?: boolean;
+  /** Ignored — the server determines holidays from its own calendar */
+  isHoliday?: boolean;
   note?: string;
 }
 

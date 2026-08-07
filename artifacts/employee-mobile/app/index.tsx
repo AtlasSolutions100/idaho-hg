@@ -487,7 +487,14 @@ function EntryCard({ entry }: { entry: TimeEntry }) {
           <Detail icon="activity" text={visitTypeLabels[entry.visitType]} />
         )}
         {entry.hours != null && entry.hours > 0 && (
-          <Detail icon="clock" text={`${entry.hours} hrs`} />
+          <Detail
+            icon="clock"
+            text={
+              entry.timeIn && entry.timeOut
+                ? `${entry.hours} hrs (${entry.timeIn}–${entry.timeOut})`
+                : `${entry.hours} hrs`
+            }
+          />
         )}
         {entry.mileage != null && entry.mileage > 0 && (
           <Detail icon="map-pin" text={`${entry.mileage} mi`} />
@@ -495,7 +502,13 @@ function EntryCard({ entry }: { entry: TimeEntry }) {
         {entry.perDiem != null && entry.perDiem > 0 && (
           <Detail
             icon="sun"
-            text={entry.perDiem === 1 ? 'Full day per diem' : 'Half day per diem'}
+            text={
+              entry.perDiemType === 'first_last'
+                ? 'First/Last day per diem'
+                : entry.perDiemType === 'full' || entry.perDiem === 1
+                  ? 'Full day per diem'
+                  : 'Half day per diem'
+            }
           />
         )}
         {entry.isWeekend && <Detail icon="calendar" text="Weekend" />}

@@ -16,6 +16,7 @@ import {
   useCreateTimeEntry,
   useGetMyEmployee,
   useListClients,
+  type PerDiemType,
   type VisitType,
 } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
@@ -43,6 +44,27 @@ function formatPretty(iso: string): string {
   });
 }
 
+const TIME_PATTERN = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
+
+/** "822" → "8:22", "0822" → "08:22" — lets people type without the colon. */
+export function normalizeTimeInput(raw: string): string {
+  const digits = raw.replace(/[^\d]/g, '');
+  if (raw.includes(':') || digits.length < 3) return raw;
+  const mm = digits.slice(-2);
+  const hh = digits.slice(0, -2).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+/** Hours between two "HH:MM" times; earlier/equal time out = crossed midnight. */
+export function calculateHours(timeIn: string, timeOut: string): number | null {
+  if (!TIME_PATTERN.test(timeIn) || !TIME_PATTERN.test(timeOut)) return null;
+  const [inH, inM] = timeIn.split(':').map(Number);
+  const [outH, outM] = timeOut.split(':').map(Number);
+  let minutes = outH! * 60 + outM! - (inH! * 60 + inM!);
+  if (minutes <= 0) minutes += 24 * 60;
+  return Math.round((minutes / 60) * 100) / 100;
+}
+
 /** The last 14 days, today first — covers normal weekly submission habits. */
 function recentDates(): string[] {
   const out: string[] = [];
@@ -66,12 +88,12 @@ export default function LogEntryScreen() {
   const [entryType, setEntryType] = useState<'visit' | 'hourly'>('visit');
   const [clientId, setClientId] = useState('');
   const [visitType, setVisitType] = useState<VisitType | ''>('');
-  const [hours, setHours] = useState('');
+  const [timeIn, setTimeIn] = useState('');
+  const [timeOut, setTimeOut] = useState('');
   const [date, setDate] = useState(toDateString(new Date()));
+  const [hasMileage, setHasMileage] = useState(false);
   const [mileage, setMileage] = useState('');
-  const [perDiem, setPerDiem] = useState<0 | 0.5 | 1>(0);
-  const [isWeekend, setIsWeekend] = useState(false);
-  const [isHoliday, setIsHoliday] = useState(false);
+  const [perDiemType, setPerDiemType] = useState<PerDiemType | ''>('');
   const [note, setNote] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -100,17 +122,20 @@ export default function LogEntryScreen() {
     },
   });
 
-  const hoursNumber = parseFloat(hours);
-  const hoursValid =
-    entryType !== 'hourly' ||
-    (!Number.isNaN(hoursNumber) && hoursNumber > 0 && hoursNumber <= 24);
+  const selectedClient = (clients ?? []).find((cl) => cl.id === clientId);
+  // Clients whose contract doesn't include mileage never see the toggle.
+  const mileageAllowed = selectedClient ? selectedClient.mileageOnContract : true;
+  const calculatedHours = useMemo(() => calculateHours(timeIn, timeOut), [timeIn, timeOut]);
+  const overnight = calculatedHours != null && timeIn >= timeOut;
+  const timesValid = entryType !== 'hourly' || calculatedHours != null;
   const mileageNumber = mileage ? parseFloat(mileage) : 0;
-  const mileageValid = !mileage || (!Number.isNaN(mileageNumber) && mileageNumber >= 0);
+  const mileageValid =
+    !hasMileage || !mileage || (!Number.isNaN(mileageNumber) && mileageNumber >= 0);
   const canSubmit =
     !!employee &&
     !!clientId &&
     !!date &&
-    (entryType === 'visit' ? !!visitType : hoursValid) &&
+    (entryType === 'visit' ? !!visitType : timesValid) &&
     mileageValid &&
     !createEntry.isPending &&
     !saved;
@@ -126,11 +151,11 @@ export default function LogEntryScreen() {
         clientId,
         date,
         ...(entryType === 'visit' && visitType ? { visitType } : {}),
-        ...(entryType === 'hourly' && hoursValid ? { hours: hoursNumber } : {}),
-        ...(mileage && mileageNumber > 0 ? { mileage: mileageNumber } : {}),
-        ...(perDiem > 0 ? { perDiem } : {}),
-        isWeekend,
-        isHoliday,
+        ...(entryType === 'hourly' && timesValid ? { timeIn, timeOut } : {}),
+        ...(mileageAllowed && hasMileage && mileageNumber > 0
+          ? { mileage: mileageNumber }
+          : {}),
+        ...(perDiemType ? { perDiemType } : {}),
         ...(note.trim() ? { note: note.trim() } : {}),
       },
     });
@@ -259,75 +284,102 @@ export default function LogEntryScreen() {
           </>
         ) : (
           <>
-            <SectionLabel text="Hours worked" required />
-            <TextInput
-              value={hours}
-              onChangeText={setHours}
-              placeholder="8"
-              placeholderTextColor={c.mutedForeground}
-              keyboardType="decimal-pad"
-              style={[
-                styles.input,
-                {
-                  backgroundColor: c.card,
-                  borderColor: hours && !hoursValid ? c.destructive : c.input,
-                  color: c.foreground,
-                },
-              ]}
-              testID="input-hours"
-            />
-            {hours && !hoursValid ? (
-              <Text style={[styles.fieldError, { color: c.destructive }]}>
-                Hours should be between 0 and 24.
+            <SectionLabel text="Time in & out" required />
+            <View style={styles.timeRow}>
+              <TextInput
+                value={timeIn}
+                onChangeText={(v) => setTimeIn(normalizeTimeInput(v))}
+                placeholder="08:22"
+                placeholderTextColor={c.mutedForeground}
+                keyboardType="numbers-and-punctuation"
+                autoCapitalize="none"
+                style={[
+                  styles.input,
+                  styles.timeInput,
+                  {
+                    backgroundColor: c.card,
+                    borderColor: timeIn && !TIME_PATTERN.test(timeIn) ? c.destructive : c.input,
+                    color: c.foreground,
+                  },
+                ]}
+                testID="input-time-in"
+              />
+              <Text style={[styles.timeDash, { color: c.mutedForeground }]}>to</Text>
+              <TextInput
+                value={timeOut}
+                onChangeText={(v) => setTimeOut(normalizeTimeInput(v))}
+                placeholder="16:30"
+                placeholderTextColor={c.mutedForeground}
+                keyboardType="numbers-and-punctuation"
+                autoCapitalize="none"
+                style={[
+                  styles.input,
+                  styles.timeInput,
+                  {
+                    backgroundColor: c.card,
+                    borderColor: timeOut && !TIME_PATTERN.test(timeOut) ? c.destructive : c.input,
+                    color: c.foreground,
+                  },
+                ]}
+                testID="input-time-out"
+              />
+            </View>
+            {calculatedHours != null ? (
+              <Text style={[styles.helperText, { color: c.mutedForeground }]} testID="text-calculated-hours">
+                {calculatedHours} hours{overnight ? ' (overnight shift)' : ''}
               </Text>
-            ) : null}
+            ) : (
+              <Text style={[styles.helperText, { color: c.mutedForeground }]}>
+                Use 24-hour time, like 08:22 or 16:30. Clocked in and out more than
+                once? Log each stretch as its own entry — they add up.
+              </Text>
+            )}
           </>
         )}
 
-        {/* Mileage */}
-        <SectionLabel text="Mileage (round trip)" />
-        <TextInput
-          value={mileage}
-          onChangeText={setMileage}
-          placeholder="0"
-          placeholderTextColor={c.mutedForeground}
-          keyboardType="decimal-pad"
-          style={[
-            styles.input,
-            {
-              backgroundColor: c.card,
-              borderColor: mileage && !mileageValid ? c.destructive : c.input,
-              color: c.foreground,
-            },
-          ]}
-          testID="input-mileage"
-        />
+        {/* Mileage — only when the client's contract includes it */}
+        {mileageAllowed ? (
+          <>
+            <View style={[styles.switchCard, { backgroundColor: c.card, borderColor: c.border }]}>
+              <SwitchRow
+                title="Mileage?"
+                subtitle="Round-trip miles for this shift"
+                value={hasMileage}
+                onValueChange={setHasMileage}
+                testID="switch-mileage"
+              />
+            </View>
+            {hasMileage ? (
+              <TextInput
+                value={mileage}
+                onChangeText={setMileage}
+                placeholder="0"
+                placeholderTextColor={c.mutedForeground}
+                keyboardType="decimal-pad"
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: c.card,
+                    borderColor: mileage && !mileageValid ? c.destructive : c.input,
+                    color: c.foreground,
+                  },
+                ]}
+                testID="input-mileage"
+              />
+            ) : null}
+          </>
+        ) : selectedClient ? (
+          <Text style={[styles.helperText, { color: c.mutedForeground }]} testID="text-no-mileage">
+            {selectedClient.name} doesn't include mileage on their contract.
+          </Text>
+        ) : null}
 
         {/* Per diem */}
         <SectionLabel text="Per diem" />
         <View style={styles.chipWrap}>
-          <Chip label="None" selected={perDiem === 0} onPress={() => setPerDiem(0)} testID="chip-perdiem-0" />
-          <Chip label="Half day" selected={perDiem === 0.5} onPress={() => setPerDiem(0.5)} testID="chip-perdiem-half" />
-          <Chip label="Full day" selected={perDiem === 1} onPress={() => setPerDiem(1)} testID="chip-perdiem-full" />
-        </View>
-
-        {/* Weekend / holiday */}
-        <View style={[styles.switchCard, { backgroundColor: c.card, borderColor: c.border }]}>
-          <SwitchRow
-            title="Weekend"
-            subtitle="This was weekend work (1.5x pay)"
-            value={isWeekend}
-            onValueChange={setIsWeekend}
-            testID="switch-weekend"
-          />
-          <View style={[styles.switchDivider, { backgroundColor: c.border }]} />
-          <SwitchRow
-            title="Holiday"
-            subtitle="This was holiday work (2x pay)"
-            value={isHoliday}
-            onValueChange={setIsHoliday}
-            testID="switch-holiday"
-          />
+          <Chip label="None" selected={perDiemType === ''} onPress={() => setPerDiemType('')} testID="chip-perdiem-none" />
+          <Chip label="First/Last day" selected={perDiemType === 'first_last'} onPress={() => setPerDiemType('first_last')} testID="chip-perdiem-first-last" />
+          <Chip label="Full day" selected={perDiemType === 'full'} onPress={() => setPerDiemType('full')} testID="chip-perdiem-full" />
         </View>
 
         {/* Note */}
@@ -544,6 +596,23 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   fieldError: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    marginTop: 6,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  timeInput: {
+    flex: 1,
+  },
+  timeDash: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+  },
+  helperText: {
     fontFamily: 'Inter_400Regular',
     fontSize: 12,
     marginTop: 6,

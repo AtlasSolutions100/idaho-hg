@@ -23,6 +23,7 @@ import { isDemoId } from '@/lib/demo';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -70,6 +71,7 @@ export function ClientRatesTable() {
   const [billingFor, setBillingFor] = useState<{ clientId: string; clientName: string } | null>(null);
   const [billingContact, setBillingContact] = useState('');
   const [billingAddress, setBillingAddress] = useState('');
+  const [mileageOnContract, setMileageOnContract] = useState(true);
   const [removing, setRemoving] = useState<{ clientId: string; clientName: string } | null>(null);
 
   const [hourlyFor, setHourlyFor] = useState<{ clientId: string; clientName: string } | null>(null);
@@ -175,6 +177,7 @@ export function ClientRatesTable() {
     const client = (clientList ?? []).find((c) => c.id === clientId);
     setBillingContact(client?.billingContact ?? '');
     setBillingAddress(client?.billingAddress ?? '');
+    setMileageOnContract(client?.mileageOnContract ?? true);
     setBillingFor({ clientId, clientName });
   };
 
@@ -594,6 +597,20 @@ export function ClientRatesTable() {
                 data-testid="input-billing-address"
               />
             </div>
+            <div className="flex items-center justify-between rounded-md border p-3">
+              <div className="space-y-0.5">
+                <Label htmlFor="mileage-on-contract">Mileage on contract</Label>
+                <p className="text-xs text-muted-foreground">
+                  When off, employees can't submit mileage for this client.
+                </p>
+              </div>
+              <Switch
+                id="mileage-on-contract"
+                checked={mileageOnContract}
+                onCheckedChange={setMileageOnContract}
+                data-testid="switch-mileage-on-contract"
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBillingFor(null)} data-testid="button-cancel-billing">
@@ -604,7 +621,7 @@ export function ClientRatesTable() {
                 billingFor &&
                 billingMutation.mutate({
                   id: billingFor.clientId,
-                  data: { billingContact, billingAddress },
+                  data: { billingContact, billingAddress, mileageOnContract },
                 })
               }
               disabled={billingMutation.isPending}

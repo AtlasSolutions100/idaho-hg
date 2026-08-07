@@ -104,7 +104,12 @@ function TimeEntryCard({ entry }: { entry: TimeEntry }) {
           {entry.hours ? (
             <div className="space-y-1">
               <div className="text-muted-foreground">Hours</div>
-              <div className="font-medium font-mono">{entry.hours} hrs</div>
+              <div className="font-medium font-mono">
+                {entry.hours} hrs
+                {entry.timeIn && entry.timeOut ? (
+                  <span className="text-muted-foreground font-normal"> ({entry.timeIn}–{entry.timeOut})</span>
+                ) : null}
+              </div>
             </div>
           ) : null}
           {entry.mileage && entry.mileage > 0 ? (
@@ -122,7 +127,13 @@ function TimeEntryCard({ entry }: { entry: TimeEntry }) {
                 <DollarSign className="h-3 w-3" />
                 Per Diem
               </div>
-              <div className="font-medium font-mono">{entry.perDiem} day{entry.perDiem > 1 ? 's' : ''}</div>
+              <div className="font-medium font-mono">
+                {entry.perDiemType === 'first_last'
+                  ? 'First/Last day'
+                  : entry.perDiemType === 'full'
+                    ? 'Full day'
+                    : `${entry.perDiem} day${entry.perDiem > 1 ? 's' : ''}`}
+              </div>
             </div>
           ) : null}
         </div>
