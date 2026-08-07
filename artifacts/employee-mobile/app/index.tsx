@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   Platform,
@@ -20,6 +20,7 @@ import {
   type TimeEntry,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth, useClerk } from '@clerk/expo';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -28,6 +29,17 @@ import { ClaimProfile } from '@/components/ClaimProfile';
 import colors from '@/constants/colors';
 import { useColors } from '@/hooks/useColors';
 import { statusLabels, visitTypeLabels } from '@/lib/labels';
+
+// Client-side "I've seen Molly's adjustments up to this point" marker,
+// per employee, so the heads-up banner only nags about NEW adjustments.
+const seenKey = (employeeId: string) => `adjustments-seen:${employeeId}`;
+
+/** Valid adminEditedAt timestamp in ms, or null. */
+function adjustedAt(entry: TimeEntry): number | null {
+  if (!entry.adminEditedAt) return null;
+  const t = new Date(entry.adminEditedAt).getTime();
+  return Number.isNaN(t) ? null : t;
+}
 
 function formatDate(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number);
@@ -91,6 +103,55 @@ export default function HomeScreen() {
     () => (entries ?? []).filter((e) => e.status === 'submitted').length,
     [entries],
   );
+
+  // Heads-up banner: entries Molly adjusted since the employee last
+  // dismissed the cue. Marker lives on-device, per employee.
+  const [seenMarker, setSeenMarker] = useState<string | null>(null);
+  const [seenLoaded, setSeenLoaded] = useState(false);
+  useEffect(() => {
+    if (!employeeId) return;
+    let cancelled = false;
+    setSeenLoaded(false);
+    AsyncStorage.getItem(seenKey(employeeId))
+      .then((v) => {
+        if (!cancelled) {
+          setSeenMarker(v);
+          setSeenLoaded(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setSeenLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [employeeId]);
+
+  const seenTime = seenMarker ? new Date(seenMarker).getTime() : 0;
+  const unseenAdjusted = useMemo(
+    () =>
+      seenLoaded
+        ? (entries ?? []).filter((e) => {
+            const t = adjustedAt(e);
+            return t !== null && t > seenTime;
+          })
+        : [],
+    [entries, seenTime, seenLoaded],
+  );
+  const unseenIds = useMemo(
+    () => new Set(unseenAdjusted.map((e) => e.id)),
+    [unseenAdjusted],
+  );
+
+  const dismissAdjustedCue = useCallback(() => {
+    if (!employeeId || unseenAdjusted.length === 0) return;
+    const newest = Math.max(...unseenAdjusted.map((e) => adjustedAt(e) ?? 0));
+    const iso = new Date(newest).toISOString();
+    setSeenMarker(iso);
+    AsyncStorage.setItem(seenKey(employeeId), iso).catch(() => {
+      // Storage failure just means the banner shows again next launch.
+    });
+  }, [employeeId, unseenAdjusted]);
 
   if (!isLoaded) return null;
   if (!isSignedIn) return <Redirect href="/sign-in" />;
@@ -258,10 +319,42 @@ export default function HomeScreen() {
         </View>
       </View>
 
+      {unseenAdjusted.length > 0 && (
+        <View
+          style={[styles.adjustedBanner, { backgroundColor: c.accent, borderColor: c.border }]}
+          testID="banner-adjusted"
+        >
+          <Feather name="bell" size={18} color={c.accentForeground} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.adjustedBannerTitle, { color: c.accentForeground }]}>
+              Molly adjusted{' '}
+              {unseenAdjusted.length === 1
+                ? 'one of your entries'
+                : `${unseenAdjusted.length} of your entries`}
+            </Text>
+            <Text style={[styles.adjustedBannerText, { color: c.accentForeground }]}>
+              Look for the “Adjusted” badge below to see what changed.
+            </Text>
+          </View>
+          <Pressable
+            onPress={dismissAdjustedCue}
+            hitSlop={8}
+            style={[styles.adjustedDismiss, { backgroundColor: c.card }]}
+            testID="button-dismiss-adjusted"
+          >
+            <Text style={[styles.adjustedDismissText, { color: c.foreground }]}>
+              Got it
+            </Text>
+          </Pressable>
+        </View>
+      )}
+
       <FlatList
         data={entries ?? []}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <EntryCard entry={item} />}
+        renderItem={({ item }) => (
+          <EntryCard entry={item} recentlyAdjusted={unseenIds.has(item.id)} />
+        )}
         contentContainerStyle={[
           styles.listContent,
           { paddingBottom: bottomInset + 96 },
@@ -448,7 +541,13 @@ function SkeletonCard() {
   );
 }
 
-function EntryCard({ entry }: { entry: TimeEntry }) {
+function EntryCard({
+  entry,
+  recentlyAdjusted = false,
+}: {
+  entry: TimeEntry;
+  recentlyAdjusted?: boolean;
+}) {
   const c = useColors();
   const router = useRouter();
   const statusStyle =
@@ -494,6 +593,17 @@ function EntryCard({ entry }: { entry: TimeEntry }) {
             {formatDate(entry.date)}
           </Text>
         </View>
+        {recentlyAdjusted && (
+          <View
+            style={[styles.statusBadge, { backgroundColor: c.accent, marginRight: 6 }]}
+            testID={`badge-adjusted-${entry.id}`}
+          >
+            <Feather name="bell" size={12} color={c.accentForeground} />
+            <Text style={[styles.statusText, { color: c.accentForeground }]}>
+              Adjusted
+            </Text>
+          </View>
+        )}
         <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
           <Feather name={statusStyle.icon} size={12} color={statusStyle.fg} />
           <Text style={[styles.statusText, { color: statusStyle.fg }]}>
@@ -638,6 +748,34 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   countText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 12,
+  },
+  adjustedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 12,
+    borderRadius: colors.radius,
+    borderWidth: 1,
+  },
+  adjustedBannerTitle: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13,
+  },
+  adjustedBannerText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    marginTop: 1,
+  },
+  adjustedDismiss: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+  },
+  adjustedDismissText: {
     fontFamily: 'Inter_600SemiBold',
     fontSize: 12,
   },

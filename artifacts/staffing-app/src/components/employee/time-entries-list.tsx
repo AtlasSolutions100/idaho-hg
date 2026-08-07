@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { useListTimeEntries, type TimeEntry } from '@workspace/api-client-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -5,15 +6,61 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { statusLabels, visitTypeLabels } from '@/lib/data';
 import { format } from 'date-fns';
-import { Calendar, MapPin, DollarSign, FileText, AlertCircle, Lock, Pencil } from 'lucide-react';
+import { Calendar, MapPin, DollarSign, FileText, AlertCircle, Lock, Pencil, BellRing } from 'lucide-react';
 
 interface TimeEntriesListProps {
   employeeId?: string;
   onEdit?: (entry: TimeEntry) => void;
 }
 
+// Client-side "I've seen Molly's adjustments up to this point" marker,
+// per employee, so the heads-up banner only nags about NEW adjustments.
+const seenKey = (employeeId: string) => `adjustments-seen:${employeeId}`;
+
+function readSeenMarker(employeeId: string): string {
+  try {
+    return window.localStorage.getItem(seenKey(employeeId)) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function writeSeenMarker(employeeId: string, iso: string) {
+  try {
+    window.localStorage.setItem(seenKey(employeeId), iso);
+  } catch {
+    // Private-mode/storage failures just mean the banner shows again later.
+  }
+}
+
+/** Valid adminEditedAt timestamp, or null. */
+function adjustedAt(entry: TimeEntry): number | null {
+  if (!entry.adminEditedAt) return null;
+  const t = new Date(entry.adminEditedAt).getTime();
+  return Number.isNaN(t) ? null : t;
+}
+
 export function TimeEntriesList({ employeeId = '1', onEdit }: TimeEntriesListProps) {
   const { data: entries, isLoading, isError } = useListTimeEntries({ employeeId });
+  const [seenMarker, setSeenMarker] = useState(() => readSeenMarker(employeeId));
+
+  const seenTime = seenMarker ? new Date(seenMarker).getTime() : 0;
+  const unseenAdjusted = useMemo(
+    () =>
+      (entries ?? []).filter(e => {
+        const t = adjustedAt(e);
+        return t !== null && t > seenTime;
+      }),
+    [entries, seenTime],
+  );
+  const unseenIds = new Set(unseenAdjusted.map(e => e.id));
+
+  const dismissAdjustedCue = () => {
+    const newest = Math.max(...unseenAdjusted.map(e => adjustedAt(e) ?? 0));
+    const iso = new Date(newest).toISOString();
+    writeSeenMarker(employeeId, iso);
+    setSeenMarker(iso);
+  };
 
   if (isLoading) {
     return (
@@ -58,14 +105,52 @@ export function TimeEntriesList({ employeeId = '1', onEdit }: TimeEntriesListPro
 
   return (
     <div className="space-y-3">
+      {unseenAdjusted.length > 0 && (
+        <div
+          className="flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/5 p-4"
+          role="status"
+          data-testid="banner-adjusted"
+        >
+          <BellRing className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+          <div className="flex-1 text-sm">
+            <p className="font-medium">
+              Molly adjusted {unseenAdjusted.length === 1 ? 'one of your entries' : `${unseenAdjusted.length} of your entries`}
+            </p>
+            <p className="text-muted-foreground mt-0.5">
+              Look for the “Adjusted” badge below to see what changed.
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={dismissAdjustedCue}
+            data-testid="button-dismiss-adjusted"
+          >
+            Got it
+          </Button>
+        </div>
+      )}
       {entries.map(entry => (
-        <TimeEntryCard key={entry.id} entry={entry} onEdit={onEdit} />
+        <TimeEntryCard
+          key={entry.id}
+          entry={entry}
+          onEdit={onEdit}
+          recentlyAdjusted={unseenIds.has(entry.id)}
+        />
       ))}
     </div>
   );
 }
 
-function TimeEntryCard({ entry, onEdit }: { entry: TimeEntry; onEdit?: (entry: TimeEntry) => void }) {
+function TimeEntryCard({
+  entry,
+  onEdit,
+  recentlyAdjusted = false,
+}: {
+  entry: TimeEntry;
+  onEdit?: (entry: TimeEntry) => void;
+  recentlyAdjusted?: boolean;
+}) {
   const getStatusColor = (status: TimeEntry['status']) => {
     switch (status) {
       case 'approved':
@@ -96,6 +181,16 @@ function TimeEntryCard({ entry, onEdit }: { entry: TimeEntry; onEdit?: (entry: T
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {recentlyAdjusted && (
+              <Badge
+                className="bg-primary/10 text-primary border-primary/30"
+                variant="outline"
+                data-testid={`badge-adjusted-${entry.id}`}
+              >
+                <BellRing className="h-3 w-3 mr-1" />
+                Adjusted
+              </Badge>
+            )}
             <Badge variant={getStatusColor(entry.status)} data-testid={`status-${entry.id}`}>
               {statusLabels[entry.status]}
             </Badge>
