@@ -56,8 +56,13 @@ beforeAll(async () => {
   await cleanup();
   await db.insert(employeesTable).values({ id: EMP_ID, name: "Batch E2E Nurse", role: "RN" });
   await db.insert(clientsTable).values([
-    { id: CLIENT_ID, name: "Batch E2E Clinic" },
-    { id: NO_MILEAGE_CLIENT_ID, name: "Batch E2E No-Mileage Clinic", mileageOnContract: false },
+    { id: CLIENT_ID, name: "Batch E2E Clinic", billsByVisitType: true },
+    {
+      id: NO_MILEAGE_CLIENT_ID,
+      name: "Batch E2E No-Mileage Clinic",
+      mileageOnContract: false,
+      billsByVisitType: true,
+    },
   ]);
   server = app.listen(0);
   await new Promise<void>((resolve) => server.once("listening", () => resolve()));

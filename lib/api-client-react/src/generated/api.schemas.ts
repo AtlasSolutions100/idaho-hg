@@ -336,6 +336,8 @@ export interface Client {
   billingAddress?: string;
   /** Whether this client's contract includes mileage reimbursement */
   mileageOnContract: boolean;
+  /** Whether this client bills by visit type (only St. Luke's by default); other clients use the simple hourly form */
+  billsByVisitType: boolean;
 }
 
 export interface ClientInput {
@@ -353,6 +355,8 @@ export interface UpdateClientBilling {
   billingAddress?: string;
   /** Only applied when present; billing fields keep their clear-on-blank behavior */
   mileageOnContract?: boolean;
+  /** Only applied when present; controls whether the visit-type entry form is shown */
+  billsByVisitType?: boolean;
 }
 
 export interface Employee {

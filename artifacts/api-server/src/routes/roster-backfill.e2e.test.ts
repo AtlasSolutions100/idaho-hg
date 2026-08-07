@@ -7,8 +7,9 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { Server } from "node:http";
 import { inArray, and, eq } from "drizzle-orm";
-import { db, pool, clientsTable, clientRatesTable } from "@workspace/db";
+import { db, pool, clientsTable, clientRatesTable, appliedBackfillsTable } from "@workspace/db";
 import app from "../app";
+import { backfillStLukesVisitBilling } from "./roster";
 
 let server: Server;
 let baseUrl: string;
@@ -100,5 +101,37 @@ describe("backfill of later-added clients into a populated database", () => {
     const names = clients.body.map((c: { name: string }) => c.name);
     expect(names).toContain("St. Luke's Health System");
     expect(names).toContain("Weiser Memorial Hospital");
+  });
+});
+
+describe("one-time St. Luke's visit-billing backfill", () => {
+  const MARKER = "st-lukes-bills-by-visit-type";
+
+  it("turns on visit billing for St. Luke's exactly once, then respects admin changes", async () => {
+    // Simulate a database from before the column existed: flag false, no marker.
+    await db.delete(appliedBackfillsTable).where(eq(appliedBackfillsTable.name, MARKER));
+    await db
+      .update(clientsTable)
+      .set({ billsByVisitType: false })
+      .where(eq(clientsTable.id, "1"));
+
+    await backfillStLukesVisitBilling();
+    let [stLukes] = await db.select().from(clientsTable).where(eq(clientsTable.id, "1"));
+    expect(stLukes?.billsByVisitType).toBe(true);
+
+    // A later admin decision to turn it off must NOT be stomped on restart.
+    await db
+      .update(clientsTable)
+      .set({ billsByVisitType: false })
+      .where(eq(clientsTable.id, "1"));
+    await backfillStLukesVisitBilling();
+    [stLukes] = await db.select().from(clientsTable).where(eq(clientsTable.id, "1"));
+    expect(stLukes?.billsByVisitType).toBe(false);
+
+    // Restore the real state: St. Luke's bills by visit type.
+    await db
+      .update(clientsTable)
+      .set({ billsByVisitType: true })
+      .where(eq(clientsTable.id, "1"));
   });
 });

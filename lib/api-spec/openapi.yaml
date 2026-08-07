@@ -1852,12 +1852,16 @@ components:
         mileageOnContract:
           type: boolean
           description: Whether this client's contract includes mileage reimbursement
+        billsByVisitType:
+          type: boolean
+          description: Whether this client bills by visit type (only St. Luke's by default); other clients use the simple hourly form
       required:
         - id
         - name
         - active
         - isDemo
         - mileageOnContract
+        - billsByVisitType
     ClientInput:
       type: object
       properties:
@@ -1887,6 +1891,9 @@ components:
         mileageOnContract:
           type: boolean
           description: Only applied when present; billing fields keep their clear-on-blank behavior
+        billsByVisitType:
+          type: boolean
+          description: Only applied when present; controls whether the visit-type entry form is shown
     Employee:
       type: object
       properties:

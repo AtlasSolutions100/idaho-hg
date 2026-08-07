@@ -6,6 +6,7 @@ import {
   clientsTable,
   employeesTable,
   employeeLinkRequestsTable,
+  appliedBackfillsTable,
   clientRatesTable,
   employeeRatesTable,
   type ClientRow,
@@ -41,6 +42,9 @@ const seedClients = [
     id: "1",
     name: "St. Luke's Health System",
     billingAddress: "St Lukes Health System, Ltd\n190 E Bannock St\nBoise, ID 83712",
+    // St. Luke's is the only client that bills by visit type; everyone else
+    // uses the simple time-in/time-out form.
+    billsByVisitType: true,
   },
   { id: "2", name: "Weiser Memorial Hospital" },
   {
@@ -163,7 +167,26 @@ export async function ensureRosterSeeded() {
       })
       .where(and(eq(clientsTable.id, detail.id), isNull(clientsTable.billingAddress)));
   }
+  // St. Luke's is the only client billing by visit type. Applied exactly once
+  // per database (marker row) so a later admin change is never stomped.
+  await backfillStLukesVisitBilling();
   seeded = true;
+}
+
+// Exported for tests. One-time backfill: turn on visit billing for St. Luke's
+// (id "1") in databases created before the column existed. The marker row in
+// applied_backfills makes this run once ever, preserving admin changes after.
+export async function backfillStLukesVisitBilling() {
+  const inserted = await db
+    .insert(appliedBackfillsTable)
+    .values({ name: "st-lukes-bills-by-visit-type" })
+    .onConflictDoNothing()
+    .returning();
+  if (inserted.length === 0) return; // already applied
+  await db
+    .update(clientsTable)
+    .set({ billsByVisitType: true })
+    .where(eq(clientsTable.id, "1"));
 }
 
 function serializeClient(row: ClientRow) {
@@ -177,6 +200,7 @@ function serializeClient(row: ClientRow) {
     ...(row.billingContact ? { billingContact: row.billingContact } : {}),
     ...(row.billingAddress ? { billingAddress: row.billingAddress } : {}),
     mileageOnContract: row.mileageOnContract,
+    billsByVisitType: row.billsByVisitType,
   };
 }
 
@@ -332,6 +356,9 @@ router.patch("/clients/:id", requireAdmin, async (req, res, next) => {
         billingAddress: parsed.data.billingAddress?.trim() || null,
         ...(parsed.data.mileageOnContract !== undefined
           ? { mileageOnContract: parsed.data.mileageOnContract }
+          : {}),
+        ...(parsed.data.billsByVisitType !== undefined
+          ? { billsByVisitType: parsed.data.billsByVisitType }
           : {}),
       })
       .where(eq(clientsTable.id, String(req.params.id)))

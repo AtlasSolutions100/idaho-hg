@@ -12,6 +12,16 @@ export const clientsTable = pgTable("clients", {
   // employees can't submit mileage for the client. Defaults on so existing
   // clients keep working unchanged.
   mileageOnContract: boolean("mileage_on_contract").notNull().default(true),
+  // Whether this client bills by visit type (St. Luke's). When off, employees
+  // only log time in/out — the visit-type flow is hidden and rejected.
+  billsByVisitType: boolean("bills_by_visit_type").notNull().default(false),
+});
+
+// One-time data backfills that have been applied to this database. Lets
+// startup backfills run exactly once so later admin changes aren't stomped.
+export const appliedBackfillsTable = pgTable("applied_backfills", {
+  name: text("name").primaryKey(),
+  appliedAt: timestamp("applied_at").notNull().defaultNow(),
 });
 
 export const employeesTable = pgTable("employees", {

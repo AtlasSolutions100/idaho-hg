@@ -127,6 +127,11 @@ beforeAll(async () => {
   });
   expect(clientRes.status).toBe(201);
   clientId = clientRes.body.id;
+  // This test posts visit-type entries, so mark the client as visit-billing.
+  await db
+    .update(clientsTable)
+    .set({ billsByVisitType: true })
+    .where(eq(clientsTable.id, clientId));
   const hourly = await post("/client-rates", {
     clientId,
     rateType: "hourly",

@@ -86,6 +86,7 @@ export function ClientRatesTable() {
   const [billingContact, setBillingContact] = useState('');
   const [billingAddress, setBillingAddress] = useState('');
   const [mileageOnContract, setMileageOnContract] = useState(true);
+  const [billsByVisitType, setBillsByVisitType] = useState(false);
   const [removing, setRemoving] = useState<{ clientId: string; clientName: string } | null>(null);
 
   const [hourlyFor, setHourlyFor] = useState<{ clientId: string; clientName: string } | null>(null);
@@ -202,6 +203,7 @@ export function ClientRatesTable() {
     setBillingContact(client?.billingContact ?? '');
     setBillingAddress(client?.billingAddress ?? '');
     setMileageOnContract(client?.mileageOnContract ?? true);
+    setBillsByVisitType(client?.billsByVisitType ?? false);
     setBillingFor({ clientId, clientName });
   };
 
@@ -703,6 +705,20 @@ export function ClientRatesTable() {
                 data-testid="switch-mileage-on-contract"
               />
             </div>
+            <div className="flex items-center justify-between rounded-md border p-3">
+              <div className="space-y-0.5">
+                <Label htmlFor="bills-by-visit-type">Bills by visit type</Label>
+                <p className="text-xs text-muted-foreground">
+                  When on, employees pick visit types (like St. Luke's). When off, they just log time in and out.
+                </p>
+              </div>
+              <Switch
+                id="bills-by-visit-type"
+                checked={billsByVisitType}
+                onCheckedChange={setBillsByVisitType}
+                data-testid="switch-bills-by-visit-type"
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBillingFor(null)} data-testid="button-cancel-billing">
@@ -713,7 +729,7 @@ export function ClientRatesTable() {
                 billingFor &&
                 billingMutation.mutate({
                   id: billingFor.clientId,
-                  data: { billingContact, billingAddress, mileageOnContract },
+                  data: { billingContact, billingAddress, mileageOnContract, billsByVisitType },
                 })
               }
               disabled={billingMutation.isPending}

@@ -110,9 +110,13 @@ export default function LogEntryScreen() {
   const selectedClient = (clients ?? []).find((cl) => cl.id === clientId);
   // Clients whose contract doesn't include mileage never see the toggle.
   const mileageAllowed = selectedClient ? selectedClient.mileageOnContract : true;
+  // Visit types only apply to clients that bill by visit type (St. Luke's);
+  // everyone else gets the simple time-in/time-out form.
+  const billsByVisit = selectedClient?.billsByVisitType ?? false;
+  const effectiveEntryType: 'visit' | 'hourly' = billsByVisit ? entryType : 'hourly';
   const calculatedHours = useMemo(() => calculateHours(timeIn, timeOut), [timeIn, timeOut]);
   const overnight = calculatedHours != null && timeIn >= timeOut;
-  const timesValid = entryType !== 'hourly' || calculatedHours != null;
+  const timesValid = effectiveEntryType !== 'hourly' || calculatedHours != null;
   const mileageNumber = mileage ? parseFloat(mileage) : 0;
   const mileageValid =
     !hasMileage || !mileage || (!Number.isNaN(mileageNumber) && mileageNumber >= 0);
@@ -120,7 +124,7 @@ export default function LogEntryScreen() {
     !!employee &&
     !!clientId &&
     !!date &&
-    (entryType === 'visit' ? selectedVisitTypes.size > 0 : timesValid) &&
+    (effectiveEntryType === 'visit' ? selectedVisitTypes.size > 0 : timesValid) &&
     mileageValid &&
     !isSubmitting &&
     !saved;
@@ -145,7 +149,7 @@ export default function LogEntryScreen() {
     setIsSubmitting(true);
 
     try {
-      if (entryType === 'visit') {
+      if (effectiveEntryType === 'visit') {
         // Single atomic batch request — all visit types in one transaction.
         // If anything fails the whole batch rolls back; no partial state.
         await batchCreateEntries.mutateAsync({
@@ -200,7 +204,7 @@ export default function LogEntryScreen() {
     ? 'Submitted!'
     : isSubmitting
       ? 'Submitting…'
-      : entryType === 'visit' && selectedVisitTypes.size > 1
+      : effectiveEntryType === 'visit' && selectedVisitTypes.size > 1
         ? `Submit ${selectedVisitTypes.size} Visits`
         : 'Submit Hours';
 
@@ -252,7 +256,12 @@ export default function LogEntryScreen() {
                 key={client.id}
                 label={client.name}
                 selected={clientId === client.id}
-                onPress={() => setClientId(client.id)}
+                onPress={() => {
+                  setClientId(client.id);
+                  // Visit selections belong to the previous client — never
+                  // carry them over when switching.
+                  setSelectedVisitTypes(new Set());
+                }}
                 testID={`chip-client-${client.id}`}
               />
             ))}
@@ -273,7 +282,10 @@ export default function LogEntryScreen() {
           ))}
         </View>
 
-        {/* Visit vs hourly */}
+        {/* Visit vs hourly — only clients that bill by visit type (St. Luke's)
+            get the choice; everyone else logs time in/out. */}
+        {billsByVisit && (
+          <>
         <SectionLabel text="What are you logging?" />
         <View style={[styles.segment, { backgroundColor: c.muted }]}>
           {(['visit', 'hourly'] as const).map((t) => (
@@ -282,7 +294,7 @@ export default function LogEntryScreen() {
               onPress={() => setEntryType(t)}
               style={[
                 styles.segmentItem,
-                entryType === t && {
+                effectiveEntryType === t && {
                   backgroundColor: c.card,
                   shadowColor: '#000',
                   shadowOpacity: 0.08,
@@ -297,7 +309,7 @@ export default function LogEntryScreen() {
                 style={[
                   styles.segmentText,
                   {
-                    color: entryType === t ? c.foreground : c.mutedForeground,
+                    color: effectiveEntryType === t ? c.foreground : c.mutedForeground,
                   },
                 ]}
               >
@@ -306,8 +318,10 @@ export default function LogEntryScreen() {
             </Pressable>
           ))}
         </View>
+          </>
+        )}
 
-        {entryType === 'visit' ? (
+        {effectiveEntryType === 'visit' ? (
           <>
             <SectionLabel text="Visit type(s)" required />
             <Text style={[styles.helperText, { color: c.mutedForeground, marginTop: 0, marginBottom: 8 }]}>

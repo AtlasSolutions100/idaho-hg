@@ -60,6 +60,10 @@ export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursF
   const selectedClient = (clients ?? []).find((c) => c.id === clientId);
   // Hide (and never submit) mileage for clients whose contract doesn't include it.
   const mileageAllowed = selectedClient ? selectedClient.mileageOnContract : true;
+  // Visit types only apply to clients that bill by visit type (St. Luke's);
+  // everyone else gets the simple time-in/time-out form.
+  const billsByVisit = selectedClient?.billsByVisitType ?? false;
+  const effectiveEntryType: 'visit' | 'hourly' = billsByVisit ? entryType : 'hourly';
   const calculatedHours = useMemo(() => calculateHours(timeIn, timeOut), [timeIn, timeOut]);
   const overnight = calculatedHours != null && timeIn >= timeOut;
 
@@ -77,12 +81,12 @@ export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursF
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (entryType === 'visit' && selectedVisitTypes.size === 0) return;
-    if (entryType === 'hourly' && (!timeIn || !timeOut)) return;
+    if (effectiveEntryType === 'visit' && selectedVisitTypes.size === 0) return;
+    if (effectiveEntryType === 'hourly' && (!timeIn || !timeOut)) return;
 
     setIsSubmitting(true);
     try {
-      if (entryType === 'visit') {
+      if (effectiveEntryType === 'visit') {
         // Single atomic batch request — all visit types inserted in one transaction.
         // If anything fails the whole batch rolls back; no partial state.
         await batchCreateEntries.mutateAsync({
@@ -126,7 +130,7 @@ export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursF
   const canSubmit =
     !!clientId &&
     !!date &&
-    (entryType === 'visit'
+    (effectiveEntryType === 'visit'
       ? selectedVisitTypes.size > 0
       : !!(timeIn && timeOut)) &&
     !isSubmitting;
@@ -146,7 +150,12 @@ export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursF
               id="client"
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
+              onChange={(e) => {
+                setClientId(e.target.value);
+                // Visit selections belong to the previous client — never
+                // carry them over when switching.
+                setSelectedVisitTypes(new Set());
+              }}
               required
               data-testid="select-client"
             >
@@ -174,12 +183,15 @@ export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursF
             />
           </div>
 
-          {/* Entry Type Toggle */}
-          <Tabs value={entryType} onValueChange={(v) => setEntryType(v as 'visit' | 'hourly')}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="visit" data-testid="tab-visit">Visit</TabsTrigger>
-              <TabsTrigger value="hourly" data-testid="tab-hourly">Hourly</TabsTrigger>
-            </TabsList>
+          {/* Entry Type Toggle — only clients that bill by visit type (St. Luke's)
+              get the Visit/Hourly choice; everyone else logs time in/out. */}
+          <Tabs value={effectiveEntryType} onValueChange={(v) => setEntryType(v as 'visit' | 'hourly')}>
+            {billsByVisit && (
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="visit" data-testid="tab-visit">Visit</TabsTrigger>
+                <TabsTrigger value="hourly" data-testid="tab-hourly">Hourly</TabsTrigger>
+              </TabsList>
+            )}
 
             <TabsContent value="visit" className="space-y-4 mt-4">
               <div className="space-y-2">
@@ -386,7 +398,7 @@ export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursF
             )}
             {isSubmitting
               ? 'Submitting...'
-              : entryType === 'visit' && selectedVisitTypes.size > 1
+              : effectiveEntryType === 'visit' && selectedVisitTypes.size > 1
                 ? `Submit ${selectedVisitTypes.size} Visits`
                 : 'Submit Hours'}
           </Button>

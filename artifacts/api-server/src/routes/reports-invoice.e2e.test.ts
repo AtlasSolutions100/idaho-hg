@@ -111,6 +111,11 @@ describe("GET /reports/invoice end-to-end (mid-month rate change)", () => {
     });
     expect(clientRes.status).toBe(201);
     clientId = clientRes.body.id;
+    // This test posts visit-type entries, so mark the client as visit-billing.
+    await db
+      .update(clientsTable)
+      .set({ billsByVisitType: true })
+      .where(eq(clientsTable.id, clientId));
 
     // Find the skilled-nursing rate row created with the client, then edit it
     // twice (append-only history): $80 effective Mar 1, $100 effective Mar 15.

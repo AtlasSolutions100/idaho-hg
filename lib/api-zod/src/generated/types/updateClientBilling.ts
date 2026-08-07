@@ -11,4 +11,6 @@ export interface UpdateClientBilling {
   billingAddress?: string;
   /** Only applied when present; billing fields keep their clear-on-blank behavior */
   mileageOnContract?: boolean;
+  /** Only applied when present; controls whether the visit-type entry form is shown */
+  billsByVisitType?: boolean;
 }

@@ -17,4 +17,6 @@ export interface Client {
   billingAddress?: string;
   /** Whether this client's contract includes mileage reimbursement */
   mileageOnContract: boolean;
+  /** Whether this client bills by visit type (only St. Luke's by default); other clients use the simple hourly form */
+  billsByVisitType: boolean;
 }

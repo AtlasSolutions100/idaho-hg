@@ -265,3 +265,71 @@ describe("client mileage setting", () => {
     mockState.email = null;
   });
 });
+
+describe("visit types only for visit-billing clients", () => {
+  it("rejects a visit entry for a client that doesn't bill by visit type", async () => {
+    const res = await createEntry({ date: "2027-07-08", visitType: "skilled-nursing" });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain("doesn't bill by visit type");
+  });
+
+  it("rejects a batch of visits for a client that doesn't bill by visit type", async () => {
+    const res = await fetch(`${baseUrl}/api/time-entries/batch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        employeeId: EMP_ID,
+        clientId: CLIENT_ID,
+        date: "2027-07-08",
+        visitTypes: ["skilled-nursing", "eval"],
+      }),
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { message: string };
+    expect(body.message).toContain("doesn't bill by visit type");
+  });
+
+  it("admin can turn visit billing on, after which visits are accepted (and off again)", async () => {
+    // Only the admin can flip the setting.
+    mockState.email = null;
+    const anonPatch = await fetch(`${baseUrl}/api/clients/${CLIENT_ID}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ billsByVisitType: true }),
+    });
+    expect([401, 403]).toContain(anonPatch.status);
+
+    mockState.email = ADMIN_EMAIL;
+    const patch = await fetch(`${baseUrl}/api/clients/${CLIENT_ID}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ billsByVisitType: true }),
+    });
+    expect(patch.status).toBe(200);
+    const patched = (await patch.json()) as { billsByVisitType: boolean };
+    expect(patched.billsByVisitType).toBe(true);
+
+    // Entry submission happens without the admin session.
+    mockState.email = null;
+    const accepted = await createEntry({ date: "2027-07-09", visitType: "skilled-nursing" });
+    expect(accepted.status).toBe(201);
+    expect(accepted.body.visitType).toBe("skilled-nursing");
+
+    // Restore for other tests.
+    mockState.email = ADMIN_EMAIL;
+    const restore = await fetch(`${baseUrl}/api/clients/${CLIENT_ID}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ billsByVisitType: false }),
+    });
+    expect(restore.status).toBe(200);
+    expect(((await restore.json()) as { billsByVisitType: boolean }).billsByVisitType).toBe(false);
+    mockState.email = null;
+  });
+
+  it("hourly time-in/out entries still work for a simple client", async () => {
+    const res = await createEntry({ date: "2027-07-10", timeIn: "09:00", timeOut: "13:00" });
+    expect(res.status).toBe(201);
+    expect(res.body.hours).toBe(4);
+  });
+});

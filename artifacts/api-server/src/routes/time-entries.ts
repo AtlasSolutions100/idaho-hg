@@ -178,6 +178,13 @@ router.post("/time-entries", async (req, res, next) => {
       res.status(400).json({ message: "Provide a visit type or your time in and out" });
       return;
     }
+    // Visit types only apply to clients that bill by visit type (St. Luke's).
+    if (body.visitType && !client.billsByVisitType) {
+      res.status(400).json({
+        message: `${client.name} doesn't bill by visit type — just log your time in and out.`,
+      });
+      return;
+    }
     // Mileage is only billable when the client's contract includes it.
     if (body.mileage != null && body.mileage > 0 && !client.mileageOnContract) {
       res.status(400).json({
@@ -297,6 +304,13 @@ router.post("/time-entries/batch", async (req, res, next) => {
     }
     if (body.mileage != null && body.mileage > 0 && !client.mileageOnContract) {
       res.status(400).json({ message: `${client.name} doesn't include mileage on their contract.` });
+      return;
+    }
+    // The batch route only exists for visit-type billing (St. Luke's).
+    if (!client.billsByVisitType) {
+      res.status(400).json({
+        message: `${client.name} doesn't bill by visit type — just log your time in and out.`,
+      });
       return;
     }
     const isWeekend = isWeekendDate(body.date);

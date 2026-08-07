@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { Server } from "node:http";
 import { inArray, eq } from "drizzle-orm";
-import { db, pool, timeEntriesTable, employeesTable } from "@workspace/db";
+import { db, pool, timeEntriesTable, employeesTable, clientsTable } from "@workspace/db";
 import app from "../app";
 
 let server: Server;
@@ -58,6 +58,13 @@ beforeAll(async () => {
   // Trigger roster + rate seeding and capture the current billing rates so
   // assertions compare against whatever rate is actually in effect.
   expect((await api("/clients")).status).toBe(200);
+
+  // This file posts visit entries against Idaho Youth Ranch; visit entries
+  // are only accepted for visit-billing clients, so flip it on for the test.
+  await db
+    .update(clientsTable)
+    .set({ billsByVisitType: true })
+    .where(eq(clientsTable.id, IDAHO_YOUTH_RANCH));
   const ratesRes = await api("/client-rates");
   expect(ratesRes.status).toBe(200);
   clientRates = ratesRes.body;
@@ -74,6 +81,12 @@ afterAll(async () => {
     await db.delete(timeEntriesTable).where(inArray(timeEntriesTable.id, createdEntryIds));
   }
   await db.delete(employeesTable).where(eq(employeesTable.id, NO_RATE_EMPLOYEE));
+  // Restore Idaho Youth Ranch to the simple hourly form (only St. Luke's
+  // bills by visit type outside this test).
+  await db
+    .update(clientsTable)
+    .set({ billsByVisitType: false })
+    .where(eq(clientsTable.id, IDAHO_YOUTH_RANCH));
   await new Promise<void>((resolve, reject) =>
     server.close((err) => (err ? reject(err) : resolve())),
   );

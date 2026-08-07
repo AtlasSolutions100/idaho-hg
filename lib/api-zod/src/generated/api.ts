@@ -406,7 +406,8 @@ export const ListClientsResponseItem = zod.object({
   "isDemo": zod.boolean(),
   "billingContact": zod.string().optional().describe('Optional contact person shown on PDF invoices'),
   "billingAddress": zod.string().optional().describe('Optional multi-line billing address shown on PDF invoices'),
-  "mileageOnContract": zod.boolean().describe('Whether this client\'s contract includes mileage reimbursement')
+  "mileageOnContract": zod.boolean().describe('Whether this client\'s contract includes mileage reimbursement'),
+  "billsByVisitType": zod.boolean().describe('Whether this client bills by visit type (only St. Luke\'s by default); other clients use the simple hourly form')
 })
 export const ListClientsResponse = zod.array(ListClientsResponseItem)
 
@@ -434,7 +435,8 @@ export const CreateClientResponse = zod.object({
   "isDemo": zod.boolean(),
   "billingContact": zod.string().optional().describe('Optional contact person shown on PDF invoices'),
   "billingAddress": zod.string().optional().describe('Optional multi-line billing address shown on PDF invoices'),
-  "mileageOnContract": zod.boolean().describe('Whether this client\'s contract includes mileage reimbursement')
+  "mileageOnContract": zod.boolean().describe('Whether this client\'s contract includes mileage reimbursement'),
+  "billsByVisitType": zod.boolean().describe('Whether this client bills by visit type (only St. Luke\'s by default); other clients use the simple hourly form')
 })
 
 
@@ -448,7 +450,8 @@ export const UpdateClientBillingParams = zod.object({
 export const UpdateClientBillingBody = zod.object({
   "billingContact": zod.string().optional(),
   "billingAddress": zod.string().optional(),
-  "mileageOnContract": zod.boolean().optional().describe('Only applied when present; billing fields keep their clear-on-blank behavior')
+  "mileageOnContract": zod.boolean().optional().describe('Only applied when present; billing fields keep their clear-on-blank behavior'),
+  "billsByVisitType": zod.boolean().optional().describe('Only applied when present; controls whether the visit-type entry form is shown')
 })
 
 export const UpdateClientBillingResponse = zod.object({
@@ -458,7 +461,8 @@ export const UpdateClientBillingResponse = zod.object({
   "isDemo": zod.boolean(),
   "billingContact": zod.string().optional().describe('Optional contact person shown on PDF invoices'),
   "billingAddress": zod.string().optional().describe('Optional multi-line billing address shown on PDF invoices'),
-  "mileageOnContract": zod.boolean().describe('Whether this client\'s contract includes mileage reimbursement')
+  "mileageOnContract": zod.boolean().describe('Whether this client\'s contract includes mileage reimbursement'),
+  "billsByVisitType": zod.boolean().describe('Whether this client bills by visit type (only St. Luke\'s by default); other clients use the simple hourly form')
 })
 
 
@@ -476,7 +480,8 @@ export const RemoveClientResponse = zod.object({
   "isDemo": zod.boolean(),
   "billingContact": zod.string().optional().describe('Optional contact person shown on PDF invoices'),
   "billingAddress": zod.string().optional().describe('Optional multi-line billing address shown on PDF invoices'),
-  "mileageOnContract": zod.boolean().describe('Whether this client\'s contract includes mileage reimbursement')
+  "mileageOnContract": zod.boolean().describe('Whether this client\'s contract includes mileage reimbursement'),
+  "billsByVisitType": zod.boolean().describe('Whether this client bills by visit type (only St. Luke\'s by default); other clients use the simple hourly form')
 })
 
 
