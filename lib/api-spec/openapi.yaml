@@ -429,6 +429,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/VisitEntryCount"
+  /clients/{id}/hourly-entry-count:
+    get:
+      operationId: getClientHourlyEntryCount
+      tags: [time-entries]
+      summary: Count a client's plain hourly time entries in recent months
+      description: >
+        Returns how many time entries without a visit type exist for the client
+        in the current and previous two calendar months. Used to warn before
+        turning on visit-type billing for a client whose employees log plain
+        time in/out.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Hourly (no visit type) entry count for recent months
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HourlyEntryCount"
   /clients/{id}:
     patch:
       operationId: updateClientBilling
@@ -1861,6 +1884,13 @@ components:
         count:
           type: number
           description: Number of visit-type time entries in the current and previous two calendar months
+    HourlyEntryCount:
+      type: object
+      required: [count]
+      properties:
+        count:
+          type: number
+          description: Number of time entries without a visit type in the current and previous two calendar months
     Client:
       type: object
       properties:

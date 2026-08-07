@@ -454,6 +454,19 @@ export const GetClientVisitEntryCountResponse = zod.object({
 
 
 /**
+ * Returns how many time entries without a visit type exist for the client in the current and previous two calendar months. Used to warn before turning on visit-type billing for a client whose employees log plain time in/out.
+ * @summary Count a client's plain hourly time entries in recent months
+ */
+export const GetClientHourlyEntryCountParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const GetClientHourlyEntryCountResponse = zod.object({
+  "count": zod.number().describe('Number of time entries without a visit type in the current and previous two calendar months')
+})
+
+
+/**
  * @summary Update a client's optional billing contact and address
  */
 export const UpdateClientBillingParams = zod.object({

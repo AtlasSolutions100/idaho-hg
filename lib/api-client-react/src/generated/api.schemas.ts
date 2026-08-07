@@ -330,6 +330,11 @@ export interface VisitEntryCount {
   count: number;
 }
 
+export interface HourlyEntryCount {
+  /** Number of time entries without a visit type in the current and previous two calendar months */
+  count: number;
+}
+
 export interface Client {
   id: string;
   name: string;

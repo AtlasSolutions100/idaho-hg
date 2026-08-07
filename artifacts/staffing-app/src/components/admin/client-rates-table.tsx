@@ -11,6 +11,8 @@ import {
   useUpdateClientBilling,
   useGetClientVisitEntryCount,
   getGetClientVisitEntryCountQueryKey,
+  useGetClientHourlyEntryCount,
+  getGetClientHourlyEntryCountQueryKey,
   getListClientRatesQueryKey,
   getListClientRateHistoryQueryKey,
   getListClientsQueryKey,
@@ -92,6 +94,7 @@ export function ClientRatesTable() {
   // Set when Molly tries to turn off visit billing for a client that still has
   // recent visit-type entries — she must confirm before the change saves.
   const [confirmVisitOff, setConfirmVisitOff] = useState(false);
+  const [confirmVisitOn, setConfirmVisitOn] = useState(false);
   const [removing, setRemoving] = useState<{ clientId: string; clientName: string } | null>(null);
 
   const [hourlyFor, setHourlyFor] = useState<{ clientId: string; clientName: string } | null>(null);
@@ -188,6 +191,7 @@ export function ClientRatesTable() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListClientsQueryKey() });
         setConfirmVisitOff(false);
+        setConfirmVisitOn(false);
         setBillingFor(null);
         toast({
           title: 'Billing details saved',
@@ -220,6 +224,16 @@ export function ClientRatesTable() {
   });
   const recentVisitCount = visitCountQuery.data?.count ?? 0;
 
+  // Recent plain hourly (no visit type) entry count — used to warn before
+  // turning visit billing ON for a client whose employees log time in/out.
+  const hourlyCountQuery = useGetClientHourlyEntryCount(billingFor?.clientId ?? '', {
+    query: {
+      enabled: !!billingFor,
+      queryKey: getGetClientHourlyEntryCountQueryKey(billingFor?.clientId ?? ''),
+    },
+  });
+  const recentHourlyCount = hourlyCountQuery.data?.count ?? 0;
+
   const saveBilling = () => {
     if (!billingFor) return;
     billingMutation.mutate({
@@ -234,6 +248,12 @@ export function ClientRatesTable() {
     // how employees log time — make Molly confirm before saving.
     if (savedBillsByVisitType && !billsByVisitType && recentVisitCount > 0) {
       setConfirmVisitOff(true);
+      return;
+    }
+    // Turning visit billing ON for a client with recent plain hourly entries
+    // means employees must suddenly pick visit types — confirm first.
+    if (!savedBillsByVisitType && billsByVisitType && recentHourlyCount > 0) {
+      setConfirmVisitOn(true);
       return;
     }
     saveBilling();
@@ -836,6 +856,40 @@ export function ClientRatesTable() {
             >
               {billingMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
               Turn Off Visit Billing
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation before turning ON visit billing for a client with recent plain hourly entries */}
+      <Dialog open={confirmVisitOn} onOpenChange={(open) => !open && setConfirmVisitOn(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Turn on visit billing?</DialogTitle>
+            <DialogDescription data-testid="text-confirm-visit-on">
+              {billingFor
+                ? `${billingFor.clientName} has ${recentHourlyCount} hourly ${
+                    recentHourlyCount === 1 ? 'entry' : 'entries'
+                  } without a visit type in recent months. Turning this on means employees must pick a visit type when logging time for this client, and this billing period will mix hourly and visit entries. Past entries are kept.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmVisitOn(false)}
+              data-testid="button-cancel-visit-on"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={saveBilling}
+              disabled={billingMutation.isPending}
+              className="gap-2"
+              data-testid="button-confirm-visit-on"
+            >
+              {billingMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Turn On Visit Billing
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -44,6 +44,7 @@ import type {
   GetReconciliationReportParams,
   GetWorkflowStatusParams,
   HealthStatus,
+  HourlyEntryCount,
   InvoiceReport,
   LinkRequest,
   ListTimeEntriesParams,
@@ -1353,6 +1354,84 @@ export function useGetClientVisitEntryCount<TData = Awaited<ReturnType<typeof ge
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetClientVisitEntryCountQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetClientHourlyEntryCountUrl = (id: string,) => {
+
+
+
+
+  return `/api/clients/${id}/hourly-entry-count`
+}
+
+/**
+ * Returns how many time entries without a visit type exist for the client in the current and previous two calendar months. Used to warn before turning on visit-type billing for a client whose employees log plain time in/out.
+ * @summary Count a client's plain hourly time entries in recent months
+ */
+export const getClientHourlyEntryCount = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<HourlyEntryCount> => {
+
+  return customFetch<HourlyEntryCount>(getGetClientHourlyEntryCountUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetClientHourlyEntryCountQueryKey = (id: string,) => {
+    return [
+    `/api/clients/${id}/hourly-entry-count`
+    ] as const;
+    }
+
+
+export const getGetClientHourlyEntryCountQueryOptions = <TData = Awaited<ReturnType<typeof getClientHourlyEntryCount>>, TError = ErrorType<unknown>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClientHourlyEntryCount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetClientHourlyEntryCountQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getClientHourlyEntryCount>>> = ({ signal }) => getClientHourlyEntryCount(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getClientHourlyEntryCount>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetClientHourlyEntryCountQueryResult = NonNullable<Awaited<ReturnType<typeof getClientHourlyEntryCount>>>
+export type GetClientHourlyEntryCountQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Count a client's plain hourly time entries in recent months
+ */
+
+export function useGetClientHourlyEntryCount<TData = Awaited<ReturnType<typeof getClientHourlyEntryCount>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClientHourlyEntryCount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetClientHourlyEntryCountQueryOptions(id,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

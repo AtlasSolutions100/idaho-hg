@@ -49,6 +49,8 @@ beforeEach(() => {
       if (path === '/api/clients') return jsonResponse([client]);
       if (path === '/api/clients/client-1/visit-entry-count')
         return jsonResponse({ count: visitCount });
+      if (path === '/api/clients/client-1/hourly-entry-count')
+        return jsonResponse({ count: 0 });
       if (path === '/api/clients/client-1' && init?.method === 'PATCH') {
         const body = JSON.parse(String(init.body));
         billingPatchBodies.push(body);
