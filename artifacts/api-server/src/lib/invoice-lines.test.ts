@@ -133,6 +133,36 @@ describe("buildInvoiceLines", () => {
     expect(total).toBe(110 + 32.75 + 45);
   });
 
+  it("bills mileage and per diem once per multi-visit day, not per visit", () => {
+    // A multi-visit day arrives as three entries (one per visit type); the
+    // batch endpoint attaches mileage/per-diem to the first entry only. The
+    // line builder must therefore bill each visit but count mileage and per
+    // diem exactly once for the day.
+    const { lines, total } = buildInvoiceLines([
+      entry({
+        id: 1,
+        date: "2026-07-20",
+        visitType: "soc",
+        visitRate: 135,
+        mileage: 24,
+        mileageRate: 0.655,
+        perDiem: 1,
+        perDiemRate: 45,
+      }),
+      entry({ id: 2, date: "2026-07-20", visitType: "eval", visitRate: 135 }),
+      entry({ id: 3, date: "2026-07-20", visitType: "recert", visitRate: 135 }),
+    ]);
+    const mileageLines = lines.filter((l) => l.kind === "mileage");
+    const perDiemLines = lines.filter((l) => l.kind === "per-diem");
+    expect(mileageLines).toHaveLength(1);
+    expect(mileageLines[0]).toMatchObject({ qty: 24, amount: 15.72 });
+    expect(perDiemLines).toHaveLength(1);
+    expect(perDiemLines[0]).toMatchObject({ qty: 1, amount: 45 });
+    // 3 visits + one day's mileage + one day's per diem
+    expect(lines.filter((l) => l.kind === "visit")).toHaveLength(3);
+    expect(total).toBe(3 * 135 + 15.72 + 45);
+  });
+
   it("orders by employee name, then visits, hourly, mileage, per diem", () => {
     const { lines } = buildInvoiceLines([
       entry({ id: 1, date: "2026-07-10", employeeId: "e2", employeeName: "Zoe Adams", employeeRole: "RN", visitType: "skilled-nursing", visitRate: 120 }),

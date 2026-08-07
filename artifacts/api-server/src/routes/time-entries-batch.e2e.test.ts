@@ -147,6 +147,38 @@ describe("mileage and per-diem exactly once", () => {
     expect(withPerDiem[0]!.perDiemType).toBe("full");
   });
 
+  it("three visit types with both extras: exactly one entry gets mileage, one gets per diem, the rest get neither", async () => {
+    const res = await batchCreate({
+      date: "2028-03-11",
+      visitTypes: ["skilled-nursing", "eval", "recert"],
+      mileage: 18.4,
+      perDiemType: "full",
+    });
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveLength(3);
+
+    const entries = res.body as Array<{
+      mileage?: number;
+      perDiem?: number;
+      perDiemType?: string;
+    }>;
+    const withMileage = entries.filter((e) => e.mileage != null && e.mileage > 0);
+    const withPerDiem = entries.filter((e) => e.perDiem != null && e.perDiem > 0);
+    expect(withMileage).toHaveLength(1);
+    expect(withMileage[0]!.mileage).toBe(18.4);
+    expect(withPerDiem).toHaveLength(1);
+    expect(withPerDiem[0]!.perDiem).toBe(1);
+    expect(withPerDiem[0]!.perDiemType).toBe("full");
+
+    const withNeither = entries.filter(
+      (e) => !(e.mileage != null && e.mileage > 0) && !(e.perDiem != null && e.perDiem > 0),
+    );
+    expect(withNeither).toHaveLength(2);
+    for (const e of withNeither) {
+      expect(e.perDiemType ?? null).toBeNull();
+    }
+  });
+
   it("mileage and per diem both go on first entry only when submitted together", async () => {
     const res = await batchCreate({
       date: "2028-03-08",
