@@ -48,7 +48,64 @@ function serialize(row: TimeEntryRow) {
     isDemo: row.isDemo,
     submittedAt: row.submittedAt.toISOString(),
     ...(row.approvedAt ? { approvedAt: row.approvedAt.toISOString() } : {}),
+    ...(row.adminEditedAt ? { adminEditedAt: row.adminEditedAt.toISOString() } : {}),
+    ...(row.adminEditSummary ? { adminEditSummary: row.adminEditSummary } : {}),
   };
+}
+
+// Human-readable "what Molly changed" summary for the employee's audit
+// trail, e.g. `Mileage: 12 → 20; Note: "typo" → "fixed"`. Returns null when
+// nothing actually changed so a no-op save leaves no trail.
+export function summarizeAdminChanges(
+  existing: TimeEntryRow,
+  next: {
+    clientName: string;
+    date: string;
+    visitType: string | null;
+    timeIn: string | null;
+    timeOut: string | null;
+    hours: number | null;
+    mileage: number | null;
+    perDiem: number | null;
+    perDiemType: string | null;
+    note: string | null;
+  },
+): string | null {
+  const show = (v: string | number | null | undefined) =>
+    v == null || v === "" ? "none" : String(v);
+  const changes: string[] = [];
+  const compare = (
+    label: string,
+    before: string | number | null | undefined,
+    after: string | number | null | undefined,
+  ) => {
+    if ((before ?? null) !== (after ?? null)) {
+      changes.push(`${label}: ${show(before)} → ${show(after)}`);
+    }
+  };
+  compare("Client", existing.clientName, next.clientName);
+  compare("Date", existing.date, next.date);
+  compare("Visit type", existing.visitType, next.visitType);
+  // Clock times move together — report them as one change.
+  if (existing.timeIn !== next.timeIn || existing.timeOut !== next.timeOut) {
+    const before =
+      existing.timeIn && existing.timeOut ? `${existing.timeIn}–${existing.timeOut}` : null;
+    const after = next.timeIn && next.timeOut ? `${next.timeIn}–${next.timeOut}` : null;
+    changes.push(`Times: ${show(before)} → ${show(after)}`);
+  }
+  compare("Hours", existing.hours, next.hours);
+  compare("Mileage", existing.mileage, next.mileage);
+  if (existing.perDiemType !== next.perDiemType || (existing.perDiem ?? null) !== (next.perDiem ?? null)) {
+    const label = (t: string | null, n: number | null) =>
+      t === "first_last" ? "First/Last day" : t === "full" ? "Full day" : n != null && n > 0 ? String(n) : "none";
+    changes.push(
+      `Per diem: ${label(existing.perDiemType, existing.perDiem)} → ${label(next.perDiemType, next.perDiem)}`,
+    );
+  }
+  if ((existing.note ?? null) !== (next.note ?? null)) {
+    changes.push(`Note: ${existing.note ? `"${existing.note}"` : "none"} → ${next.note ? `"${next.note}"` : "none"}`);
+  }
+  return changes.length > 0 ? changes.join("; ") : null;
 }
 
 router.get("/time-entries", async (req, res, next) => {
@@ -461,36 +518,42 @@ router.patch("/time-entries/:id", async (req, res, next) => {
       res.status(404).json({ message: "Entry not found" });
       return;
     }
-    // Only the entry's own signed-in employee may edit it. Molly's admin
-    // session can't edit entries (that's a separate feature), anonymous
-    // requests are refused outright, and another signed-in employee must
-    // never even learn the entry exists.
+    // Who may edit: the entry's own signed-in employee, or Molly's verified
+    // admin session (so she can fix a typo before approving instead of
+    // rejecting and waiting). Anonymous requests are refused outright, and
+    // another signed-in employee must never even learn the entry exists.
     const admin = await verifyAdminRequest(req);
-    if (admin.ok) {
-      res.status(403).json({ message: "Entries can only be edited by the employee who logged them." });
-      return;
-    }
-    const session = await resolveSessionEmployee(req);
-    if (session.kind === "none") {
-      res.status(401).json({ message: "Please sign in first." });
-      return;
-    }
-    if (session.kind === "disabled") {
-      res.status(403).json({ code: "SIGN_IN_DISABLED", message: "Your sign-in has been turned off. Ask Molly if you think this is a mistake." });
-      return;
-    }
-    if (session.kind === "pending") {
-      res.status(403).json({ code: "LINK_REQUEST_PENDING", message: "Molly still needs to confirm it's you. Check back in a bit." });
-      return;
-    }
-    if (session.kind === "unknown") {
-      res.status(403).json({ code: "NOT_LINKED", message: "This email isn't linked to a team profile yet. Pick your name to get set up." });
-      return;
-    }
-    if (session.kind === "employee" && session.employee.id !== existing.employeeId) {
-      // Don't reveal whether the entry exists to someone who doesn't own it.
-      res.status(404).json({ message: "Entry not found" });
-      return;
+    const isAdminEdit = admin.ok;
+    if (isAdminEdit) {
+      // Drafts are private to their author — Molly never sees them in lists,
+      // so an admin edit against a draft id must not reveal it exists.
+      if (existing.status === "draft") {
+        res.status(404).json({ message: "Entry not found" });
+        return;
+      }
+    } else {
+      const session = await resolveSessionEmployee(req);
+      if (session.kind === "none") {
+        res.status(401).json({ message: "Please sign in first." });
+        return;
+      }
+      if (session.kind === "disabled") {
+        res.status(403).json({ code: "SIGN_IN_DISABLED", message: "Your sign-in has been turned off. Ask Molly if you think this is a mistake." });
+        return;
+      }
+      if (session.kind === "pending") {
+        res.status(403).json({ code: "LINK_REQUEST_PENDING", message: "Molly still needs to confirm it's you. Check back in a bit." });
+        return;
+      }
+      if (session.kind === "unknown") {
+        res.status(403).json({ code: "NOT_LINKED", message: "This email isn't linked to a team profile yet. Pick your name to get set up." });
+        return;
+      }
+      if (session.kind === "employee" && session.employee.id !== existing.employeeId) {
+        // Don't reveal whether the entry exists to someone who doesn't own it.
+        res.status(404).json({ message: "Entry not found" });
+        return;
+      }
     }
     if (existing.status === "approved") {
       res.status(400).json({
@@ -500,12 +563,17 @@ router.patch("/time-entries/:id", async (req, res, next) => {
     }
     // A draft can stay a draft or be submitted; a submitted or rejected entry
     // always comes out of an edit as submitted (an edit is a resubmission).
+    // An admin edit is a correction, not a resubmission — the entry keeps its
+    // current status and its original submittedAt.
     if (body.status === "draft" && existing.status !== "draft") {
       res.status(400).json({ message: "A submitted entry can't be turned back into a draft." });
       return;
     }
-    const nextStatus =
-      existing.status === "draft" ? (body.status ?? "draft") : "submitted";
+    const nextStatus = isAdminEdit
+      ? existing.status
+      : existing.status === "draft"
+        ? (body.status ?? "draft")
+        : "submitted";
     const [client] = await db
       .select()
       .from(clientsTable)
@@ -551,8 +619,25 @@ router.patch("/time-entries/:id", async (req, res, next) => {
     const perDiemType = body.perDiemType ?? null;
     const perDiem = perDiemType ? 1 : (body.perDiem ?? null);
     // Submitting (a draft, or resubmitting after a rejection/edit) stamps a
-    // fresh submittedAt so Molly sees when it actually reached her.
-    const becameSubmitted = nextStatus === "submitted";
+    // fresh submittedAt so Molly sees when it actually reached her. Admin
+    // corrections never restamp it — the employee's submission time stands.
+    const becameSubmitted = !isAdminEdit && nextStatus === "submitted";
+    // Audit trail for admin edits: a human-readable list of what Molly
+    // changed, shown to the employee in their apps.
+    const adminEditSummary = isAdminEdit
+      ? summarizeAdminChanges(existing, {
+          clientName: client.name,
+          date: body.date,
+          visitType: body.visitType ?? null,
+          timeIn: hasTimes ? (body.timeIn ?? null) : null,
+          timeOut: hasTimes ? (body.timeOut ?? null) : null,
+          hours,
+          mileage: body.mileage ?? null,
+          perDiem,
+          perDiemType,
+          note: body.note ?? null,
+        })
+      : null;
     const [row] = await db
       .update(timeEntriesTable)
       .set({
@@ -571,6 +656,12 @@ router.patch("/time-entries/:id", async (req, res, next) => {
         note: body.note ?? null,
         status: nextStatus,
         ...(becameSubmitted ? { submittedAt: new Date() } : {}),
+        // Only stamp the audit trail when the admin actually changed
+        // something; a no-op save shouldn't tell the employee "Molly
+        // adjusted this".
+        ...(isAdminEdit && adminEditSummary
+          ? { adminEditedAt: new Date(), adminEditSummary }
+          : {}),
         isDemo: existing.isDemo || client.isDemo,
       })
       .where(eq(timeEntriesTable.id, numericId))

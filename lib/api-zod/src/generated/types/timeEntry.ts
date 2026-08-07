@@ -33,4 +33,8 @@ export interface TimeEntry {
   isDemo?: boolean;
   submittedAt: string;
   approvedAt?: string;
+  /** When Molly (admin) last adjusted this entry during approval */
+  adminEditedAt?: string;
+  /** Human-readable summary of what Molly changed */
+  adminEditSummary?: string;
 }

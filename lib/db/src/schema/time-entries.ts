@@ -37,6 +37,10 @@ export const timeEntriesTable = pgTable("time_entries", {
     .notNull()
     .defaultNow(),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
+  // Set when Molly (admin) edits the entry during approval — the audit trail
+  // the employee sees. Summary is a human-readable list of what changed.
+  adminEditedAt: timestamp("admin_edited_at", { withTimezone: true }),
+  adminEditSummary: text("admin_edit_summary"),
 });
 
 export const insertTimeEntrySchema = createInsertSchema(timeEntriesTable).omit(

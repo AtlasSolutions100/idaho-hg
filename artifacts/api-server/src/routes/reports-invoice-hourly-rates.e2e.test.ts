@@ -53,11 +53,24 @@ beforeAll(async () => {
   baseUrl = `http://127.0.0.1:${address.port}`;
 
   // Trigger roster + rate seeding and capture the current billing rates so
-  // assertions compare against whatever rate is actually in effect.
+  // assertions compare against whatever rate is actually in effect. On a
+  // fresh database, seeding can still be in flight in another concurrently
+  // running test file's process — retry until the seeded rates this file
+  // depends on are actually visible, so we never snapshot a half-seeded list.
   expect((await api("/clients")).status).toBe(200);
-  const ratesRes = await api("/client-rates");
-  expect(ratesRes.status).toBe(200);
-  clientRates = ratesRes.body;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const ratesRes = await api("/client-rates");
+    expect(ratesRes.status).toBe(200);
+    clientRates = ratesRes.body;
+    const seeded =
+      clientRates.some((r: any) => r.clientId === WEISER && r.visitType === "hourly-RN") &&
+      clientRates.some((r: any) => r.clientId === WEISER && r.visitType === "hourly-PT") &&
+      clientRates.some((r: any) => r.clientId === IDAHO_YOUTH_RANCH && r.visitType === "hourly-RN") &&
+      clientRates.some((r: any) => r.clientId === TREASURE_VALLEY && r.visitType === "hourly") &&
+      clientRates.some((r: any) => r.clientId === CURRENT_PT && r.visitType === "hourly-PT");
+    if (seeded) break;
+    await new Promise((r) => setTimeout(r, 250));
+  }
 });
 
 afterAll(async () => {

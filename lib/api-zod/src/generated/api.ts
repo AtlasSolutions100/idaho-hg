@@ -47,7 +47,9 @@ export const ListTimeEntriesResponseItem = zod.object({
   "status": zod.enum(['draft', 'submitted', 'approved', 'rejected']),
   "isDemo": zod.boolean().optional(),
   "submittedAt": zod.string(),
-  "approvedAt": zod.string().optional()
+  "approvedAt": zod.string().optional(),
+  "adminEditedAt": zod.string().optional().describe('When Molly (admin) last adjusted this entry during approval'),
+  "adminEditSummary": zod.string().optional().describe('Human-readable summary of what Molly changed')
 })
 export const ListTimeEntriesResponse = zod.array(ListTimeEntriesResponseItem)
 
@@ -105,12 +107,14 @@ export const CreateTimeEntryResponse = zod.object({
   "status": zod.enum(['draft', 'submitted', 'approved', 'rejected']),
   "isDemo": zod.boolean().optional(),
   "submittedAt": zod.string(),
-  "approvedAt": zod.string().optional()
+  "approvedAt": zod.string().optional(),
+  "adminEditedAt": zod.string().optional().describe('When Molly (admin) last adjusted this entry during approval'),
+  "adminEditSummary": zod.string().optional().describe('Human-readable summary of what Molly changed')
 })
 
 
 /**
- * Replaces the entry's editable fields, re-running all creation rules (visit-type gating, mileage-on-contract, clock-time hours, valid dates). Only the entry's own employee may edit; approved entries are locked. Passing status "submitted" on a draft or rejected entry submits it.
+ * Replaces the entry's editable fields, re-running all creation rules (visit-type gating, mileage-on-contract, clock-time hours, valid dates). The entry's own employee may edit, and Molly (admin) may fix a submitted entry before approving it — admin edits are recorded on the entry (adminEditedAt / adminEditSummary) so the employee can see what changed. Approved entries are locked. Passing status "submitted" on a draft or rejected entry submits it.
  * @summary Edit a time entry (draft, submitted, or rejected — never approved)
  */
 export const UpdateTimeEntryParams = zod.object({
@@ -164,7 +168,9 @@ export const UpdateTimeEntryResponse = zod.object({
   "status": zod.enum(['draft', 'submitted', 'approved', 'rejected']),
   "isDemo": zod.boolean().optional(),
   "submittedAt": zod.string(),
-  "approvedAt": zod.string().optional()
+  "approvedAt": zod.string().optional(),
+  "adminEditedAt": zod.string().optional().describe('When Molly (admin) last adjusted this entry during approval'),
+  "adminEditSummary": zod.string().optional().describe('Human-readable summary of what Molly changed')
 })
 
 
@@ -196,7 +202,9 @@ export const ApproveTimeEntryResponse = zod.object({
   "status": zod.enum(['draft', 'submitted', 'approved', 'rejected']),
   "isDemo": zod.boolean().optional(),
   "submittedAt": zod.string(),
-  "approvedAt": zod.string().optional()
+  "approvedAt": zod.string().optional(),
+  "adminEditedAt": zod.string().optional().describe('When Molly (admin) last adjusted this entry during approval'),
+  "adminEditSummary": zod.string().optional().describe('Human-readable summary of what Molly changed')
 })
 
 
@@ -228,7 +236,9 @@ export const RejectTimeEntryResponse = zod.object({
   "status": zod.enum(['draft', 'submitted', 'approved', 'rejected']),
   "isDemo": zod.boolean().optional(),
   "submittedAt": zod.string(),
-  "approvedAt": zod.string().optional()
+  "approvedAt": zod.string().optional(),
+  "adminEditedAt": zod.string().optional().describe('When Molly (admin) last adjusted this entry during approval'),
+  "adminEditSummary": zod.string().optional().describe('Human-readable summary of what Molly changed')
 })
 
 
@@ -274,7 +284,9 @@ export const BatchCreateTimeEntriesResponseItem = zod.object({
   "status": zod.enum(['draft', 'submitted', 'approved', 'rejected']),
   "isDemo": zod.boolean().optional(),
   "submittedAt": zod.string(),
-  "approvedAt": zod.string().optional()
+  "approvedAt": zod.string().optional(),
+  "adminEditedAt": zod.string().optional().describe('When Molly (admin) last adjusted this entry during approval'),
+  "adminEditSummary": zod.string().optional().describe('Human-readable summary of what Molly changed')
 })
 export const BatchCreateTimeEntriesResponse = zod.array(BatchCreateTimeEntriesResponseItem)
 

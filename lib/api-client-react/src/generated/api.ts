@@ -342,7 +342,7 @@ export const getUpdateTimeEntryUrl = (id: string,) => {
 }
 
 /**
- * Replaces the entry's editable fields, re-running all creation rules (visit-type gating, mileage-on-contract, clock-time hours, valid dates). Only the entry's own employee may edit; approved entries are locked. Passing status "submitted" on a draft or rejected entry submits it.
+ * Replaces the entry's editable fields, re-running all creation rules (visit-type gating, mileage-on-contract, clock-time hours, valid dates). The entry's own employee may edit, and Molly (admin) may fix a submitted entry before approving it — admin edits are recorded on the entry (adminEditedAt / adminEditSummary) so the employee can see what changed. Approved entries are locked. Passing status "submitted" on a draft or rejected entry submits it.
  * @summary Edit a time entry (draft, submitted, or rejected — never approved)
  */
 export const updateTimeEntry = async (id: string,

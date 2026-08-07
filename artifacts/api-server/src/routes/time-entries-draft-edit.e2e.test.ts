@@ -372,10 +372,11 @@ describe("approval locks the entry", () => {
     mockState.email = null;
   });
 
-  it("the admin session can't edit entries (that's a separate feature)", async () => {
+  it("refuses admin edits once approved too", async () => {
     mockState.email = null;
     const created = await newEntry({ date: "2027-08-20" });
     const id = created.body.id as string;
+    await api("POST", `/time-entries/${id}/approve`);
 
     mockState.email = ADMIN_EMAIL;
     const edited = await api("PATCH", `/time-entries/${id}`, {
@@ -384,7 +385,118 @@ describe("approval locks the entry", () => {
       timeIn: "08:00",
       timeOut: "12:00",
     });
-    expect(edited.status).toBe(403);
+    expect(edited.status).toBe(400);
+    expect(edited.body.message).toContain("approved and can no longer be changed");
+    mockState.email = null;
+  });
+});
+
+describe("admin fixes an entry before approving it", () => {
+  it("the admin edits a submitted entry, it stays submitted, and the audit trail records what changed", async () => {
+    mockState.email = null;
+    const created = await newEntry({ date: "2027-08-24", mileage: 12, note: "typo" });
+    const id = created.body.id as string;
+    const originalSubmittedAt = created.body.submittedAt as string;
+
+    mockState.email = ADMIN_EMAIL;
+    const edited = await api("PATCH", `/time-entries/${id}`, {
+      clientId: CLIENT_ID,
+      date: "2027-08-24",
+      timeIn: "08:00",
+      timeOut: "13:00",
+      mileage: 20,
+      note: "fixed",
+    });
+    expect(edited.status).toBe(200);
+    // A correction, not a resubmission: status and submittedAt are untouched.
+    expect(edited.body.status).toBe("submitted");
+    expect(edited.body.submittedAt).toBe(originalSubmittedAt);
+    expect(edited.body.mileage).toBe(20);
+    expect(edited.body.hours).toBe(5);
+    // The employee-visible audit trail says what changed and when.
+    expect(edited.body.adminEditedAt).toBeTruthy();
+    expect(edited.body.adminEditSummary).toContain("Times: 08:00–12:00 → 08:00–13:00");
+    expect(edited.body.adminEditSummary).toContain("Mileage: 12 → 20");
+    expect(edited.body.adminEditSummary).toContain('Note: "typo" → "fixed"');
+    mockState.email = null;
+  });
+
+  it("an admin edit that changes nothing leaves no audit trail", async () => {
+    mockState.email = null;
+    const created = await newEntry({ date: "2027-08-25" });
+    const id = created.body.id as string;
+
+    mockState.email = ADMIN_EMAIL;
+    const edited = await api("PATCH", `/time-entries/${id}`, {
+      clientId: CLIENT_ID,
+      date: "2027-08-25",
+      timeIn: "08:00",
+      timeOut: "12:00",
+    });
+    expect(edited.status).toBe(200);
+    expect(edited.body.adminEditedAt).toBeUndefined();
+    expect(edited.body.adminEditSummary).toBeUndefined();
+    mockState.email = null;
+  });
+
+  it("admin edits re-run the create-time rules", async () => {
+    mockState.email = null;
+    const created = await newEntry({ date: "2027-08-26" });
+    const id = created.body.id as string;
+
+    mockState.email = ADMIN_EMAIL;
+    const badMileage = await api("PATCH", `/time-entries/${id}`, {
+      clientId: NO_MILEAGE_CLIENT_ID,
+      date: "2027-08-26",
+      timeIn: "08:00",
+      timeOut: "12:00",
+      mileage: 25,
+    });
+    expect(badMileage.status).toBe(400);
+    expect(badMileage.body.message).toContain("doesn't include mileage on their contract");
+
+    const badVisitType = await api("PATCH", `/time-entries/${id}`, {
+      clientId: CLIENT_ID,
+      date: "2027-08-26",
+      visitType: "skilled-nursing",
+    });
+    expect(badVisitType.status).toBe(400);
+    expect(badVisitType.body.message).toContain("doesn't bill by visit type");
+    mockState.email = null;
+  });
+
+  it("admin edits against a private draft come back as not found", async () => {
+    mockState.email = EMP_EMAIL;
+    const created = await newEntry({ status: "draft", date: "2027-08-27" });
+    const id = created.body.id as string;
+
+    mockState.email = ADMIN_EMAIL;
+    const edited = await api("PATCH", `/time-entries/${id}`, {
+      clientId: CLIENT_ID,
+      date: "2027-08-27",
+      timeIn: "08:00",
+      timeOut: "12:00",
+    });
+    expect(edited.status).toBe(404);
+    mockState.email = null;
+  });
+
+  it("a rejected entry the admin fixes stays rejected (she can still approve it after)", async () => {
+    mockState.email = null;
+    const created = await newEntry({ date: "2027-08-28" });
+    const id = created.body.id as string;
+    await api("POST", `/time-entries/${id}/reject`);
+
+    mockState.email = ADMIN_EMAIL;
+    const edited = await api("PATCH", `/time-entries/${id}`, {
+      clientId: CLIENT_ID,
+      date: "2027-08-28",
+      timeIn: "08:00",
+      timeOut: "16:00",
+    });
+    expect(edited.status).toBe(200);
+    expect(edited.body.status).toBe("rejected");
+    expect(edited.body.adminEditSummary).toContain("Times");
     mockState.email = null;
   });
 });

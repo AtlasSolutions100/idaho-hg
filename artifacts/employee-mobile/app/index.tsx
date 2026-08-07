@@ -559,6 +559,17 @@ function EntryCard({ entry }: { entry: TimeEntry }) {
           {entry.note}
         </Text>
       ) : null}
+
+      {entry.adminEditedAt ? (
+        <Text
+          style={[styles.cardNote, { color: c.mutedForeground, borderTopColor: c.border }]}
+          numberOfLines={3}
+          testID={`admin-edit-${entry.id}`}
+        >
+          Molly adjusted this entry on {formatDate(entry.adminEditedAt.slice(0, 10))}
+          {entry.adminEditSummary ? ` — ${entry.adminEditSummary}` : ''}
+        </Text>
+      ) : null}
     </Pressable>
   );
 }

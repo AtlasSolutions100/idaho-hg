@@ -183,6 +183,18 @@ function TimeEntryCard({ entry, onEdit }: { entry: TimeEntry; onEdit?: (entry: T
             <p className="text-sm text-muted-foreground italic">{entry.note}</p>
           </div>
         )}
+
+        {entry.adminEditedAt && !Number.isNaN(new Date(entry.adminEditedAt).getTime()) && (
+          <div className="pt-2 border-t" data-testid={`admin-edit-${entry.id}`}>
+            <p className="text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">
+                Molly adjusted this entry
+              </span>{' '}
+              on {format(new Date(entry.adminEditedAt), 'MMM d, yyyy h:mm a')}
+              {entry.adminEditSummary ? <> — {entry.adminEditSummary}</> : null}
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

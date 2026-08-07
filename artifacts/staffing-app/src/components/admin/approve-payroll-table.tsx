@@ -15,8 +15,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { visitTypeLabels, perDiemTypeLabels } from '@/lib/data';
 import { format } from 'date-fns';
-import { Check, X, Loader2, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { Check, X, Loader2, AlertCircle, ChevronDown, ChevronRight, Pencil } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { AdminEditEntryForm } from './admin-edit-entry-form';
 
 /** Monday (local) of the week containing a YYYY-MM-DD date, as YYYY-MM-DD. */
 export function mondayOf(dateStr: string): string {
@@ -152,6 +153,7 @@ export function ApprovePayrollTable() {
   });
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [editingId, setEditingId] = useState<string | null>(null);
   const toggleExpanded = (id: string) =>
     setExpandedIds(prev => {
       const next = new Set(prev);
@@ -359,6 +361,29 @@ export function ApprovePayrollTable() {
                         className="bg-muted/40 px-6 py-4"
                         data-testid={`entry-detail-${entry.id}`}
                       >
+                        {editingId === entry.id ? (
+                          <div className="max-w-3xl">
+                            <AdminEditEntryForm
+                              entry={entry}
+                              onSaved={() => {
+                                setEditingId(null);
+                                invalidate();
+                                toast({
+                                  title: 'Entry updated',
+                                  description: `${entry.employeeName} will see what you changed.`,
+                                });
+                              }}
+                              onCancel={() => setEditingId(null)}
+                              onError={(message) =>
+                                toast({
+                                  title: "Couldn't save changes",
+                                  description: message,
+                                  variant: 'destructive',
+                                })
+                              }
+                            />
+                          </div>
+                        ) : (
                         <div className="max-w-3xl space-y-4">
                           <div className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3 text-sm">
                             {day.totalVisits > 0 && (
@@ -420,6 +445,15 @@ export function ApprovePayrollTable() {
                               </div>
                             )}
                           </div>
+                          {entry.adminEditedAt && !Number.isNaN(new Date(entry.adminEditedAt).getTime()) && (
+                            <div className="sm:col-span-2 lg:col-span-3">
+                              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">You adjusted this entry</div>
+                              <div className="text-muted-foreground" data-testid={`detail-admin-edit-${entry.id}`}>
+                                {format(new Date(entry.adminEditedAt), 'MMM d, yyyy h:mm a')}
+                                {entry.adminEditSummary ? ` — ${entry.adminEditSummary}` : ''}
+                              </div>
+                            </div>
+                          )}
                           {day.notes.length > 0 && (
                             <div>
                               <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">Notes</div>
@@ -431,7 +465,21 @@ export function ApprovePayrollTable() {
                               </div>
                             </div>
                           )}
+                          <div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-1.5"
+                              onClick={() => setEditingId(entry.id)}
+                              disabled={isActing}
+                              data-testid={`button-fix-entry-${entry.id}`}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              Fix this entry
+                            </Button>
+                          </div>
                         </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   ) : null,

@@ -9,3 +9,5 @@ Invoice/report e2e test files all hit the same live database and run concurrentl
 Also: seeding-vs-demo race — any e2e file that inserts legacy demo employee IDs ("1"–"6") can make a concurrently-running file's `ensureRosterSeeded` take the demo-purge branch. That branch must still run the idempotent client backfills (never early-return before them), or other files randomly lose Current PT/Thrive from `/clients`.
 
 **How to apply:** when adding an e2e report/invoice test file, grep existing `*.e2e.test.ts` for the date constants and pick an unused month. Also: employee-rate lookups fall back to the earliest history row, so "no rate on file" can only be simulated with an employee that has ZERO rate rows — insert directly into employeesTable, since POST /employees always creates a rate row.
+
+- Fresh-DB seed race: e2e files that snapshot seeded client rates in beforeAll must poll until the expected seeded rate keys appear — another test file may still be seeding concurrently on a brand-new database (surfaced in validation runs, not local reruns).

@@ -101,8 +101,11 @@ paths:
       description: >
         Replaces the entry's editable fields, re-running all creation rules
         (visit-type gating, mileage-on-contract, clock-time hours, valid dates).
-        Only the entry's own employee may edit; approved entries are locked.
-        Passing status "submitted" on a draft or rejected entry submits it.
+        The entry's own employee may edit, and Molly (admin) may fix a
+        submitted entry before approving it — admin edits are recorded on the
+        entry (adminEditedAt / adminEditSummary) so the employee can see what
+        changed. Approved entries are locked. Passing status "submitted" on a
+        draft or rejected entry submits it.
       parameters:
         - name: id
           in: path
@@ -2341,6 +2344,12 @@ components:
           type: string
         approvedAt:
           type: string
+        adminEditedAt:
+          type: string
+          description: When Molly (admin) last adjusted this entry during approval
+        adminEditSummary:
+          type: string
+          description: Human-readable summary of what Molly changed
       required:
         - id
         - employeeId
