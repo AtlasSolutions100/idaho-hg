@@ -50,6 +50,7 @@ import type {
   ListTimeEntriesParams,
   OnboardingItem,
   PayrollReport,
+  PriceTimeEntry,
   QboDisconnectResult,
   QboInvoiceSend,
   QboSendConflict,
@@ -406,6 +407,79 @@ export const useUpdateTimeEntry = <TError = ErrorType<ApiError>,
       return useMutation(getUpdateTimeEntryMutationOptions(options));
     }
 
+export const getPriceTimeEntryUrl = (id: string,) => {
+
+
+
+
+  return `/api/time-entries/${id}/price`
+}
+
+/**
+ * Admin only. "Other" one-off entries have no standard rate — Molly sets a flat pay amount (what the employee receives) and optionally a flat billing amount (what the client is invoiced) while reviewing. Approved entries are locked; drafts are never visible to the admin.
+ * @summary Set the pay (and optional client billing) amount for an "Other" entry
+ */
+export const priceTimeEntry = async (id: string,
+    priceTimeEntry: PriceTimeEntry, options?: Parameters<typeof customFetch>[1]): Promise<TimeEntry> => {
+
+  return customFetch<TimeEntry>(getPriceTimeEntryUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(priceTimeEntry)
+  }
+);}
+
+
+
+
+
+export const getPriceTimeEntryMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof priceTimeEntry>>, TError,{id: string;data: BodyType<PriceTimeEntry>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof priceTimeEntry>>, TError,{id: string;data: BodyType<PriceTimeEntry>}, TContext> => {
+
+const mutationKey = ['priceTimeEntry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof priceTimeEntry>>, {id: string;data: BodyType<PriceTimeEntry>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  priceTimeEntry(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PriceTimeEntryMutationResult = NonNullable<Awaited<ReturnType<typeof priceTimeEntry>>>
+    export type PriceTimeEntryMutationBody = BodyType<PriceTimeEntry>
+    export type PriceTimeEntryMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Set the pay (and optional client billing) amount for an "Other" entry
+ */
+export const usePriceTimeEntry = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof priceTimeEntry>>, TError,{id: string;data: BodyType<PriceTimeEntry>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof priceTimeEntry>>,
+        TError,
+        {id: string;data: BodyType<PriceTimeEntry>},
+        TContext
+      > => {
+      return useMutation(getPriceTimeEntryMutationOptions(options));
+    }
+
 export const getApproveTimeEntryUrl = (id: string,) => {
 
 
@@ -629,6 +703,7 @@ export const getApproveAllTimeEntriesUrl = () => {
 }
 
 /**
+ * Approves every waiting (submitted) entry EXCEPT "Other" one-offs that Molly hasn't priced yet — approving would lock them with no pay amount. Skipped entries are counted so the UI can tell her to price them first.
  * @summary Approve all submitted time entries
  */
 export const approveAllTimeEntries = async ( options?: Parameters<typeof customFetch>[1]): Promise<ApproveAllResult> => {

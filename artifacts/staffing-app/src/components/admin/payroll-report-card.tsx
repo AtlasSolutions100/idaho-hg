@@ -29,7 +29,11 @@ function payrollCsv(report: PayrollReport): string[][] {
         emp.employeeRole,
         line.date,
         line.clientName,
-        line.visitType ? visitTypeLabels[line.visitType] : 'Hourly',
+        line.isOther
+          ? `Other${line.description ? ` — ${line.description}` : ''}`
+          : line.visitType
+            ? visitTypeLabels[line.visitType]
+            : 'Hourly',
         line.hours != null ? String(line.hours) : '',
         String(line.multiplier),
         line.basePay.toFixed(2),
@@ -187,10 +191,21 @@ export function PayrollReportCard() {
                           <TableCell className="max-w-[160px]"><div className="truncate">{line.clientName}</div></TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1 flex-wrap">
-                              <span className="text-sm">{line.visitType ? visitTypeLabels[line.visitType] : 'Hourly'}</span>
+                              <span className="text-sm">
+                                {line.isOther ? 'Other' : line.visitType ? visitTypeLabels[line.visitType] : 'Hourly'}
+                              </span>
+                              {line.isOther && line.description ? (
+                                <span className="text-xs text-muted-foreground truncate max-w-[180px]" title={line.description}>
+                                  {line.description}
+                                </span>
+                              ) : null}
                               {line.isWeekend && <Badge variant="outline" className="text-xs">WE</Badge>}
                               {line.isHoliday && <Badge variant="outline" className="text-xs">HOL</Badge>}
-                              {line.missingRate && <Badge variant="destructive" className="text-xs">No rate</Badge>}
+                              {line.missingRate && (
+                                <Badge variant="destructive" className="text-xs">
+                                  {line.isOther ? 'Needs amount' : 'No rate'}
+                                </Badge>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell className="text-right font-mono">{line.hours ?? '—'}</TableCell>

@@ -23,4 +23,8 @@ export interface PayrollReportLine {
   perDiemPay: number;
   total: number;
   missingRate: boolean;
+  /** One-off "Other" work paid at Molly's custom amount */
+  isOther?: boolean;
+  /** The employee's description of an Other entry */
+  description?: string;
 }

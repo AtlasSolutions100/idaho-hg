@@ -44,5 +44,7 @@ export interface CreateTimeEntry {
   /** Ignored — the server determines holidays from its own calendar */
   isHoliday?: boolean;
   note?: string;
+  /** One-off "Other" work (training, meetings, professional development). Requires a description in `note` and time worked; visit type and per diem are not allowed. Molly sets the pay amount when reviewing. */
+  isOther?: boolean;
   status?: CreateEntryStatus;
 }

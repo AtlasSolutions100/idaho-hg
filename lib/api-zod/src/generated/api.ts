@@ -44,6 +44,9 @@ export const ListTimeEntriesResponseItem = zod.object({
   "isWeekend": zod.boolean(),
   "isHoliday": zod.boolean(),
   "note": zod.string().optional(),
+  "isOther": zod.boolean().optional().describe('One-off \"Other\" work (training, meetings) paid at a custom amount Molly sets'),
+  "customPayAmount": zod.number().optional().describe('Molly\'s flat pay amount in dollars for an Other entry; unset means it still needs pricing'),
+  "customBillAmount": zod.number().optional().describe('Optional flat amount billed to the client for an Other entry; unset means not billed'),
   "status": zod.enum(['draft', 'submitted', 'approved', 'rejected']),
   "isDemo": zod.boolean().optional(),
   "submittedAt": zod.string(),
@@ -83,6 +86,7 @@ export const CreateTimeEntryBody = zod.object({
   "isWeekend": zod.boolean().optional().describe('Ignored — the server derives weekend from the date'),
   "isHoliday": zod.boolean().optional().describe('Ignored — the server determines holidays from its own calendar'),
   "note": zod.string().optional(),
+  "isOther": zod.boolean().optional().describe('One-off \"Other\" work (training, meetings, professional development). Requires a description in `note` and time worked; visit type and per diem are not allowed. Molly sets the pay amount when reviewing.\n'),
   "status": zod.enum(['draft', 'submitted']).optional().describe('Initial status for a new entry — save as a private draft or submit for approval. Defaults to submitted.')
 })
 
@@ -104,6 +108,9 @@ export const CreateTimeEntryResponse = zod.object({
   "isWeekend": zod.boolean(),
   "isHoliday": zod.boolean(),
   "note": zod.string().optional(),
+  "isOther": zod.boolean().optional().describe('One-off \"Other\" work (training, meetings) paid at a custom amount Molly sets'),
+  "customPayAmount": zod.number().optional().describe('Molly\'s flat pay amount in dollars for an Other entry; unset means it still needs pricing'),
+  "customBillAmount": zod.number().optional().describe('Optional flat amount billed to the client for an Other entry; unset means not billed'),
   "status": zod.enum(['draft', 'submitted', 'approved', 'rejected']),
   "isDemo": zod.boolean().optional(),
   "submittedAt": zod.string(),
@@ -165,6 +172,58 @@ export const UpdateTimeEntryResponse = zod.object({
   "isWeekend": zod.boolean(),
   "isHoliday": zod.boolean(),
   "note": zod.string().optional(),
+  "isOther": zod.boolean().optional().describe('One-off \"Other\" work (training, meetings) paid at a custom amount Molly sets'),
+  "customPayAmount": zod.number().optional().describe('Molly\'s flat pay amount in dollars for an Other entry; unset means it still needs pricing'),
+  "customBillAmount": zod.number().optional().describe('Optional flat amount billed to the client for an Other entry; unset means not billed'),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'rejected']),
+  "isDemo": zod.boolean().optional(),
+  "submittedAt": zod.string(),
+  "approvedAt": zod.string().optional(),
+  "adminEditedAt": zod.string().optional().describe('When Molly (admin) last adjusted this entry during approval'),
+  "adminEditSummary": zod.string().optional().describe('Human-readable summary of what Molly changed')
+})
+
+
+/**
+ * Admin only. "Other" one-off entries have no standard rate — Molly sets a flat pay amount (what the employee receives) and optionally a flat billing amount (what the client is invoiced) while reviewing. Approved entries are locked; drafts are never visible to the admin.
+ * @summary Set the pay (and optional client billing) amount for an "Other" entry
+ */
+export const PriceTimeEntryParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const priceTimeEntryBodyCustomPayAmountMin = 0;
+
+export const priceTimeEntryBodyCustomBillAmountMin = 0;
+
+
+
+export const PriceTimeEntryBody = zod.object({
+  "customPayAmount": zod.number().min(priceTimeEntryBodyCustomPayAmountMin).nullable().describe('Flat pay in dollars; null clears the pricing'),
+  "customBillAmount": zod.number().min(priceTimeEntryBodyCustomBillAmountMin).nullish().describe('Optional flat client billing amount; null\/omitted means not billed')
+})
+
+export const PriceTimeEntryResponse = zod.object({
+  "id": zod.string(),
+  "employeeId": zod.string(),
+  "employeeName": zod.string(),
+  "employeeRole": zod.string(),
+  "clientId": zod.string(),
+  "clientName": zod.string(),
+  "date": zod.string(),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'mccall-per-diem', 'mie-first-last-day', 'mie-full-day']).optional(),
+  "timeIn": zod.string().optional().describe('Clock-in time \"HH:MM\" (24-hour)'),
+  "timeOut": zod.string().optional().describe('Clock-out time \"HH:MM\" (24-hour)'),
+  "hours": zod.number().optional(),
+  "mileage": zod.number().optional(),
+  "perDiem": zod.number().optional(),
+  "perDiemType": zod.enum(['first_last', 'full']).optional().describe('Per-diem option — \"First\/Last day\" or \"Full day\"'),
+  "isWeekend": zod.boolean(),
+  "isHoliday": zod.boolean(),
+  "note": zod.string().optional(),
+  "isOther": zod.boolean().optional().describe('One-off \"Other\" work (training, meetings) paid at a custom amount Molly sets'),
+  "customPayAmount": zod.number().optional().describe('Molly\'s flat pay amount in dollars for an Other entry; unset means it still needs pricing'),
+  "customBillAmount": zod.number().optional().describe('Optional flat amount billed to the client for an Other entry; unset means not billed'),
   "status": zod.enum(['draft', 'submitted', 'approved', 'rejected']),
   "isDemo": zod.boolean().optional(),
   "submittedAt": zod.string(),
@@ -199,6 +258,9 @@ export const ApproveTimeEntryResponse = zod.object({
   "isWeekend": zod.boolean(),
   "isHoliday": zod.boolean(),
   "note": zod.string().optional(),
+  "isOther": zod.boolean().optional().describe('One-off \"Other\" work (training, meetings) paid at a custom amount Molly sets'),
+  "customPayAmount": zod.number().optional().describe('Molly\'s flat pay amount in dollars for an Other entry; unset means it still needs pricing'),
+  "customBillAmount": zod.number().optional().describe('Optional flat amount billed to the client for an Other entry; unset means not billed'),
   "status": zod.enum(['draft', 'submitted', 'approved', 'rejected']),
   "isDemo": zod.boolean().optional(),
   "submittedAt": zod.string(),
@@ -233,6 +295,9 @@ export const RejectTimeEntryResponse = zod.object({
   "isWeekend": zod.boolean(),
   "isHoliday": zod.boolean(),
   "note": zod.string().optional(),
+  "isOther": zod.boolean().optional().describe('One-off \"Other\" work (training, meetings) paid at a custom amount Molly sets'),
+  "customPayAmount": zod.number().optional().describe('Molly\'s flat pay amount in dollars for an Other entry; unset means it still needs pricing'),
+  "customBillAmount": zod.number().optional().describe('Optional flat amount billed to the client for an Other entry; unset means not billed'),
   "status": zod.enum(['draft', 'submitted', 'approved', 'rejected']),
   "isDemo": zod.boolean().optional(),
   "submittedAt": zod.string(),
@@ -281,6 +346,9 @@ export const BatchCreateTimeEntriesResponseItem = zod.object({
   "isWeekend": zod.boolean(),
   "isHoliday": zod.boolean(),
   "note": zod.string().optional(),
+  "isOther": zod.boolean().optional().describe('One-off \"Other\" work (training, meetings) paid at a custom amount Molly sets'),
+  "customPayAmount": zod.number().optional().describe('Molly\'s flat pay amount in dollars for an Other entry; unset means it still needs pricing'),
+  "customBillAmount": zod.number().optional().describe('Optional flat amount billed to the client for an Other entry; unset means not billed'),
   "status": zod.enum(['draft', 'submitted', 'approved', 'rejected']),
   "isDemo": zod.boolean().optional(),
   "submittedAt": zod.string(),
@@ -292,10 +360,12 @@ export const BatchCreateTimeEntriesResponse = zod.array(BatchCreateTimeEntriesRe
 
 
 /**
+ * Approves every waiting (submitted) entry EXCEPT "Other" one-offs that Molly hasn't priced yet — approving would lock them with no pay amount. Skipped entries are counted so the UI can tell her to price them first.
  * @summary Approve all submitted time entries
  */
 export const ApproveAllTimeEntriesResponse = zod.object({
-  "approvedCount": zod.number()
+  "approvedCount": zod.number(),
+  "skippedUnpricedOtherCount": zod.number().describe('Waiting \"Other\" one-offs left unapproved because they have no pay amount yet')
 })
 
 
@@ -1009,7 +1079,9 @@ export const GetPayrollReportResponse = zod.object({
   "perDiem": zod.number().optional(),
   "perDiemPay": zod.number(),
   "total": zod.number(),
-  "missingRate": zod.boolean()
+  "missingRate": zod.boolean(),
+  "isOther": zod.boolean().optional().describe('One-off \"Other\" work paid at Molly\'s custom amount'),
+  "description": zod.string().optional().describe('The employee\'s description of an Other entry')
 })),
   "visitCount": zod.number(),
   "totalHours": zod.number(),
@@ -1046,7 +1118,7 @@ export const GetInvoiceReportResponse = zod.object({
   "qty": zod.number(),
   "rate": zod.number().optional(),
   "amount": zod.number(),
-  "kind": zod.enum(['visit', 'hourly', 'mileage', 'per-diem']),
+  "kind": zod.enum(['visit', 'hourly', 'mileage', 'per-diem', 'other']),
   "missingRate": zod.boolean(),
   "note": zod.string().optional()
 })),
@@ -1084,7 +1156,8 @@ export const GetReconciliationReportResponse = zod.object({
   "perDiem": zod.number().optional(),
   "isWeekend": zod.boolean(),
   "isHoliday": zod.boolean(),
-  "note": zod.string()
+  "note": zod.string(),
+  "isOther": zod.boolean().optional().describe('One-off \"Other\" work (training, meetings) — see the note for what it was')
 })),
   "visitCounts": zod.array(zod.object({
   "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'mccall-per-diem', 'mie-first-last-day', 'mie-full-day']),

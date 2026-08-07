@@ -14,4 +14,5 @@ export const InvoiceLineKind = {
   hourly: 'hourly',
   mileage: 'mileage',
   'per-diem': 'per-diem',
+  other: 'other',
 } as const;

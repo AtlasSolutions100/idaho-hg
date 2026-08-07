@@ -29,6 +29,12 @@ export interface TimeEntry {
   isWeekend: boolean;
   isHoliday: boolean;
   note?: string;
+  /** One-off "Other" work (training, meetings) paid at a custom amount Molly sets */
+  isOther?: boolean;
+  /** Molly's flat pay amount in dollars for an Other entry; unset means it still needs pricing */
+  customPayAmount?: number;
+  /** Optional flat amount billed to the client for an Other entry; unset means not billed */
+  customBillAmount?: number;
   status: EntryStatus;
   isDemo?: boolean;
   submittedAt: string;

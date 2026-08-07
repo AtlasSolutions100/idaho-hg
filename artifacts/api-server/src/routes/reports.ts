@@ -90,6 +90,9 @@ router.get("/reports/payroll", async (req, res, next) => {
         clientName: entry.clientName,
         ...(entry.visitType ? { visitType: entry.visitType } : {}),
         ...(entry.hours != null ? { hours: entry.hours } : {}),
+        // One-off "Other" work: labeled and carrying the employee's
+        // description so the export reads like Molly's spreadsheets.
+        ...(entry.isOther ? { isOther: true, description: entry.note ?? "" } : {}),
         isWeekend: entry.isWeekend,
         isHoliday: entry.isHoliday,
         multiplier,

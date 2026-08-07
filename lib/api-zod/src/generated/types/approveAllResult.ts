@@ -8,4 +8,6 @@
 
 export interface ApproveAllResult {
   approvedCount: number;
+  /** Waiting "Other" one-offs left unapproved because they have no pay amount yet */
+  skippedUnpricedOtherCount: number;
 }

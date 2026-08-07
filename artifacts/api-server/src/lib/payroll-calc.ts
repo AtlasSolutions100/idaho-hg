@@ -20,6 +20,10 @@ export type PayrollEntryInput = {
   perDiem: number | null;
   isWeekend: boolean;
   isHoliday: boolean;
+  /** "Other" one-off — paid the flat customPayAmount instead of any rate. */
+  isOther?: boolean;
+  /** Admin-set flat pay for an Other entry; null/undefined = not priced yet. */
+  customPayAmount?: number | null;
 };
 
 export type PayrollAmounts = {
@@ -59,6 +63,24 @@ export function computePayrollAmounts(
   entry: PayrollEntryInput,
   rate: PayrollRate | undefined,
 ): PayrollAmounts {
+  // "Other" one-offs pay Molly's flat custom amount — no rate table, no
+  // weekend/holiday multiplier. An unpriced Other entry is flagged
+  // (missingRate) rather than silently paid $0. Mileage still reimburses at
+  // the employee's mileage rate when one exists.
+  if (entry.isOther) {
+    const priced = entry.customPayAmount != null;
+    const basePay = priced ? entry.customPayAmount! : 0;
+    const needsMileageRate = entry.mileage != null && entry.mileage > 0;
+    const mileagePay = needsMileageRate && rate ? entry.mileage! * rate.mileageRate : 0;
+    return {
+      multiplier: 1,
+      basePay,
+      mileagePay,
+      perDiemPay: 0,
+      total: round2(basePay + mileagePay),
+      missingRate: !priced || (needsMileageRate && !rate),
+    };
+  }
   if (!rate) {
     return { multiplier: 1, basePay: 0, mileagePay: 0, perDiemPay: 0, total: 0, missingRate: true };
   }

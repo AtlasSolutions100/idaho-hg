@@ -53,7 +53,7 @@ function reconciliationCsv(report: ReconciliationReport): string[][] {
         line.date,
         emp.employeeName,
         emp.employeeRole,
-        line.visitType ? visitTypeLabels[line.visitType] : line.hours != null ? 'Hourly' : '',
+        line.isOther ? 'Other' : line.visitType ? visitTypeLabels[line.visitType] : line.hours != null ? 'Hourly' : '',
         num(line.hours),
         num(line.mileage),
         num(line.perDiem),
@@ -252,7 +252,7 @@ export function ReconciliationReportCard() {
                           </TableCell>
                           <TableCell className="text-sm whitespace-nowrap">
                             <div className="flex items-center gap-1 flex-wrap">
-                              <span>{line.visitType ? visitTypeLabels[line.visitType] : line.hours != null ? 'Hourly' : ''}</span>
+                              <span>{line.isOther ? 'Other' : line.visitType ? visitTypeLabels[line.visitType] : line.hours != null ? 'Hourly' : ''}</span>
                               {line.isWeekend && <Badge variant="outline" className="text-xs">Weekend</Badge>}
                               {line.isHoliday && <Badge variant="outline" className="text-xs">Holiday</Badge>}
                             </div>

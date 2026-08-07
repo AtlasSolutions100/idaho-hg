@@ -6,9 +6,12 @@ import {
   useApproveTimeEntry,
   useRejectTimeEntry,
   useApproveAllTimeEntries,
+  usePriceTimeEntry,
   getListTimeEntriesQueryKey,
 } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -86,6 +89,94 @@ export function daySummary(entry: TimeEntry, all: TimeEntry[]) {
   };
 }
 
+/**
+ * Pay/bill amounts for an "Other" one-off. These entries have no rate table —
+ * Molly types in what the employee gets paid, and (optionally) what the
+ * client is billed. Left unset, the entry is flagged on the payroll report
+ * instead of quietly paying $0.
+ */
+function OtherPricingForm({ entry, onError }: { entry: TimeEntry; onError: (message: string) => void }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [pay, setPay] = useState(entry.customPayAmount != null ? String(entry.customPayAmount) : '');
+  const [bill, setBill] = useState(entry.customBillAmount != null ? String(entry.customBillAmount) : '');
+  const priceMutation = usePriceTimeEntry({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListTimeEntriesQueryKey() });
+        toast({ title: 'Amount saved', description: `${entry.employeeName}'s one-off is priced for payroll.` });
+      },
+      onError: (err: unknown) => {
+        const message =
+          (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+          "Couldn't save the amount. Please try again.";
+        onError(message);
+      },
+    },
+  });
+  const payNum = pay.trim() === '' ? null : Number(pay);
+  const billNum = bill.trim() === '' ? null : Number(bill);
+  const valid =
+    (payNum == null || (Number.isFinite(payNum) && payNum >= 0)) &&
+    (billNum == null || (Number.isFinite(billNum) && billNum >= 0));
+  return (
+    <div className="rounded-md border bg-background p-3 space-y-3" data-testid={`other-pricing-${entry.id}`}>
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        One-off pay &amp; billing
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 max-w-md">
+        <div className="space-y-1.5">
+          <Label htmlFor={`pay-${entry.id}`}>Pay {entry.employeeName.split(' ')[0]} ($)</Label>
+          <Input
+            id={`pay-${entry.id}`}
+            type="number"
+            min="0"
+            step="0.01"
+            value={pay}
+            onChange={(e) => setPay(e.target.value)}
+            placeholder="0.00"
+            data-testid={`input-custom-pay-${entry.id}`}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`bill-${entry.id}`}>Bill {entry.clientName} ($, optional)</Label>
+          <Input
+            id={`bill-${entry.id}`}
+            type="number"
+            min="0"
+            step="0.01"
+            value={bill}
+            onChange={(e) => setBill(e.target.value)}
+            placeholder="Not billed"
+            data-testid={`input-custom-bill-${entry.id}`}
+          />
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <Button
+          size="sm"
+          disabled={!valid || priceMutation.isPending}
+          onClick={() =>
+            priceMutation.mutate({
+              id: entry.id,
+              data: { customPayAmount: payNum, ...(billNum != null ? { customBillAmount: billNum } : {}) },
+            })
+          }
+          data-testid={`button-save-pricing-${entry.id}`}
+        >
+          {priceMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          Save amounts
+        </Button>
+        {entry.customPayAmount == null && (
+          <span className="text-xs text-amber-600 dark:text-amber-500">
+            Without a pay amount this shows as "needs amount" on payroll — it never quietly pays $0.
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function ApprovePayrollTable() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -137,9 +228,13 @@ export function ApprovePayrollTable() {
     mutation: {
       onSuccess: (result) => {
         invalidate();
+        const skipped = result.skippedUnpricedOtherCount ?? 0;
         toast({
           title: `Approved ${result.approvedCount} entries`,
-          description: 'Every entry that was waiting — across all weeks — is now approved for payroll.',
+          description:
+            skipped > 0
+              ? `${skipped} one-off ${skipped === 1 ? 'entry still needs' : 'entries still need'} a pay amount before approval — set it in the entry's details.`
+              : 'Every entry that was waiting — across all weeks — is now approved for payroll.',
         });
       },
       onError: () => {
@@ -297,7 +392,20 @@ export function ApprovePayrollTable() {
                       {format(new Date(entry.date), 'MMM d, yyyy')}
                     </TableCell>
                     <TableCell>
-                      {entry.visitType ? (
+                      {entry.isOther ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm">Other</span>
+                          {entry.customPayAmount == null ? (
+                            <Badge variant="outline" className="text-xs border-amber-500 text-amber-600 dark:text-amber-500" data-testid={`badge-needs-amount-${entry.id}`}>
+                              Needs amount
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs" data-testid={`badge-priced-${entry.id}`}>
+                              ${entry.customPayAmount}
+                            </Badge>
+                          )}
+                        </div>
+                      ) : entry.visitType ? (
                         <span className="text-sm">{visitTypeLabels[entry.visitType]}</span>
                       ) : (
                         <span className="text-sm text-muted-foreground">Hourly</span>
@@ -453,6 +561,14 @@ export function ApprovePayrollTable() {
                                 {entry.adminEditSummary ? ` — ${entry.adminEditSummary}` : ''}
                               </div>
                             </div>
+                          )}
+                          {entry.isOther && (
+                            <OtherPricingForm
+                              entry={entry}
+                              onError={(message) =>
+                                toast({ title: "Couldn't save the amount", description: message, variant: 'destructive' })
+                              }
+                            />
                           )}
                           {day.notes.length > 0 && (
                             <div>

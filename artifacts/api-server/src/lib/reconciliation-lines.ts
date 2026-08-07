@@ -21,6 +21,8 @@ export type ReconciliationEntryInput = {
   isWeekend: boolean;
   isHoliday: boolean;
   note: string | null;
+  /** One-off "Other" work (training, meetings) — the note says what it was. */
+  isOther?: boolean;
 };
 
 export type ReconciliationLine = {
@@ -33,6 +35,7 @@ export type ReconciliationLine = {
   isWeekend: boolean;
   isHoliday: boolean;
   note: string;
+  isOther?: boolean;
 };
 
 export type VisitTypeCount = { visitType: string; count: number };
@@ -102,6 +105,7 @@ export function buildReconciliationReport(
       ...(entry.hours != null ? { hours: entry.hours } : {}),
       ...(entry.mileage != null ? { mileage: entry.mileage } : {}),
       ...(entry.perDiem != null ? { perDiem: entry.perDiem } : {}),
+      ...(entry.isOther ? { isOther: true } : {}),
       isWeekend: entry.isWeekend,
       isHoliday: entry.isHoliday,
       note: entry.note ?? "",

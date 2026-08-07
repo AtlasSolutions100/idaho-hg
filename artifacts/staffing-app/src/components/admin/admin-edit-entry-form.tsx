@@ -80,7 +80,7 @@ export function AdminEditEntryForm({
         // Clock times take precedence server-side; only send hours when no times.
         ...(hoursNum != null && !timeIn.trim() && !timeOut.trim() ? { hours: hoursNum } : {}),
         ...(mileageNum != null && mileageNum > 0 ? { mileage: mileageNum } : {}),
-        ...(perDiemType !== NONE ? { perDiemType: perDiemType as PerDiemType } : {}),
+        ...(!entry.isOther && perDiemType !== NONE ? { perDiemType: perDiemType as PerDiemType } : {}),
         ...(note.trim() ? { note: note.trim() } : {}),
       },
     });
@@ -162,6 +162,8 @@ export function AdminEditEntryForm({
             data-testid={`input-mileage-${entry.id}`}
           />
         </div>
+        {/* Per diem never applies to Other one-offs — the server rejects it */}
+        {!entry.isOther && (
         <div className="space-y-1.5">
           <Label htmlFor={`edit-per-diem-${entry.id}`}>Per diem</Label>
           <Select value={perDiemType} onValueChange={setPerDiemType}>
@@ -178,8 +180,9 @@ export function AdminEditEntryForm({
             </SelectContent>
           </Select>
         </div>
+        )}
         <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
-          <Label htmlFor={`edit-note-${entry.id}`}>Note</Label>
+          <Label htmlFor={`edit-note-${entry.id}`}>{entry.isOther ? 'Description (required)' : 'Note'}</Label>
           <Textarea
             id={`edit-note-${entry.id}`}
             value={note}

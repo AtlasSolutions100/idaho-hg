@@ -17,4 +17,6 @@ export interface ReconciliationReportLine {
   isWeekend: boolean;
   isHoliday: boolean;
   note: string;
+  /** One-off "Other" work (training, meetings) — see the note for what it was */
+  isOther?: boolean;
 }

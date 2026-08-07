@@ -125,6 +125,19 @@ export interface UpdateOnboardingItem {
   completed: boolean;
 }
 
+export interface PriceTimeEntry {
+  /**
+     * Flat pay in dollars; null clears the pricing
+     * @minimum 0
+     */
+  customPayAmount: number | null;
+  /**
+     * Optional flat client billing amount; null/omitted means not billed
+     * @minimum 0
+     */
+  customBillAmount?: number | null;
+}
+
 export type VisitType = typeof VisitType[keyof typeof VisitType];
 
 
@@ -166,6 +179,10 @@ export interface PayrollReportLine {
   perDiemPay: number;
   total: number;
   missingRate: boolean;
+  /** One-off "Other" work paid at Molly's custom amount */
+  isOther?: boolean;
+  /** The employee's description of an Other entry */
+  description?: string;
 }
 
 export interface PayrollReportEmployee {
@@ -198,6 +215,7 @@ export const InvoiceLineKind = {
   hourly: 'hourly',
   mileage: 'mileage',
   'per-diem': 'per-diem',
+  other: 'other',
 } as const;
 
 export interface InvoiceReportLine {
@@ -235,6 +253,8 @@ export interface ReconciliationReportLine {
   isWeekend: boolean;
   isHoliday: boolean;
   note: string;
+  /** One-off "Other" work (training, meetings) — see the note for what it was */
+  isOther?: boolean;
 }
 
 export interface VisitTypeCount {
@@ -575,6 +595,12 @@ export interface TimeEntry {
   isWeekend: boolean;
   isHoliday: boolean;
   note?: string;
+  /** One-off "Other" work (training, meetings) paid at a custom amount Molly sets */
+  isOther?: boolean;
+  /** Molly's flat pay amount in dollars for an Other entry; unset means it still needs pricing */
+  customPayAmount?: number;
+  /** Optional flat amount billed to the client for an Other entry; unset means not billed */
+  customBillAmount?: number;
   status: EntryStatus;
   isDemo?: boolean;
   submittedAt: string;
@@ -620,6 +646,8 @@ export interface CreateTimeEntry {
   /** Ignored — the server determines holidays from its own calendar */
   isHoliday?: boolean;
   note?: string;
+  /** One-off "Other" work (training, meetings, professional development). Requires a description in `note` and time worked; visit type and per diem are not allowed. Molly sets the pay amount when reviewing. */
+  isOther?: boolean;
   status?: CreateEntryStatus;
 }
 
@@ -679,6 +707,8 @@ export interface UpdateTimeEntry {
 
 export interface ApproveAllResult {
   approvedCount: number;
+  /** Waiting "Other" one-offs left unapproved because they have no pay amount yet */
+  skippedUnpricedOtherCount: number;
 }
 
 export interface ApiError {

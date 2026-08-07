@@ -97,7 +97,7 @@ export default function LogEntryScreen() {
     ? (allEntries ?? []).find((e) => e.id === editId)
     : undefined;
 
-  const [entryType, setEntryType] = useState<'visit' | 'hourly'>('visit');
+  const [entryType, setEntryType] = useState<'visit' | 'hourly' | 'other'>('visit');
   const [clientId, setClientId] = useState('');
   // Multi-visit: a set of selected visit types
   const [selectedVisitTypes, setSelectedVisitTypes] = useState<Set<VisitType>>(new Set());
@@ -118,7 +118,7 @@ export default function LogEntryScreen() {
   React.useEffect(() => {
     if (!editingEntry || prefilledId === editingEntry.id) return;
     setPrefilledId(editingEntry.id);
-    setEntryType(editingEntry.visitType ? 'visit' : 'hourly');
+    setEntryType(editingEntry.isOther ? 'other' : editingEntry.visitType ? 'visit' : 'hourly');
     setClientId(editingEntry.clientId);
     setSelectedVisitTypes(new Set(editingEntry.visitType ? [editingEntry.visitType] : []));
     setTimeIn(editingEntry.timeIn ?? '');
@@ -145,10 +145,14 @@ export default function LogEntryScreen() {
   // Visit types only apply to clients that bill by visit type (St. Luke's);
   // everyone else gets the simple time-in/time-out form.
   const billsByVisit = selectedClient?.billsByVisitType ?? false;
-  const effectiveEntryType: 'visit' | 'hourly' = billsByVisit ? entryType : 'hourly';
+  // "Other" one-offs (training, meetings) are available for any client;
+  // Visit only for clients that bill by visit type.
+  const effectiveEntryType: 'visit' | 'hourly' | 'other' =
+    entryType === 'other' ? 'other' : billsByVisit ? entryType : 'hourly';
+  const isOther = effectiveEntryType === 'other';
   const calculatedHours = useMemo(() => calculateHours(timeIn, timeOut), [timeIn, timeOut]);
   const overnight = calculatedHours != null && timeIn >= timeOut;
-  const timesValid = effectiveEntryType !== 'hourly' || calculatedHours != null;
+  const timesValid = effectiveEntryType === 'visit' || calculatedHours != null;
   const mileageNumber = mileage ? parseFloat(mileage) : 0;
   const mileageValid =
     !hasMileage || !mileage || (!Number.isNaN(mileageNumber) && mileageNumber >= 0);
@@ -160,6 +164,7 @@ export default function LogEntryScreen() {
     !!clientId &&
     !!date &&
     (effectiveEntryType === 'visit' ? selectedVisitTypes.size > 0 : timesValid) &&
+    (!isOther || !!note.trim()) &&
     mileageValid &&
     !isSubmitting &&
     !saved;
@@ -198,11 +203,11 @@ export default function LogEntryScreen() {
             ...(effectiveEntryType === 'visit' && selectedVisitTypes.size > 0
               ? { visitType: [...selectedVisitTypes][0] }
               : {}),
-            ...(effectiveEntryType === 'hourly' && timesValid ? { timeIn, timeOut } : {}),
+            ...(effectiveEntryType !== 'visit' && timesValid ? { timeIn, timeOut } : {}),
             ...(mileageAllowed && hasMileage && mileageNumber > 0
               ? { mileage: mileageNumber }
               : {}),
-            ...(perDiemType ? { perDiemType } : {}),
+            ...(!isOther && perDiemType ? { perDiemType } : {}),
             ...(note.trim() ? { note: note.trim() } : {}),
             status: action === 'draft' ? 'draft' : 'submitted',
           },
@@ -234,8 +239,9 @@ export default function LogEntryScreen() {
             ...(mileageAllowed && hasMileage && mileageNumber > 0
               ? { mileage: mileageNumber }
               : {}),
-            ...(perDiemType ? { perDiemType } : {}),
+            ...(!isOther && perDiemType ? { perDiemType } : {}),
             ...(note.trim() ? { note: note.trim() } : {}),
+            ...(isOther ? { isOther: true } : {}),
             ...(action === 'draft' ? { status: 'draft' as const } : {}),
           },
         });
@@ -392,13 +398,20 @@ export default function LogEntryScreen() {
           ))}
         </View>
 
-        {/* Visit vs hourly — only clients that bill by visit type (St. Luke's)
-            get the choice; everyone else logs time in/out. */}
-        {billsByVisit && (
+        {/* What kind of work: Visit only for clients that bill by visit type
+            (St. Luke's); "Other" one-offs (training, meetings) for everyone.
+            An entry never changes kind between Other and normal, so editing
+            locks the choice. */}
+        {!isOther && (!isEditing || billsByVisit) && (
           <>
         <SectionLabel text="What are you logging?" />
         <View style={[styles.segment, { backgroundColor: c.muted }]}>
-          {(['visit', 'hourly'] as const).map((t) => (
+          {(isEditing
+            ? (['visit', 'hourly'] as const)
+            : billsByVisit
+              ? (['visit', 'hourly', 'other'] as const)
+              : (['hourly', 'other'] as const)
+          ).map((t) => (
             <Pressable
               key={t}
               onPress={() => setEntryType(t)}
@@ -423,11 +436,39 @@ export default function LogEntryScreen() {
                   },
                 ]}
               >
-                {t === 'visit' ? 'A visit' : 'Hourly work'}
+                {t === 'visit' ? 'A visit' : t === 'hourly' ? 'Hourly work' : 'Other'}
               </Text>
             </Pressable>
           ))}
         </View>
+          </>
+        )}
+
+        {isOther && (
+          <>
+            <SectionLabel text="What was it?" required />
+            <Text style={[styles.helperText, { color: c.mutedForeground, marginTop: 0, marginBottom: 8 }]}>
+              One-offs like training, meetings, or professional development.
+              Molly sets the pay when she reviews it.
+            </Text>
+            <TextInput
+              value={note}
+              onChangeText={setNote}
+              placeholder='e.g. "3 hours professional development at Weiser School District"'
+              placeholderTextColor={c.mutedForeground}
+              multiline
+              numberOfLines={3}
+              style={[
+                styles.input,
+                styles.noteInput,
+                {
+                  backgroundColor: c.card,
+                  borderColor: c.input,
+                  color: c.foreground,
+                },
+              ]}
+              testID="input-other-description"
+            />
           </>
         )}
 
@@ -546,34 +587,42 @@ export default function LogEntryScreen() {
           </Text>
         ) : null}
 
-        {/* Per diem */}
-        <SectionLabel text="Per diem" />
-        <View style={styles.chipWrap}>
-          <Chip label="None" selected={perDiemType === ''} onPress={() => setPerDiemType('')} testID="chip-perdiem-none" />
-          <Chip label="First/Last day" selected={perDiemType === 'first_last'} onPress={() => setPerDiemType('first_last')} testID="chip-perdiem-first-last" />
-          <Chip label="Full day" selected={perDiemType === 'full'} onPress={() => setPerDiemType('full')} testID="chip-perdiem-full" />
-        </View>
+        {/* Per diem — never applies to Other one-offs */}
+        {!isOther && (
+          <>
+            <SectionLabel text="Per diem" />
+            <View style={styles.chipWrap}>
+              <Chip label="None" selected={perDiemType === ''} onPress={() => setPerDiemType('')} testID="chip-perdiem-none" />
+              <Chip label="First/Last day" selected={perDiemType === 'first_last'} onPress={() => setPerDiemType('first_last')} testID="chip-perdiem-first-last" />
+              <Chip label="Full day" selected={perDiemType === 'full'} onPress={() => setPerDiemType('full')} testID="chip-perdiem-full" />
+            </View>
+          </>
+        )}
 
-        {/* Note */}
-        <SectionLabel text="Notes (optional)" />
-        <TextInput
-          value={note}
-          onChangeText={setNote}
-          placeholder="Anything Molly should know about this shift…"
-          placeholderTextColor={c.mutedForeground}
-          multiline
-          numberOfLines={3}
-          style={[
-            styles.input,
-            styles.noteInput,
-            {
-              backgroundColor: c.card,
-              borderColor: c.input,
-              color: c.foreground,
-            },
-          ]}
-          testID="input-note"
-        />
+        {/* Note — the Other section above already collects the description */}
+        {!isOther && (
+          <>
+            <SectionLabel text="Notes (optional)" />
+            <TextInput
+              value={note}
+              onChangeText={setNote}
+              placeholder="Anything Molly should know about this shift…"
+              placeholderTextColor={c.mutedForeground}
+              multiline
+              numberOfLines={3}
+              style={[
+                styles.input,
+                styles.noteInput,
+                {
+                  backgroundColor: c.card,
+                  borderColor: c.input,
+                  color: c.foreground,
+                },
+              ]}
+              testID="input-note"
+            />
+          </>
+        )}
 
         {errorMessage ? (
           <View style={[styles.errorBanner, { backgroundColor: '#FBE4E4' }]}>

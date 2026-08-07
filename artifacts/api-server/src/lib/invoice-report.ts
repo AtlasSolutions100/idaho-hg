@@ -65,8 +65,14 @@ export async function computeInvoiceReport(
       hours: entry.hours,
       mileage: entry.mileage,
       perDiem: entry.perDiem,
+      ...(entry.isOther
+        ? { isOther: true, customBillAmount: entry.customBillAmount, note: entry.note }
+        : {}),
     };
-    if (entry.visitType) {
+    if (entry.isOther) {
+      // One-offs bill only Molly's flat amount (already on the entry) —
+      // no client rate, mileage, or per-diem lookups.
+    } else if (entry.visitType) {
       // Try role-specific visit rate first (e.g. "soc-RN"), fall back to the
       // generic visit type so clients with a single rate per visit type still work.
       const roleVisitRate = entry.employeeRole
@@ -83,7 +89,7 @@ export async function computeInvoiceReport(
       const rate = roleRate ?? (await getClientRateForDate(clientId, "hourly", entry.date));
       if (rate) input.hourlyRate = rate.rate;
     }
-    if ((entry.mileage ?? 0) > 0 || (entry.perDiem ?? 0) > 0) {
+    if (!entry.isOther && ((entry.mileage ?? 0) > 0 || (entry.perDiem ?? 0) > 0)) {
       const empRate = await getEmployeeRateForDate(entry.employeeId, entry.date);
       if (empRate) {
         input.mileageRate = empRate.mileageRate;

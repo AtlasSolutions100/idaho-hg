@@ -137,6 +137,47 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /time-entries/{id}/price:
+    post:
+      operationId: priceTimeEntry
+      tags: [time-entries]
+      summary: Set the pay (and optional client billing) amount for an "Other" entry
+      description: >
+        Admin only. "Other" one-off entries have no standard rate — Molly sets
+        a flat pay amount (what the employee receives) and optionally a flat
+        billing amount (what the client is invoiced) while reviewing. Approved
+        entries are locked; drafts are never visible to the admin.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PriceTimeEntry"
+      responses:
+        "200":
+          description: Updated time entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeEntry"
+        "400":
+          description: Not an Other entry, entry locked, or invalid amounts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Entry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /time-entries/{id}/approve:
     post:
       operationId: approveTimeEntry
@@ -220,6 +261,11 @@ paths:
       operationId: approveAllTimeEntries
       tags: [time-entries]
       summary: Approve all submitted time entries
+      description: >
+        Approves every waiting (submitted) entry EXCEPT "Other" one-offs that
+        Molly hasn't priced yet — approving would lock them with no pay
+        amount. Skipped entries are counted so the UI can tell her to price
+        them first.
       responses:
         "200":
           description: Result of bulk approval
@@ -1552,6 +1598,21 @@ components:
           type: boolean
       required:
         - completed
+    PriceTimeEntry:
+      type: object
+      properties:
+        customPayAmount:
+          type: number
+          minimum: 0
+          nullable: true
+          description: Flat pay in dollars; null clears the pricing
+        customBillAmount:
+          type: number
+          minimum: 0
+          nullable: true
+          description: Optional flat client billing amount; null/omitted means not billed
+      required:
+        - customPayAmount
     PayrollReportLine:
       type: object
       properties:
@@ -1585,6 +1646,12 @@ components:
           type: number
         missingRate:
           type: boolean
+        isOther:
+          type: boolean
+          description: One-off "Other" work paid at Molly's custom amount
+        description:
+          type: string
+          description: The employee's description of an Other entry
       required:
         - entryId
         - date
@@ -1659,7 +1726,7 @@ components:
         - missingRateCount
     InvoiceLineKind:
       type: string
-      enum: [visit, hourly, mileage, per-diem]
+      enum: [visit, hourly, mileage, per-diem, other]
     InvoiceReportLine:
       type: object
       properties:
@@ -1746,6 +1813,9 @@ components:
           type: boolean
         note:
           type: string
+        isOther:
+          type: boolean
+          description: One-off "Other" work (training, meetings) — see the note for what it was
       required:
         - entryId
         - date
@@ -2336,6 +2406,15 @@ components:
           type: boolean
         note:
           type: string
+        isOther:
+          type: boolean
+          description: One-off "Other" work (training, meetings) paid at a custom amount Molly sets
+        customPayAmount:
+          type: number
+          description: Molly's flat pay amount in dollars for an Other entry; unset means it still needs pricing
+        customBillAmount:
+          type: number
+          description: Optional flat amount billed to the client for an Other entry; unset means not billed
         status:
           $ref: "#/components/schemas/EntryStatus"
         isDemo:
@@ -2404,6 +2483,12 @@ components:
           description: Ignored — the server determines holidays from its own calendar
         note:
           type: string
+        isOther:
+          type: boolean
+          description: >
+            One-off "Other" work (training, meetings, professional development).
+            Requires a description in `note` and time worked; visit type and per
+            diem are not allowed. Molly sets the pay amount when reviewing.
         status:
           $ref: "#/components/schemas/CreateEntryStatus"
       required:
@@ -2493,8 +2578,12 @@ components:
       properties:
         approvedCount:
           type: number
+        skippedUnpricedOtherCount:
+          type: number
+          description: Waiting "Other" one-offs left unapproved because they have no pay amount yet
       required:
         - approvedCount
+        - skippedUnpricedOtherCount
     ApiError:
       type: object
       properties:

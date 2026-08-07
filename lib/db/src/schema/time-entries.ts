@@ -31,6 +31,16 @@ export const timeEntriesTable = pgTable("time_entries", {
   isWeekend: boolean("is_weekend").notNull().default(false),
   isHoliday: boolean("is_holiday").notNull().default(false),
   note: text("note"),
+  // "Other" one-offs (training, meetings, professional development): the
+  // employee describes the work in `note` and logs time; the entry has no
+  // visit type and no standard rate. Molly sets the pay (and optionally a
+  // client billing amount) while reviewing. Entries never change kind after
+  // creation.
+  isOther: boolean("is_other").notNull().default(false),
+  // Admin-set flat dollar amounts for "Other" entries. Pay is what the
+  // employee receives; bill (optional) is what the client is invoiced.
+  customPayAmount: real("custom_pay_amount"),
+  customBillAmount: real("custom_bill_amount"),
   status: text("status").notNull().default("submitted"),
   isDemo: boolean("is_demo").notNull().default(false),
   submittedAt: timestamp("submitted_at", { withTimezone: true })

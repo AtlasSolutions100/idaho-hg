@@ -45,8 +45,8 @@ export function calculateHours(timeIn: string, timeOut: string): number | null {
 
 export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSubmit, onCancel }: LogHoursFormProps) {
   const isEditing = !!entry;
-  const [entryType, setEntryType] = useState<'visit' | 'hourly'>(
-    entry ? (entry.visitType ? 'visit' : 'hourly') : 'visit',
+  const [entryType, setEntryType] = useState<'visit' | 'hourly' | 'other'>(
+    entry ? (entry.isOther ? 'other' : entry.visitType ? 'visit' : 'hourly') : 'visit',
   );
   const [clientId, setClientId] = useState(entry?.clientId ?? '');
   // Multi-visit: track a set of selected visit types. When editing, an entry
@@ -77,7 +77,11 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
   // Visit types only apply to clients that bill by visit type (St. Luke's);
   // everyone else gets the simple time-in/time-out form.
   const billsByVisit = selectedClient?.billsByVisitType ?? false;
-  const effectiveEntryType: 'visit' | 'hourly' = billsByVisit ? entryType : 'hourly';
+  // "Other" is always available (one-offs like training or meetings happen
+  // for any client); Visit only for clients that bill by visit type.
+  const effectiveEntryType: 'visit' | 'hourly' | 'other' =
+    entryType === 'other' ? 'other' : billsByVisit ? entryType : 'hourly';
+  const isOther = effectiveEntryType === 'other';
   const calculatedHours = useMemo(() => calculateHours(timeIn, timeOut), [timeIn, timeOut]);
   const overnight = calculatedHours != null && timeIn >= timeOut;
 
@@ -96,7 +100,8 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
 
   const save = async (action: 'draft' | 'submit') => {
     if (effectiveEntryType === 'visit' && selectedVisitTypes.size === 0) return;
-    if (effectiveEntryType === 'hourly' && (!timeIn || !timeOut)) return;
+    if (effectiveEntryType !== 'visit' && (!timeIn || !timeOut)) return;
+    if (isOther && !note.trim()) return;
 
     setSavingAction(action);
     setIsSubmitting(true);
@@ -112,9 +117,9 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
             ...(effectiveEntryType === 'visit' && selectedVisitTypes.size > 0
               ? { visitType: [...selectedVisitTypes][0] }
               : {}),
-            ...(effectiveEntryType === 'hourly' && timeIn && timeOut ? { timeIn, timeOut } : {}),
+            ...(effectiveEntryType !== 'visit' && timeIn && timeOut ? { timeIn, timeOut } : {}),
             ...(mileageAllowed && hasMileage && mileage ? { mileage: parseFloat(mileage) } : {}),
-            ...(perDiemType ? { perDiemType } : {}),
+            ...(!isOther && perDiemType ? { perDiemType } : {}),
             ...(note.trim() ? { note: note.trim() } : {}),
             status: action === 'draft' ? 'draft' : 'submitted',
           },
@@ -142,8 +147,9 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
             date,
             ...(timeIn && timeOut ? { timeIn, timeOut } : {}),
             ...(mileageAllowed && hasMileage && mileage ? { mileage: parseFloat(mileage) } : {}),
-            ...(perDiemType ? { perDiemType } : {}),
+            ...(!isOther && perDiemType ? { perDiemType } : {}),
             ...(note.trim() ? { note: note.trim() } : {}),
+            ...(isOther ? { isOther: true } : {}),
             ...(action === 'draft' ? { status: 'draft' as const } : {}),
           },
         });
@@ -173,6 +179,7 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
     (effectiveEntryType === 'visit'
       ? selectedVisitTypes.size > 0
       : !!(timeIn && timeOut)) &&
+    (!isOther || !!note.trim()) &&
     !isSubmitting;
 
   return (
@@ -231,8 +238,20 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
 
           {/* Entry Type Toggle — only clients that bill by visit type (St. Luke's)
               get the Visit/Hourly choice; everyone else logs time in/out. */}
-          <Tabs value={effectiveEntryType} onValueChange={(v) => setEntryType(v as 'visit' | 'hourly')}>
-            {billsByVisit && (
+          <Tabs value={effectiveEntryType} onValueChange={(v) => setEntryType(v as 'visit' | 'hourly' | 'other')}>
+            {/* "Other" (one-offs like training or meetings) is always available
+                on new entries; Visit only for clients that bill by visit type.
+                An entry never changes kind between Other and normal, so editing
+                an Other entry shows no tabs, and editing a normal entry only
+                offers Visit/Hourly. */}
+            {!isOther && !isEditing && (
+              <TabsList className={`grid w-full ${billsByVisit ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                {billsByVisit && <TabsTrigger value="visit" data-testid="tab-visit">Visit</TabsTrigger>}
+                <TabsTrigger value="hourly" data-testid="tab-hourly">Hourly</TabsTrigger>
+                <TabsTrigger value="other" data-testid="tab-other">Other / one-off</TabsTrigger>
+              </TabsList>
+            )}
+            {!isOther && isEditing && billsByVisit && (
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="visit" data-testid="tab-visit">Visit</TabsTrigger>
                 <TabsTrigger value="hourly" data-testid="tab-hourly">Hourly</TabsTrigger>
@@ -306,6 +325,52 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
                   </p>
                 )}
               </div>
+            </TabsContent>
+
+            <TabsContent value="other" className="space-y-4 mt-4">
+              <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground" data-testid="text-other-explainer">
+                For one-offs that aren't a visit or normal hourly work — training,
+                meetings, professional development. Molly sets the pay when she
+                reviews it.
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="other-description">What was it? *</Label>
+                <Textarea
+                  id="other-description"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder='e.g. "3 hours professional development at Weiser School District"'
+                  rows={3}
+                  data-testid="input-other-description"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="other-time-in">Time In *</Label>
+                  <Input
+                    id="other-time-in"
+                    type="time"
+                    value={timeIn}
+                    onChange={(e) => setTimeIn(e.target.value)}
+                    data-testid="input-other-time-in"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="other-time-out">Time Out *</Label>
+                  <Input
+                    id="other-time-out"
+                    type="time"
+                    value={timeOut}
+                    onChange={(e) => setTimeOut(e.target.value)}
+                    data-testid="input-other-time-out"
+                  />
+                </div>
+              </div>
+              {calculatedHours != null && (
+                <p className="text-sm text-muted-foreground">
+                  {calculatedHours} hours{overnight ? ' (overnight shift)' : ''}
+                </p>
+              )}
             </TabsContent>
 
             <TabsContent value="hourly" className="space-y-4 mt-4">
@@ -383,7 +448,8 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
             </p>
           )}
 
-          {/* Per Diem */}
+          {/* Per Diem — never applies to Other one-offs */}
+          {!isOther && (
           <div className="space-y-2">
             <Label>Per Diem</Label>
             <div className="grid grid-cols-3 gap-2">
@@ -405,8 +471,10 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
               ))}
             </div>
           </div>
+          )}
 
-          {/* Notes */}
+          {/* Notes — the Other tab already collects the description */}
+          {!isOther && (
           <div className="space-y-2">
             <Label htmlFor="note">Notes</Label>
             <Textarea
@@ -418,6 +486,7 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
               data-testid="input-note"
             />
           </div>
+          )}
         </CardContent>
 
         <CardFooter className="flex gap-3">

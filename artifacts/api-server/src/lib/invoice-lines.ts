@@ -34,9 +34,15 @@ export type InvoiceEntryInput = {
   mileageRate?: number;
   /** Employee per-diem rate on the entry date (passed through to the client). */
   perDiemRate?: number;
+  /** One-off "Other" work — billed to the client only when Molly set a flat billing amount. */
+  isOther?: boolean;
+  /** Molly's flat client billing amount for an Other entry (dollars). */
+  customBillAmount?: number | null;
+  /** The employee's description of an Other entry (used as the line description). */
+  note?: string | null;
 };
 
-export type InvoiceLineKind = "visit" | "hourly" | "mileage" | "per-diem";
+export type InvoiceLineKind = "visit" | "hourly" | "mileage" | "per-diem" | "other";
 
 export type InvoiceLine = {
   lineId: string;
@@ -118,6 +124,8 @@ type Bucket = {
   firstDate: string;
   lastDate: string;
   order: number; // insertion order within its group, keeps date order stable
+  /** Description override for "other" lines — the employee's own words. */
+  otherNote?: string;
 };
 
 const KIND_ORDER: Record<InvoiceLineKind, number> = {
@@ -125,6 +133,7 @@ const KIND_ORDER: Record<InvoiceLineKind, number> = {
   hourly: 1,
   mileage: 2,
   "per-diem": 3,
+  other: 4,
 };
 
 const MISSING_NOTES: Record<InvoiceLineKind, string> = {
@@ -132,6 +141,7 @@ const MISSING_NOTES: Record<InvoiceLineKind, string> = {
   hourly: "No hourly billing rate on file — add one on the Client Rates page",
   mileage: "No mileage rate on file for this employee/date",
   "per-diem": "No per-diem rate on file for this employee/date",
+  other: "No billing amount set for this one-off",
 };
 
 export type InvoiceLinesResult = {
@@ -187,6 +197,20 @@ export function buildInvoiceLines(entries: InvoiceEntryInput[]): InvoiceLinesRes
     a.date < b.date ? -1 : a.date > b.date ? 1 : 0,
   );
   for (const entry of sortedEntries) {
+    // "Other" one-offs are never billed to the client unless Molly
+    // explicitly set a billing amount — and then only that flat amount
+    // (no hourly, mileage, or per-diem pass-through). Unbilled Others are
+    // intentional, so they don't count toward the unbilled warning.
+    if (entry.isOther) {
+      if (entry.customBillAmount != null && entry.customBillAmount > 0) {
+        // One line per entry (keyed by entry id) — one-offs never merge.
+        add(entry, "other", `other-${entry.id}`, entry.customBillAmount, 1);
+        const list = segments.get([entry.employeeId, "other", `other-${entry.id}`].join("|"));
+        const bucket = list?.[list.length - 1];
+        if (bucket) bucket.otherNote = entry.note?.trim() || undefined;
+      }
+      continue;
+    }
     let billedSomething = false;
     if (entry.visitType) {
       add(entry, "visit", entry.visitType, entry.visitRate, 1);
@@ -244,6 +268,9 @@ export function buildInvoiceLines(entries: InvoiceEntryInput[]): InvoiceLinesRes
         break;
       case "per-diem":
         description = `${initials} Per diem ${range}`;
+        break;
+      case "other":
+        description = `${initials} ${b.otherNote ?? "one-off"} ${range}`;
         break;
     }
     return {

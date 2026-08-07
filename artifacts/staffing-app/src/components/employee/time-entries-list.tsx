@@ -218,6 +218,11 @@ function TimeEntryCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {entry.isOther && (
+          <Badge variant="outline" className="text-xs" data-testid={`badge-other-${entry.id}`}>
+            Other / one-off
+          </Badge>
+        )}
         <div className="grid grid-cols-2 gap-4 text-sm">
           {entry.visitType && (
             <div className="space-y-1">

@@ -13,6 +13,7 @@ import {
   BatchCreateTimeEntriesBody,
   CreateTimeEntryBody,
   ListTimeEntriesQueryParams,
+  PriceTimeEntryBody,
   UpdateTimeEntryBody,
 } from "@workspace/api-zod";
 import { resolveSessionEmployee, verifyAdminRequest } from "../lib/employee-auth";
@@ -44,6 +45,9 @@ function serialize(row: TimeEntryRow) {
     isWeekend: row.isWeekend,
     isHoliday: row.isHoliday,
     ...(row.note ? { note: row.note } : {}),
+    ...(row.isOther ? { isOther: true } : {}),
+    ...(row.customPayAmount != null ? { customPayAmount: row.customPayAmount } : {}),
+    ...(row.customBillAmount != null ? { customBillAmount: row.customBillAmount } : {}),
     status: row.status,
     isDemo: row.isDemo,
     submittedAt: row.submittedAt.toISOString(),
@@ -296,6 +300,28 @@ router.post("/time-entries", async (req, res, next) => {
       }
       hours = computed;
     }
+    // "Other" one-offs (training, meetings, professional development):
+    // a required description plus time worked. No visit type or per diem —
+    // pay is a flat amount Molly sets while reviewing.
+    const isOther = body.isOther === true;
+    if (isOther) {
+      if (body.visitType) {
+        res.status(400).json({ message: "An Other entry doesn't use a visit type — describe the work in the note instead." });
+        return;
+      }
+      if (body.perDiemType || (body.perDiem != null && body.perDiem > 0)) {
+        res.status(400).json({ message: "Per diem doesn't apply to Other entries." });
+        return;
+      }
+      if (!body.note?.trim()) {
+        res.status(400).json({ message: 'Describe what this was — for example "3 hours professional development at Weiser School District".' });
+        return;
+      }
+      if (hours == null) {
+        res.status(400).json({ message: "Enter your time in and out (or hours) for this entry" });
+        return;
+      }
+    }
     if (!body.visitType && hours == null) {
       res.status(400).json({ message: "Provide a visit type or your time in and out" });
       return;
@@ -357,6 +383,7 @@ router.post("/time-entries", async (req, res, next) => {
           mileage: body.mileage ?? null,
           perDiem,
           perDiemType,
+          isOther,
           isWeekend,
           isHoliday,
           note: body.note ?? null,
@@ -600,6 +627,27 @@ router.patch("/time-entries/:id", async (req, res, next) => {
       }
       hours = computed;
     }
+    // An entry never changes kind: "Other" one-offs stay Other, normal
+    // entries can't become Other. Same rules as creation apply.
+    const isOther = existing.isOther;
+    if (isOther) {
+      if (body.visitType) {
+        res.status(400).json({ message: "An Other entry doesn't use a visit type — describe the work in the note instead." });
+        return;
+      }
+      if (body.perDiemType || (body.perDiem != null && body.perDiem > 0)) {
+        res.status(400).json({ message: "Per diem doesn't apply to Other entries." });
+        return;
+      }
+      if (!body.note?.trim()) {
+        res.status(400).json({ message: 'Describe what this was — for example "3 hours professional development at Weiser School District".' });
+        return;
+      }
+      if (hours == null) {
+        res.status(400).json({ message: "Enter your time in and out (or hours) for this entry" });
+        return;
+      }
+    }
     if (!body.visitType && hours == null) {
       res.status(400).json({ message: "Provide a visit type or your time in and out" });
       return;
@@ -662,12 +710,73 @@ router.patch("/time-entries/:id", async (req, res, next) => {
         ...(isAdminEdit && adminEditSummary
           ? { adminEditedAt: new Date(), adminEditSummary }
           : {}),
+        // An employee edit of a priced Other entry invalidates the price —
+        // the work may have changed, so Molly must set the amount again.
+        // Admin corrections keep the pricing she already entered.
+        ...(isOther && !isAdminEdit
+          ? { customPayAmount: null, customBillAmount: null }
+          : {}),
         isDemo: existing.isDemo || client.isDemo,
       })
       .where(eq(timeEntriesTable.id, numericId))
       .returning();
     if (!row) {
       res.status(500).json({ message: "Failed to update entry" });
+      return;
+    }
+    res.json(serialize(row));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Molly sets the flat pay (and optional client billing) amount for an
+// "Other" one-off while reviewing. Admin only; drafts stay invisible and
+// approved entries are locked, matching the edit rules.
+router.post("/time-entries/:id/price", async (req, res, next) => {
+  try {
+    const parsed = PriceTimeEntryBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: parsed.error.issues[0]?.message ?? "Invalid amounts" });
+      return;
+    }
+    const body = parsed.data;
+    const admin = await verifyAdminRequest(req);
+    if (!admin.ok) {
+      res.status(admin.status).json({ message: admin.message });
+      return;
+    }
+    const numericId = Number(req.params.id);
+    if (!Number.isInteger(numericId)) {
+      res.status(404).json({ message: "Entry not found" });
+      return;
+    }
+    const [existing] = await db
+      .select()
+      .from(timeEntriesTable)
+      .where(eq(timeEntriesTable.id, numericId));
+    if (!existing || existing.status === "draft") {
+      res.status(404).json({ message: "Entry not found" });
+      return;
+    }
+    if (!existing.isOther) {
+      res.status(400).json({ message: "Only Other one-off entries take a custom amount — normal entries pay from the rate tables." });
+      return;
+    }
+    if (existing.status === "approved") {
+      res.status(400).json({ message: "This entry has been approved and can no longer be changed." });
+      return;
+    }
+    const [row] = await db
+      .update(timeEntriesTable)
+      .set({
+        customPayAmount: body.customPayAmount ?? null,
+        customBillAmount: body.customBillAmount ?? null,
+      })
+      .where(eq(timeEntriesTable.id, numericId))
+      .returning();
+    if (!row) {
+      res.status(404).json({ message: "Entry not found" });
       return;
     }
     res.json(serialize(row));
@@ -723,12 +832,30 @@ router.post("/time-entries/:id/reject", async (req, res, next) => {
 
 router.post("/time-entries/approve-all", async (_req, res, next) => {
   try {
+    // Unpriced "Other" one-offs are skipped: approving locks the entry, and
+    // a locked entry with no pay amount could never be priced. Molly sets
+    // the amount first, then approves.
     const rows = await db
       .update(timeEntriesTable)
       .set({ status: "approved", approvedAt: new Date() })
-      .where(eq(timeEntriesTable.status, "submitted"))
+      .where(
+        and(
+          eq(timeEntriesTable.status, "submitted"),
+          sql`not (${timeEntriesTable.isOther} and ${timeEntriesTable.customPayAmount} is null)`,
+        ),
+      )
       .returning();
-    res.json({ approvedCount: rows.length });
+    const [skipped] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(timeEntriesTable)
+      .where(
+        and(
+          eq(timeEntriesTable.status, "submitted"),
+          eq(timeEntriesTable.isOther, true),
+          sql`${timeEntriesTable.customPayAmount} is null`,
+        ),
+      );
+    res.json({ approvedCount: rows.length, skippedUnpricedOtherCount: skipped?.count ?? 0 });
   } catch (err) {
     next(err);
   }
