@@ -68,6 +68,9 @@ export const visitAbbreviations: Record<string, string> = {
   "training": "Training",
   "non-billable": "Non-billable",
   "on-call": "On call",
+  "mccall-per-diem": "McCall Per diem",
+  "mie-first-last-day": "MI&E first/last day",
+  "mie-full-day": "MI&E full day",
 };
 
 /** "Molly Clark" -> "MC"; single names fall back to the first letter. */

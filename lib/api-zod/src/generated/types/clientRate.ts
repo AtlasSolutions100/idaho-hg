@@ -5,13 +5,13 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { ClientRateType } from './clientRateType';
 
 export interface ClientRate {
   id: string;
   clientId: string;
   clientName: string;
-  visitType: ClientRateType;
+  /** The rate key stored in the database. For plain visit types this is the ClientRateType value (e.g. "soc"). For discipline-specific rates it is "{ClientRateType}-{Discipline}" (e.g. "soc-RN"). For discipline-specific hourly rates it is "hourly-{Discipline}" (e.g. "hourly-RN"). */
+  visitType: string;
   rate: number;
   effectiveDate: string;
 }

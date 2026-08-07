@@ -9,6 +9,7 @@
 export * from './allocatedInvoiceNumber';
 export * from './apiError';
 export * from './approveAllResult';
+export * from './batchCreateTimeEntry';
 export * from './businessSettings';
 export * from './claimableEmployee';
 export * from './client';
@@ -19,6 +20,7 @@ export * from './createClientRate';
 export * from './createLinkRequest';
 export * from './createTimeEntry';
 export * from './demoDataStatus';
+export * from './discipline';
 export * from './employee';
 export * from './employeeInput';
 export * from './employeeRate';

@@ -472,6 +472,78 @@ export const useRejectTimeEntry = <TError = ErrorType<ApiError>,
       return useMutation(getRejectTimeEntryMutationOptions(options));
     }
 
+export const getBatchCreateTimeEntriesUrl = () => {
+
+
+
+
+  return `/api/time-entries/batch`
+}
+
+/**
+ * Inserts one time entry per visit type in a single database transaction. Mileage and per diem are assigned to the first entry only. If any insert fails the entire batch is rolled back — no partial state.
+ * @summary Submit multiple visit-type entries for one day atomically
+ */
+export const batchCreateTimeEntries = async (batchCreateTimeEntry: BatchCreateTimeEntry, options?: Parameters<typeof customFetch>[1]): Promise<TimeEntry[]> => {
+
+  return customFetch<TimeEntry[]>(getBatchCreateTimeEntriesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(batchCreateTimeEntry)
+  }
+);}
+
+
+
+
+
+export const getBatchCreateTimeEntriesMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof batchCreateTimeEntries>>, TError,{data: BodyType<BatchCreateTimeEntry>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof batchCreateTimeEntries>>, TError,{data: BodyType<BatchCreateTimeEntry>}, TContext> => {
+
+const mutationKey = ['batchCreateTimeEntries'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof batchCreateTimeEntries>>, {data: BodyType<BatchCreateTimeEntry>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  batchCreateTimeEntries(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BatchCreateTimeEntriesMutationResult = NonNullable<Awaited<ReturnType<typeof batchCreateTimeEntries>>>
+    export type BatchCreateTimeEntriesMutationBody = BodyType<BatchCreateTimeEntry>
+    export type BatchCreateTimeEntriesMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Submit multiple visit-type entries for one day atomically
+ */
+export const useBatchCreateTimeEntries = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof batchCreateTimeEntries>>, TError,{data: BodyType<BatchCreateTimeEntry>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof batchCreateTimeEntries>>,
+        TError,
+        {data: BodyType<BatchCreateTimeEntry>},
+        TContext
+      > => {
+      return useMutation(getBatchCreateTimeEntriesMutationOptions(options));
+    }
+
 export const getApproveAllTimeEntriesUrl = () => {
 
 
@@ -3830,85 +3902,3 @@ export const useDisconnectQbo = <TError = ErrorType<unknown>,
       return useMutation(getDisconnectQboMutationOptions(options));
     }
 
-
-
-export const getBatchCreateTimeEntriesUrl = () => `/api/time-entries/batch`;
-
-/**
- * @summary Submit multiple visit-type entries for one day atomically
- */
-export const batchCreateTimeEntries = async (
-  batchCreateTimeEntry: BatchCreateTimeEntry,
-  options?: Parameters<typeof customFetch>[1],
-): Promise<TimeEntry[]> => {
-  return customFetch<TimeEntry[]>(getBatchCreateTimeEntriesUrl(), {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(batchCreateTimeEntry),
-  });
-};
-
-export const getBatchCreateTimeEntriesMutationOptions = <
-  TError = ErrorType<ApiError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof batchCreateTimeEntries>>,
-    TError,
-    { data: BodyType<BatchCreateTimeEntry> },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof batchCreateTimeEntries>>,
-  TError,
-  { data: BodyType<BatchCreateTimeEntry> },
-  TContext
-> => {
-  const mutationKey = ['batchCreateTimeEntries'];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof batchCreateTimeEntries>>,
-    { data: BodyType<BatchCreateTimeEntry> }
-  > = (props) => {
-    const { data } = props ?? {};
-    return batchCreateTimeEntries(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type BatchCreateTimeEntriesMutationResult = NonNullable<
-  Awaited<ReturnType<typeof batchCreateTimeEntries>>
->;
-export type BatchCreateTimeEntriesMutationBody = BodyType<BatchCreateTimeEntry>;
-export type BatchCreateTimeEntriesMutationError = ErrorType<ApiError>;
-
-/**
- * @summary Submit multiple visit-type entries for one day atomically
- */
-export const useBatchCreateTimeEntries = <
-  TError = ErrorType<ApiError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof batchCreateTimeEntries>>,
-    TError,
-    { data: BodyType<BatchCreateTimeEntry> },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationResult<
-  Awaited<ReturnType<typeof batchCreateTimeEntries>>,
-  TError,
-  { data: BodyType<BatchCreateTimeEntry> },
-  TContext
-> => {
-  return useMutation(getBatchCreateTimeEntriesMutationOptions(options));
-};

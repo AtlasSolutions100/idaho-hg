@@ -10,7 +10,7 @@ import {
 import { ensureRosterSeeded } from "./roster";
 import { DEMO_LOCK_KEY } from "./demo-data";
 import {
-  BatchCreateTimeEntryBody,
+  BatchCreateTimeEntriesBody,
   CreateTimeEntryBody,
   ListTimeEntriesQueryParams,
 } from "@workspace/api-zod";
@@ -255,7 +255,7 @@ router.post("/time-entries", async (req, res, next) => {
 // Mileage and per diem go on the first entry only so they're never doubled.
 router.post("/time-entries/batch", async (req, res, next) => {
   try {
-    const parsed = BatchCreateTimeEntryBody.safeParse(req.body);
+    const parsed = BatchCreateTimeEntriesBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ message: parsed.error.issues[0]?.message ?? "Invalid batch request" });
       return;

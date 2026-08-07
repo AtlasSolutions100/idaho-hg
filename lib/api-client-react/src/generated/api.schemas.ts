@@ -133,18 +133,21 @@ export const VisitType = {
   'physical-therapy': 'physical-therapy',
   'occupational-therapy': 'occupational-therapy',
   'speech-therapy': 'speech-therapy',
-  'soc': 'soc',
+  soc: 'soc',
   'routine-visit': 'routine-visit',
-  'eval': 'eval',
-  'recert': 'recert',
-  'roc': 'roc',
-  'discharge': 'discharge',
+  eval: 'eval',
+  recert: 'recert',
+  roc: 'roc',
+  discharge: 'discharge',
   'non-visit': 'non-visit',
   'hospital-at-home': 'hospital-at-home',
-  'hospice': 'hospice',
-  'training': 'training',
+  hospice: 'hospice',
+  training: 'training',
   'non-billable': 'non-billable',
   'on-call': 'on-call',
+  'mccall-per-diem': 'mccall-per-diem',
+  'mie-first-last-day': 'mie-first-last-day',
+  'mie-full-day': 'mie-full-day',
 } as const;
 
 export interface PayrollReportLine {
@@ -402,31 +405,27 @@ export interface UpdateEmployeeSignInAccess {
   signInEnabled: boolean;
 }
 
-export type ClientRateType = typeof ClientRateType[keyof typeof ClientRateType];
+export interface ClientRate {
+  id: string;
+  clientId: string;
+  clientName: string;
+  /** The rate key stored in the database. For plain visit types this is the ClientRateType value (e.g. "soc"). For discipline-specific rates it is "{ClientRateType}-{Discipline}" (e.g. "soc-RN"). For discipline-specific hourly rates it is "hourly-{Discipline}" (e.g. "hourly-RN"). */
+  visitType: string;
+  rate: number;
+  effectiveDate: string;
+}
 
+export interface UpdateClientRate {
+  /** @minimum 0 */
+  rate: number;
+  effectiveDate: string;
+}
 
-export const ClientRateType = {
-  'skilled-nursing': 'skilled-nursing',
-  'physical-therapy': 'physical-therapy',
-  'occupational-therapy': 'occupational-therapy',
-  'speech-therapy': 'speech-therapy',
-  'soc': 'soc',
-  'routine-visit': 'routine-visit',
-  'eval': 'eval',
-  'recert': 'recert',
-  'roc': 'roc',
-  'discharge': 'discharge',
-  'non-visit': 'non-visit',
-  'hospital-at-home': 'hospital-at-home',
-  'hospice': 'hospice',
-  'training': 'training',
-  'non-billable': 'non-billable',
-  'on-call': 'on-call',
-  hourly: 'hourly',
-} as const;
-
-/** Employee discipline / role abbreviation. */
+/**
+ * Employee discipline/role abbreviation
+ */
 export type Discipline = typeof Discipline[keyof typeof Discipline];
+
 
 export const Discipline = {
   RN: 'RN',
@@ -439,31 +438,37 @@ export const Discipline = {
   LCSW: 'LCSW',
 } as const;
 
-export interface ClientRate {
-  id: string;
-  clientId: string;
-  clientName: string;
-  visitType: string;
-  rate: number;
-  effectiveDate: string;
-}
+export type ClientRateType = typeof ClientRateType[keyof typeof ClientRateType];
 
-export interface UpdateClientRate {
-  /** @minimum 0 */
-  rate: number;
-  effectiveDate: string;
-}
+
+export const ClientRateType = {
+  'skilled-nursing': 'skilled-nursing',
+  'physical-therapy': 'physical-therapy',
+  'occupational-therapy': 'occupational-therapy',
+  'speech-therapy': 'speech-therapy',
+  soc: 'soc',
+  'routine-visit': 'routine-visit',
+  eval: 'eval',
+  recert: 'recert',
+  roc: 'roc',
+  discharge: 'discharge',
+  'non-visit': 'non-visit',
+  'hospital-at-home': 'hospital-at-home',
+  hospice: 'hospice',
+  training: 'training',
+  'non-billable': 'non-billable',
+  'on-call': 'on-call',
+  'mccall-per-diem': 'mccall-per-diem',
+  'mie-first-last-day': 'mie-first-last-day',
+  'mie-full-day': 'mie-full-day',
+  hourly: 'hourly',
+} as const;
 
 export interface CreateClientRate {
   /** @minLength 1 */
   clientId: string;
   rateType: ClientRateType;
-  /**
-   * If set, this rate applies only to employees of that discipline.
-   * The stored key becomes "{rateType}-{discipline}" (e.g. "soc-RN"),
-   * so the invoice route can try the role-specific key first and fall
-   * back to the plain rateType for clients with a single rate per visit type.
-   */
+  /** If set, this rate applies only to employees of that discipline. The stored key becomes "{rateType}-{discipline}" (e.g. "soc-RN"), so the invoice route can try the role-specific key first and fall back to the plain rateType for clients with a single rate per visit type. */
   discipline?: Discipline;
   /** @minimum 0 */
   rate: number;
@@ -587,6 +592,24 @@ export interface CreateTimeEntry {
   note?: string;
 }
 
+/**
+ * Submit multiple visit types for the same client/date in a single atomic request. The server inserts one time entry per visit type inside one transaction; mileage and per diem are recorded on the first entry only.
+ */
+export interface BatchCreateTimeEntry {
+  employeeId: string;
+  clientId: string;
+  date: string;
+  /**
+     * @minItems 1
+     * @maxItems 20
+     */
+  visitTypes: VisitType[];
+  /** @minimum 0 */
+  mileage?: number;
+  perDiemType?: PerDiemType;
+  note?: string;
+}
+
 export interface ApproveAllResult {
   approvedCount: number;
 }
@@ -648,14 +671,3 @@ start: string;
 end: string;
 };
 
-
-export interface BatchCreateTimeEntry {
-  employeeId: string;
-  clientId: string;
-  date: string;
-  /** One or more visit types to log for this day — each becomes its own entry in one atomic transaction */
-  visitTypes: VisitType[];
-  mileage?: number;
-  perDiemType?: PerDiemType;
-  note?: string;
-}

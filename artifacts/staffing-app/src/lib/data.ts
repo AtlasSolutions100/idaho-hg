@@ -16,7 +16,10 @@ export type VisitType =
   | 'hospice'
   | 'training'
   | 'non-billable'
-  | 'on-call';
+  | 'on-call'
+  | 'mccall-per-diem'
+  | 'mie-first-last-day'
+  | 'mie-full-day';
 export type EntryStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
 
 export interface Client {
@@ -217,6 +220,9 @@ export const visitTypeLabels: Record<VisitType, string> = {
   'training': 'Training',
   'non-billable': 'Non-billable Visit',
   'on-call': 'On Call',
+  'mccall-per-diem': 'McCall Per Diem',
+  'mie-first-last-day': 'MI&E First/Last Day',
+  'mie-full-day': 'MI&E Full Day',
 };
 
 export const clientRateTypeLabels: Record<string, string> = {

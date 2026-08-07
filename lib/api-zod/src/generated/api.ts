@@ -34,7 +34,7 @@ export const ListTimeEntriesResponseItem = zod.object({
   "clientId": zod.string(),
   "clientName": zod.string(),
   "date": zod.string(),
-  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call']).optional(),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'mccall-per-diem', 'mie-first-last-day', 'mie-full-day']).optional(),
   "timeIn": zod.string().optional().describe('Clock-in time \"HH:MM\" (24-hour)'),
   "timeOut": zod.string().optional().describe('Clock-out time \"HH:MM\" (24-hour)'),
   "hours": zod.number().optional(),
@@ -71,7 +71,7 @@ export const CreateTimeEntryBody = zod.object({
   "employeeId": zod.string(),
   "clientId": zod.string(),
   "date": zod.string(),
-  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call']).optional(),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'mccall-per-diem', 'mie-first-last-day', 'mie-full-day']).optional(),
   "timeIn": zod.string().regex(createTimeEntryBodyTimeInRegExp).optional().describe('Clock-in time \"HH:MM\" (24-hour). Provide with timeOut instead of hours.'),
   "timeOut": zod.string().regex(createTimeEntryBodyTimeOutRegExp).optional().describe('Clock-out time \"HH:MM\" (24-hour); an earlier time than timeIn means the shift crossed midnight'),
   "hours": zod.number().min(createTimeEntryBodyHoursMin).max(createTimeEntryBodyHoursMax).optional().describe('Legacy direct hours; ignored when timeIn\/timeOut are provided'),
@@ -91,7 +91,7 @@ export const CreateTimeEntryResponse = zod.object({
   "clientId": zod.string(),
   "clientName": zod.string(),
   "date": zod.string(),
-  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call']).optional(),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'mccall-per-diem', 'mie-first-last-day', 'mie-full-day']).optional(),
   "timeIn": zod.string().optional().describe('Clock-in time \"HH:MM\" (24-hour)'),
   "timeOut": zod.string().optional().describe('Clock-out time \"HH:MM\" (24-hour)'),
   "hours": zod.number().optional(),
@@ -123,7 +123,7 @@ export const ApproveTimeEntryResponse = zod.object({
   "clientId": zod.string(),
   "clientName": zod.string(),
   "date": zod.string(),
-  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call']).optional(),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'mccall-per-diem', 'mie-first-last-day', 'mie-full-day']).optional(),
   "timeIn": zod.string().optional().describe('Clock-in time \"HH:MM\" (24-hour)'),
   "timeOut": zod.string().optional().describe('Clock-out time \"HH:MM\" (24-hour)'),
   "hours": zod.number().optional(),
@@ -155,7 +155,7 @@ export const RejectTimeEntryResponse = zod.object({
   "clientId": zod.string(),
   "clientName": zod.string(),
   "date": zod.string(),
-  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call']).optional(),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'mccall-per-diem', 'mie-first-last-day', 'mie-full-day']).optional(),
   "timeIn": zod.string().optional().describe('Clock-in time \"HH:MM\" (24-hour)'),
   "timeOut": zod.string().optional().describe('Clock-out time \"HH:MM\" (24-hour)'),
   "hours": zod.number().optional(),
@@ -173,6 +173,52 @@ export const RejectTimeEntryResponse = zod.object({
 
 
 /**
+ * Inserts one time entry per visit type in a single database transaction. Mileage and per diem are assigned to the first entry only. If any insert fails the entire batch is rolled back — no partial state.
+ * @summary Submit multiple visit-type entries for one day atomically
+ */
+export const batchCreateTimeEntriesBodyVisitTypesMax = 20;
+
+export const batchCreateTimeEntriesBodyMileageMin = 0;
+
+
+
+export const BatchCreateTimeEntriesBody = zod.object({
+  "employeeId": zod.string(),
+  "clientId": zod.string(),
+  "date": zod.string(),
+  "visitTypes": zod.array(zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'mccall-per-diem', 'mie-first-last-day', 'mie-full-day'])).min(1).max(batchCreateTimeEntriesBodyVisitTypesMax),
+  "mileage": zod.number().min(batchCreateTimeEntriesBodyMileageMin).optional(),
+  "perDiemType": zod.enum(['first_last', 'full']).optional().describe('Per-diem option — \"First\/Last day\" or \"Full day\"'),
+  "note": zod.string().optional()
+}).describe('Submit multiple visit types for the same client\/date in a single atomic request. The server inserts one time entry per visit type inside one transaction; mileage and per diem are recorded on the first entry only.\n')
+
+export const BatchCreateTimeEntriesResponseItem = zod.object({
+  "id": zod.string(),
+  "employeeId": zod.string(),
+  "employeeName": zod.string(),
+  "employeeRole": zod.string(),
+  "clientId": zod.string(),
+  "clientName": zod.string(),
+  "date": zod.string(),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'mccall-per-diem', 'mie-first-last-day', 'mie-full-day']).optional(),
+  "timeIn": zod.string().optional().describe('Clock-in time \"HH:MM\" (24-hour)'),
+  "timeOut": zod.string().optional().describe('Clock-out time \"HH:MM\" (24-hour)'),
+  "hours": zod.number().optional(),
+  "mileage": zod.number().optional(),
+  "perDiem": zod.number().optional(),
+  "perDiemType": zod.enum(['first_last', 'full']).optional().describe('Per-diem option — \"First\/Last day\" or \"Full day\"'),
+  "isWeekend": zod.boolean(),
+  "isHoliday": zod.boolean(),
+  "note": zod.string().optional(),
+  "status": zod.enum(['submitted', 'approved', 'rejected']),
+  "isDemo": zod.boolean().optional(),
+  "submittedAt": zod.string(),
+  "approvedAt": zod.string().optional()
+})
+export const BatchCreateTimeEntriesResponse = zod.array(BatchCreateTimeEntriesResponseItem)
+
+
+/**
  * @summary Approve all submitted time entries
  */
 export const ApproveAllTimeEntriesResponse = zod.object({
@@ -187,7 +233,7 @@ export const ListClientRatesResponseItem = zod.object({
   "id": zod.string(),
   "clientId": zod.string(),
   "clientName": zod.string(),
-  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'hourly']),
+  "visitType": zod.string().describe('The rate key stored in the database. For plain visit types this is the ClientRateType value (e.g. \"soc\"). For discipline-specific rates it is \"{ClientRateType}-{Discipline}\" (e.g. \"soc-RN\"). For discipline-specific hourly rates it is \"hourly-{Discipline}\" (e.g. \"hourly-RN\").\n'),
   "rate": zod.number(),
   "effectiveDate": zod.string()
 })
@@ -204,8 +250,8 @@ export const createClientRateBodyRateMin = 0;
 
 export const CreateClientRateBody = zod.object({
   "clientId": zod.string().min(1),
-  "rateType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'hourly']),
-  "discipline": zod.enum(['RN', 'PT', 'OT', 'SLP', 'PTA', 'LPN', 'ST', 'LCSW']).optional(),
+  "rateType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'mccall-per-diem', 'mie-first-last-day', 'mie-full-day', 'hourly']),
+  "discipline": zod.enum(['RN', 'PT', 'OT', 'SLP', 'PTA', 'LPN', 'ST', 'LCSW']).optional().describe('If set, this rate applies only to employees of that discipline. The stored key becomes \"{rateType}-{discipline}\" (e.g. \"soc-RN\"), so the invoice route can try the role-specific key first and fall back to the plain rateType for clients with a single rate per visit type.\n'),
   "rate": zod.number().min(createClientRateBodyRateMin),
   "effectiveDate": zod.string()
 })
@@ -214,7 +260,7 @@ export const CreateClientRateResponse = zod.object({
   "id": zod.string(),
   "clientId": zod.string(),
   "clientName": zod.string(),
-  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'hourly']),
+  "visitType": zod.string().describe('The rate key stored in the database. For plain visit types this is the ClientRateType value (e.g. \"soc\"). For discipline-specific rates it is \"{ClientRateType}-{Discipline}\" (e.g. \"soc-RN\"). For discipline-specific hourly rates it is \"hourly-{Discipline}\" (e.g. \"hourly-RN\").\n'),
   "rate": zod.number(),
   "effectiveDate": zod.string()
 })
@@ -240,7 +286,7 @@ export const UpdateClientRateResponse = zod.object({
   "id": zod.string(),
   "clientId": zod.string(),
   "clientName": zod.string(),
-  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'hourly']),
+  "visitType": zod.string().describe('The rate key stored in the database. For plain visit types this is the ClientRateType value (e.g. \"soc\"). For discipline-specific rates it is \"{ClientRateType}-{Discipline}\" (e.g. \"soc-RN\"). For discipline-specific hourly rates it is \"hourly-{Discipline}\" (e.g. \"hourly-RN\").\n'),
   "rate": zod.number(),
   "effectiveDate": zod.string()
 })
@@ -257,7 +303,7 @@ export const ListClientRateHistoryResponseItem = zod.object({
   "id": zod.string(),
   "clientId": zod.string(),
   "clientName": zod.string(),
-  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'hourly']),
+  "visitType": zod.string().describe('The rate key stored in the database. For plain visit types this is the ClientRateType value (e.g. \"soc\"). For discipline-specific rates it is \"{ClientRateType}-{Discipline}\" (e.g. \"soc-RN\"). For discipline-specific hourly rates it is \"hourly-{Discipline}\" (e.g. \"hourly-RN\").\n'),
   "rate": zod.number(),
   "effectiveDate": zod.string()
 })
@@ -375,7 +421,7 @@ export const createClientBodyRateMin = 0;
 
 export const CreateClientBody = zod.object({
   "name": zod.string().min(1),
-  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call']),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'mccall-per-diem', 'mie-first-last-day', 'mie-full-day']),
   "rate": zod.number().min(createClientBodyRateMin),
   "billingContact": zod.string().optional(),
   "billingAddress": zod.string().optional()
@@ -848,7 +894,7 @@ export const GetPayrollReportResponse = zod.object({
   "entryId": zod.string(),
   "date": zod.string(),
   "clientName": zod.string(),
-  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call']).optional(),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'mccall-per-diem', 'mie-first-last-day', 'mie-full-day']).optional(),
   "hours": zod.number().optional(),
   "isWeekend": zod.boolean(),
   "isHoliday": zod.boolean(),
@@ -928,7 +974,7 @@ export const GetReconciliationReportResponse = zod.object({
   "lines": zod.array(zod.object({
   "entryId": zod.string(),
   "date": zod.string(),
-  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call']).optional(),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'mccall-per-diem', 'mie-first-last-day', 'mie-full-day']).optional(),
   "hours": zod.number().optional(),
   "mileage": zod.number().optional(),
   "perDiem": zod.number().optional(),
@@ -937,7 +983,7 @@ export const GetReconciliationReportResponse = zod.object({
   "note": zod.string()
 })),
   "visitCounts": zod.array(zod.object({
-  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call']),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'mccall-per-diem', 'mie-first-last-day', 'mie-full-day']),
   "count": zod.number()
 })),
   "totalVisits": zod.number(),
@@ -947,7 +993,7 @@ export const GetReconciliationReportResponse = zod.object({
 })),
   "totals": zod.object({
   "visitCounts": zod.array(zod.object({
-  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call']),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'mccall-per-diem', 'mie-first-last-day', 'mie-full-day']),
   "count": zod.number()
 })),
   "totalVisits": zod.number(),
@@ -1104,35 +1150,3 @@ export const DisconnectQboResponse = zod.object({
 })
 
 
-
-
-/**
- * @summary Submit multiple visit-type entries for one day atomically
- */
-export const batchCreateTimeEntriesMileageMin = 0;
-
-export const BatchCreateTimeEntryBody = zod.object({
-  "employeeId": zod.string(),
-  "clientId": zod.string(),
-  "date": zod.string(),
-  "visitTypes": zod.array(zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call'])).min(1).max(20),
-  "mileage": zod.number().min(batchCreateTimeEntriesMileageMin).optional(),
-  "perDiemType": zod.enum(['first_last', 'full']).optional(),
-  "note": zod.string().optional()
-})
-
-export const BatchCreateTimeEntriesResponseItem = zod.object({
-  "id": zod.string(),
-  "employeeId": zod.string(),
-  "employeeName": zod.string(),
-  "employeeRole": zod.string(),
-  "clientId": zod.string(),
-  "clientName": zod.string(),
-  "date": zod.string(),
-  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call']).optional(),
-  "isWeekend": zod.boolean(),
-  "isHoliday": zod.boolean(),
-  "status": zod.enum(['submitted', 'approved', 'rejected']),
-  "submittedAt": zod.string()
-})
-export const BatchCreateTimeEntriesResponse = zod.array(BatchCreateTimeEntriesResponseItem)

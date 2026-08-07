@@ -6,11 +6,14 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ClientRateType } from './clientRateType';
+import type { Discipline } from './discipline';
 
 export interface CreateClientRate {
   /** @minLength 1 */
   clientId: string;
   rateType: ClientRateType;
+  /** If set, this rate applies only to employees of that discipline. The stored key becomes "{rateType}-{discipline}" (e.g. "soc-RN"), so the invoice route can try the role-specific key first and fall back to the plain rateType for clients with a single rate per visit type. */
+  discipline?: Discipline;
   /** @minimum 0 */
   rate: number;
   effectiveDate: string;

@@ -17,6 +17,9 @@ export const visitTypeLabels: Record<VisitType, string> = {
   'training': 'Training',
   'non-billable': 'Non-billable Visit',
   'on-call': 'On Call',
+  'mccall-per-diem': 'McCall Per Diem',
+  'mie-first-last-day': 'MI&E First/Last Day',
+  'mie-full-day': 'MI&E Full Day',
 };
 
 export const statusLabels: Record<TimeEntry['status'], string> = {

@@ -2157,6 +2157,9 @@ components:
         - training
         - non-billable
         - on-call
+        - mccall-per-diem
+        - mie-first-last-day
+        - mie-full-day
     ClientRateType:
       type: string
       enum:
@@ -2176,6 +2179,9 @@ components:
         - training
         - non-billable
         - on-call
+        - mccall-per-diem
+        - mie-first-last-day
+        - mie-full-day
         - hourly
     TimeEntry:
       type: object

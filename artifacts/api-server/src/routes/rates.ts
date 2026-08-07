@@ -230,6 +230,21 @@ const backfillClientRates = [
   { clientId: "1", clientName: "St. Luke's Health System", visitType: "hospice-PT", rate: 94, effectiveDate: "2024-01-01" },
   { clientId: "1", clientName: "St. Luke's Health System", visitType: "hospice-OT", rate: 94, effectiveDate: "2024-01-01" },
   { clientId: "1", clientName: "St. Luke's Health System", visitType: "hospice-SLP", rate: 94, effectiveDate: "2024-01-01" },
+  // McCall Per Diem
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "mccall-per-diem-RN", rate: 300, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "mccall-per-diem-PT", rate: 300, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "mccall-per-diem-OT", rate: 300, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "mccall-per-diem-SLP", rate: 300, effectiveDate: "2024-01-01" },
+  // MI&E first/last day
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "mie-first-last-day-RN", rate: 60, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "mie-first-last-day-PT", rate: 60, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "mie-first-last-day-OT", rate: 60, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "mie-first-last-day-SLP", rate: 60, effectiveDate: "2024-01-01" },
+  // MI&E full day
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "mie-full-day-RN", rate: 80, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "mie-full-day-PT", rate: 80, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "mie-full-day-OT", rate: 80, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "mie-full-day-SLP", rate: 80, effectiveDate: "2024-01-01" },
 ];
 
 // Advisory lock key so concurrent server instances (or parallel test
