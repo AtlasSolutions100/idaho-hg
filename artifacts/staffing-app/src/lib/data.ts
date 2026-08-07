@@ -225,6 +225,12 @@ export const visitTypeLabels: Record<VisitType, string> = {
   'mie-full-day': 'MI&E Full Day',
 };
 
+/** Plain-language labels for the two per diem options. */
+export const perDiemTypeLabels: Record<string, string> = {
+  first_last: 'First/last day',
+  full: 'Full day',
+};
+
 export const clientRateTypeLabels: Record<string, string> = {
   ...visitTypeLabels,
   hourly: 'Hourly',

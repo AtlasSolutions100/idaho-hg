@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
+  type TimeEntry,
   useListTimeEntries,
   useApproveTimeEntry,
   useRejectTimeEntry,
@@ -11,9 +13,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { visitTypeLabels } from '@/lib/data';
+import { visitTypeLabels, perDiemTypeLabels } from '@/lib/data';
 import { format } from 'date-fns';
-import { Check, X, Loader2, AlertCircle } from 'lucide-react';
+import { Check, X, Loader2, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 /** Monday (local) of the week containing a YYYY-MM-DD date, as YYYY-MM-DD. */
@@ -30,6 +32,57 @@ export function mondayOf(dateStr: string): string {
 export function weekLabel(mondayKey: string): string {
   const [y, m, d] = mondayKey.split('-').map(Number);
   return `Week of ${format(new Date(y, m - 1, d), 'MMM d, yyyy')}`;
+}
+
+/**
+ * Everything the employee logged for one employee/client/day, pulled together.
+ * Multi-visit St. Luke's days are stored as one entry per visit type with the
+ * day's mileage and per diem recorded on the first entry only — so the day
+ * summary counts visit types across siblings and reports mileage/per diem
+ * once for the whole day.
+ */
+export function daySummary(entry: TimeEntry, all: TimeEntry[]) {
+  // Only entries that still count toward the day: waiting or already
+  // approved. Drafts are private and rejected siblings are out of play —
+  // including them would show Molly stale visit counts, mileage, or notes.
+  const siblings = all.filter(
+    (e) =>
+      e.employeeId === entry.employeeId &&
+      e.clientId === entry.clientId &&
+      e.date === entry.date &&
+      (e.status === 'submitted' || e.status === 'approved'),
+  );
+  const visitCounts = new Map<string, number>();
+  let mileage = 0;
+  let perDiemType: string | undefined;
+  // Legacy entries carry only a numeric per diem with no type — still payable
+  // compensation, so the day total must surface it.
+  let perDiemCount = 0;
+  let isWeekend = false;
+  let isHoliday = false;
+  for (const e of siblings) {
+    if (e.isWeekend) isWeekend = true;
+    if (e.isHoliday) isHoliday = true;
+    if (e.visitType) {
+      const label = visitTypeLabels[e.visitType] ?? e.visitType;
+      visitCounts.set(label, (visitCounts.get(label) ?? 0) + 1);
+    }
+    if (e.mileage) mileage += e.mileage;
+    if (e.perDiemType) perDiemType = e.perDiemType;
+    if (e.perDiem) perDiemCount += e.perDiem;
+  }
+  const notes = [...new Set(siblings.map((e) => e.note).filter((n): n is string => !!n))];
+  return {
+    siblings,
+    visitCounts: [...visitCounts.entries()],
+    totalVisits: siblings.filter((e) => e.visitType).length,
+    mileage,
+    perDiemType,
+    perDiemCount,
+    isWeekend,
+    isHoliday,
+    notes,
+  };
 }
 
 export function ApprovePayrollTable() {
@@ -97,6 +150,15 @@ export function ApprovePayrollTable() {
       },
     },
   });
+
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const toggleExpanded = (id: string) =>
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const pendingEntries = (entries ?? []).filter(e => e.status === 'submitted');
   const isActing =
@@ -174,6 +236,7 @@ export function ApprovePayrollTable() {
                   <Table>
                     <TableHeader>
                 <TableRow>
+                  <TableHead className="w-8" />
                   <TableHead>Employee</TableHead>
                   <TableHead>Client</TableHead>
                   <TableHead>Date</TableHead>
@@ -186,8 +249,36 @@ export function ApprovePayrollTable() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {weekGroups.get(weekKey)!.map(entry => (
-                  <TableRow key={entry.id} data-testid={`payroll-entry-${entry.id}`}>
+                {weekGroups.get(weekKey)!.map(entry => {
+                  const expanded = expandedIds.has(entry.id);
+                  const day = expanded ? daySummary(entry, entries ?? []) : null;
+                  return [
+                  <TableRow
+                    key={entry.id}
+                    data-testid={`payroll-entry-${entry.id}`}
+                    className="cursor-pointer"
+                    onClick={() => toggleExpanded(entry.id)}
+                  >
+                    <TableCell className="pr-0">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0"
+                        aria-label={expanded ? 'Hide details' : 'Show details'}
+                        aria-expanded={expanded}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleExpanded(entry.id);
+                        }}
+                        data-testid={`button-expand-${entry.id}`}
+                      >
+                        {expanded ? (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                    </TableCell>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         {entry.employeeName}
@@ -237,7 +328,7 @@ export function ApprovePayrollTable() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                         <Button
                           size="sm"
                           variant="ghost"
@@ -260,8 +351,92 @@ export function ApprovePayrollTable() {
                         </Button>
                       </div>
                     </TableCell>
-                  </TableRow>
-                ))}
+                  </TableRow>,
+                  expanded && day ? (
+                    <TableRow key={`${entry.id}-detail`} className="hover:bg-transparent">
+                      <TableCell
+                        colSpan={10}
+                        className="bg-muted/40 px-6 py-4"
+                        data-testid={`entry-detail-${entry.id}`}
+                      >
+                        <div className="max-w-3xl space-y-4">
+                          <div className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3 text-sm">
+                            {day.totalVisits > 0 && (
+                              <div className="sm:col-span-2 lg:col-span-3">
+                                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+                                  Visits this day ({day.totalVisits})
+                                </div>
+                                <ul className="space-y-0.5" data-testid={`detail-visits-${entry.id}`}>
+                                  {day.visitCounts.map(([label, count]) => (
+                                    <li key={label} className={label === (entry.visitType ? visitTypeLabels[entry.visitType] : '') ? 'font-medium' : ''}>
+                                      {count} × {label}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            <div>
+                              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">Time</div>
+                              <div data-testid={`detail-time-${entry.id}`}>
+                                {entry.timeIn && entry.timeOut
+                                  ? `${entry.timeIn} – ${entry.timeOut} (${entry.hours ?? '—'} hrs)`
+                                  : entry.hours
+                                    ? `${entry.hours} hours`
+                                    : 'Per-visit (no clock times)'}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">Mileage (day)</div>
+                              <div data-testid={`detail-mileage-${entry.id}`}>
+                                {day.mileage ? `${day.mileage} miles` : 'None'}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">Per diem</div>
+                              <div data-testid={`detail-perdiem-${entry.id}`}>
+                                {day.perDiemType
+                                  ? (perDiemTypeLabels[day.perDiemType] ?? day.perDiemType)
+                                  : day.perDiemCount > 0
+                                    ? `Yes (${day.perDiemCount})`
+                                    : 'None'}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">Day flags</div>
+                              <div className="flex gap-1.5" data-testid={`detail-flags-${entry.id}`}>
+                                {day.isWeekend && <Badge variant="outline" className="text-xs">Weekend</Badge>}
+                                {day.isHoliday && <Badge variant="outline" className="text-xs">Holiday</Badge>}
+                                {!day.isWeekend && !day.isHoliday && (
+                                  <span className="text-muted-foreground">Regular weekday</span>
+                                )}
+                              </div>
+                            </div>
+                            {entry.submittedAt && !Number.isNaN(new Date(entry.submittedAt).getTime()) && (
+                              <div>
+                                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">Submitted</div>
+                                <div className="text-muted-foreground">
+                                  {format(new Date(entry.submittedAt), 'MMM d, yyyy h:mm a')}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          {day.notes.length > 0 && (
+                            <div>
+                              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">Notes</div>
+                              <div
+                                className="rounded-md border bg-background px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap"
+                                data-testid={`detail-note-${entry.id}`}
+                              >
+                                {day.notes.join('\n')}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : null,
+                  ];
+                })}
               </TableBody>
                   </Table>
                 </div>
