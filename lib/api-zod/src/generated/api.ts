@@ -205,6 +205,7 @@ export const createClientRateBodyRateMin = 0;
 export const CreateClientRateBody = zod.object({
   "clientId": zod.string().min(1),
   "rateType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'hourly']),
+  "discipline": zod.enum(['RN', 'PT', 'OT', 'SLP', 'PTA', 'LPN', 'ST', 'LCSW']).optional(),
   "rate": zod.number().min(createClientRateBodyRateMin),
   "effectiveDate": zod.string()
 })

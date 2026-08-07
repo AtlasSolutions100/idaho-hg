@@ -37,9 +37,23 @@ import { visitTypeLabels, clientRateTypeLabels, type VisitType } from '@/lib/dat
 import { Pencil, Loader2, AlertCircle, History, Plus, Trash2, Clock, MapPin } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
+// Disciplines that can have a per-discipline visit-type billing rate.
+const KNOWN_DISCIPLINES = new Set(['RN', 'PT', 'OT', 'SLP', 'PTA', 'LPN', 'ST', 'LCSW']);
+const DISCIPLINE_OPTIONS = ['RN', 'PT', 'OT', 'SLP', 'PTA', 'LPN', 'ST', 'LCSW'] as const;
+
 function rateTypeLabel(visitType: string): string {
   if (visitType.startsWith('hourly-')) {
     return `Hourly – ${visitType.slice('hourly-'.length)}`;
+  }
+  // Handle "{visitType}-{DISCIPLINE}" keys (e.g. "soc-RN" → "SOC – RN")
+  const lastDash = visitType.lastIndexOf('-');
+  if (lastDash !== -1) {
+    const suffix = visitType.slice(lastDash + 1);
+    if (KNOWN_DISCIPLINES.has(suffix)) {
+      const base = visitType.slice(0, lastDash);
+      const baseLabel = clientRateTypeLabels[base] ?? base;
+      return `${baseLabel} – ${suffix}`;
+    }
   }
   return clientRateTypeLabels[visitType] ?? visitType;
 }
@@ -78,6 +92,16 @@ export function ClientRatesTable() {
   const [hourlyRate, setHourlyRate] = useState('');
   const [hourlyDate, setHourlyDate] = useState('');
   const [hourlyError, setHourlyError] = useState<string | null>(null);
+
+  // "Add Visit Rate" dialog — adds a discipline-specific (or generic) per-visit rate
+  // to an existing client, e.g. "soc-RN" at $336.
+  // "all" is a sentinel meaning "no discipline filter" (Radix disallows empty string).
+  const [visitRateFor, setVisitRateFor] = useState<{ clientId: string; clientName: string } | null>(null);
+  const [visitRateType, setVisitRateType] = useState<string>('');
+  const [visitRateDiscipline, setVisitRateDiscipline] = useState<string>('all');
+  const [visitRateValue, setVisitRateValue] = useState<string>('');
+  const [visitRateDate, setVisitRateDate] = useState<string>('');
+  const [visitRateError, setVisitRateError] = useState<string | null>(null);
 
   const historyQuery = useListClientRateHistory(historyFor?.id ?? '', {
     query: {
@@ -202,6 +226,64 @@ export function ClientRatesTable() {
       },
     },
   });
+
+  const visitRateMutation = useCreateClientRate({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListClientRatesQueryKey() });
+        setVisitRateFor(null);
+        toast({
+          title: 'Visit rate added',
+          description: 'Visit entries for this client will now be billed at the new rate on invoices.',
+        });
+      },
+      onError: (error) => {
+        const serverMessage =
+          error && typeof error === 'object' && 'data' in error &&
+          error.data && typeof error.data === 'object' && 'message' in error.data &&
+          typeof (error.data as { message?: unknown }).message === 'string'
+            ? (error.data as { message: string }).message
+            : null;
+        setVisitRateError(serverMessage ?? 'Could not save the visit rate. Please try again.');
+      },
+    },
+  });
+
+  const openAddVisitRate = (clientId: string, clientName: string) => {
+    setVisitRateType('');
+    setVisitRateDiscipline('all');
+    setVisitRateValue('');
+    setVisitRateDate(new Date().toISOString().slice(0, 10));
+    setVisitRateError(null);
+    setVisitRateFor({ clientId, clientName });
+  };
+
+  const handleAddVisitRate = () => {
+    if (!visitRateFor) return;
+    setVisitRateError(null);
+    const parsedRate = Number(visitRateValue);
+    if (!visitRateType) {
+      setVisitRateError('Choose a visit type.');
+      return;
+    }
+    if (!visitRateValue || !Number.isFinite(parsedRate) || parsedRate < 0) {
+      setVisitRateError('Enter a valid dollar amount.');
+      return;
+    }
+    if (!visitRateDate) {
+      setVisitRateError('Choose an effective date.');
+      return;
+    }
+    visitRateMutation.mutate({
+      data: {
+        clientId: visitRateFor.clientId,
+        rateType: visitRateType as any,
+        ...(visitRateDiscipline && visitRateDiscipline !== 'all' ? { discipline: visitRateDiscipline as any } : {}),
+        rate: parsedRate,
+        effectiveDate: visitRateDate,
+      },
+    });
+  };
 
   const openAddHourly = (clientId: string, clientName: string) => {
     setHourlyRate('');
@@ -347,6 +429,16 @@ export function ClientRatesTable() {
                     )}
                   </div>
                   <div className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="gap-2"
+                      onClick={() => openAddVisitRate(clientId, clientRates[0].clientName)}
+                      data-testid={`button-add-visit-rate-${clientId}`}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add Visit Rate
+                    </Button>
                     {!clientRates.some((r) => r.visitType === 'hourly') && (
                       <Button
                         size="sm"
@@ -749,13 +841,114 @@ export function ClientRatesTable() {
         </DialogContent>
       </Dialog>
 
+      {/* Add Visit Rate dialog — adds a discipline-specific or generic per-visit rate */}
+      <Dialog open={!!visitRateFor} onOpenChange={(open) => !open && setVisitRateFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Visit Rate</DialogTitle>
+            <DialogDescription>
+              {visitRateFor
+                ? `${visitRateFor.clientName} — choose the visit type and, optionally, a discipline to set a discipline-specific rate. Leave discipline blank for a rate that applies to all disciplines.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="visit-rate-type">Visit Type</Label>
+              <Select value={visitRateType} onValueChange={setVisitRateType}>
+                <SelectTrigger id="visit-rate-type" data-testid="select-visit-rate-type">
+                  <SelectValue placeholder="Select visit type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(visitTypeLabels) as (keyof typeof visitTypeLabels)[]).map((type) => (
+                    <SelectItem key={type} value={type} data-testid={`select-visit-rate-type-${type}`}>
+                      {visitTypeLabels[type]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="visit-rate-discipline">
+                Discipline <span className="text-muted-foreground font-normal">(optional)</span>
+              </Label>
+              <Select value={visitRateDiscipline} onValueChange={setVisitRateDiscipline}>
+                <SelectTrigger id="visit-rate-discipline" data-testid="select-visit-rate-discipline">
+                  <SelectValue placeholder="All disciplines (no filter)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" data-testid="select-visit-rate-discipline-any">
+                    All disciplines
+                  </SelectItem>
+                  {DISCIPLINE_OPTIONS.map((d) => (
+                    <SelectItem key={d} value={d} data-testid={`select-visit-rate-discipline-${d}`}>
+                      {d}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                When set, this rate applies only to employees of that discipline. Invoice generation
+                tries the discipline-specific rate first, then falls back to the rate with no discipline.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="visit-rate-value">Rate ($ per visit)</Label>
+              <Input
+                id="visit-rate-value"
+                type="number"
+                min="0"
+                step="0.01"
+                value={visitRateValue}
+                onChange={(e) => setVisitRateValue(e.target.value)}
+                placeholder="95.00"
+                data-testid="input-visit-rate-value"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="visit-rate-date">Effective Date</Label>
+              <Input
+                id="visit-rate-date"
+                type="date"
+                value={visitRateDate}
+                onChange={(e) => setVisitRateDate(e.target.value)}
+                data-testid="input-visit-rate-date"
+              />
+            </div>
+            {visitRateError && (
+              <div
+                className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+                data-testid="error-add-visit-rate"
+              >
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>{visitRateError}</span>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVisitRateFor(null)} data-testid="button-cancel-visit-rate">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddVisitRate}
+              disabled={visitRateMutation.isPending}
+              className="gap-2"
+              data-testid="button-save-visit-rate"
+            >
+              {visitRateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Add Rate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!historyFor} onOpenChange={(open) => !open && setHistoryFor(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Rate History</DialogTitle>
             <DialogDescription>
               {historyFor
-                ? `${historyFor.clientName} — ${clientRateTypeLabels[historyFor.visitType] ?? historyFor.visitType}`
+                ? `${historyFor.clientName} — ${rateTypeLabel(historyFor.visitType)}`
                 : ''}
             </DialogDescription>
           </DialogHeader>

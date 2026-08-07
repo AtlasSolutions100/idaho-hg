@@ -166,6 +166,70 @@ const backfillClientRates = [
   { clientId: "3", clientName: "Idaho Youth Ranch", visitType: "hourly-RN", rate: 93, effectiveDate: "2024-01-01" },
   // Treasure Valley Outpatient general hourly (PT-led)
   { clientId: "4", clientName: "Treasure Valley Outpatient Clinic", visitType: "hourly", rate: 69, effectiveDate: "2024-01-01" },
+
+  // St. Luke's — new visit types, discipline-specific billing rates (from master rate sheet)
+  // Rates are stored as {visitType}-{ROLE} so the invoice route can try the
+  // role-specific key first and fall back to the plain visitType if needed.
+  // Routine visit
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "routine-visit-RN", rate: 126, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "routine-visit-PT", rate: 141, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "routine-visit-OT", rate: 141, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "routine-visit-SLP", rate: 141, effectiveDate: "2024-01-01" },
+  // SOC
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "soc-RN", rate: 336, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "soc-PT", rate: 376, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "soc-OT", rate: 376, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "soc-SLP", rate: 376, effectiveDate: "2024-01-01" },
+  // ROC
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "roc-RN", rate: 252, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "roc-PT", rate: 282, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "roc-OT", rate: 282, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "roc-SLP", rate: 282, effectiveDate: "2024-01-01" },
+  // Recert / Recert RA
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "recert-RN", rate: 210, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "recert-PT", rate: 235, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "recert-OT", rate: 235, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "recert-SLP", rate: 235, effectiveDate: "2024-01-01" },
+  // Discharge (DC)
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "discharge-RN", rate: 168, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "discharge-PT", rate: 188, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "discharge-OT", rate: 188, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "discharge-SLP", rate: 188, effectiveDate: "2024-01-01" },
+  // Eval / Eval RA
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "eval-RN", rate: 210, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "eval-PT", rate: 235, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "eval-OT", rate: 235, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "eval-SLP", rate: 235, effectiveDate: "2024-01-01" },
+  // Non-visit (doc/meeting)
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "non-visit-RN", rate: 84, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "non-visit-PT", rate: 94, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "non-visit-OT", rate: 94, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "non-visit-SLP", rate: 94, effectiveDate: "2024-01-01" },
+  // Training
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "training-RN", rate: 84, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "training-PT", rate: 94, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "training-OT", rate: 79, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "training-SLP", rate: 94, effectiveDate: "2024-01-01" },
+  // Non-billable visit
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "non-billable-RN", rate: 166, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "non-billable-PT", rate: 188.99, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "non-billable-OT", rate: 188, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "non-billable-SLP", rate: 188, effectiveDate: "2024-01-01" },
+  // On Call
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "on-call-RN", rate: 10, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "on-call-PT", rate: 10, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "on-call-OT", rate: 10, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "on-call-SLP", rate: 10, effectiveDate: "2024-01-01" },
+  // Hospital at Home
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "hospital-at-home-RN", rate: 84, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "hospital-at-home-PT", rate: 94, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "hospital-at-home-OT", rate: 94, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "hospital-at-home-SLP", rate: 94, effectiveDate: "2024-01-01" },
+  // Hospice
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "hospice-RN", rate: 84, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "hospice-PT", rate: 94, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "hospice-OT", rate: 94, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "hospice-SLP", rate: 94, effectiveDate: "2024-01-01" },
 ];
 
 // Advisory lock key so concurrent server instances (or parallel test
@@ -247,7 +311,12 @@ router.post("/client-rates", async (req, res, next) => {
       res.status(400).json({ message: parsed.error.issues[0]?.message ?? "Invalid rate" });
       return;
     }
-    const { clientId, rateType, rate, effectiveDate } = parsed.data;
+    const { clientId, rateType, discipline, rate, effectiveDate } = parsed.data;
+    // When a discipline is supplied the stored key is "{rateType}-{discipline}"
+    // (e.g. "soc-RN").  The invoice route tries the discipline-specific key
+    // first and falls back to the plain rateType so clients with a single rate
+    // per visit type continue to work without any changes.
+    const storedType = discipline ? `${rateType}-${discipline}` : rateType;
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
     if (!client || !client.active) {
       res.status(404).json({ message: "Client not found" });
@@ -257,7 +326,7 @@ router.post("/client-rates", async (req, res, next) => {
       .select()
       .from(clientRatesTable)
       .where(
-        and(eq(clientRatesTable.clientId, clientId), eq(clientRatesTable.visitType, rateType)),
+        and(eq(clientRatesTable.clientId, clientId), eq(clientRatesTable.visitType, storedType)),
       )
       .limit(1);
     if (existing) {
@@ -271,7 +340,7 @@ router.post("/client-rates", async (req, res, next) => {
       .values({
         clientId,
         clientName: client.name,
-        visitType: rateType,
+        visitType: storedType,
         rate,
         effectiveDate,
       })

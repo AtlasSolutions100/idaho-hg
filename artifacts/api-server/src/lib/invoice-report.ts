@@ -67,7 +67,12 @@ export async function computeInvoiceReport(
       perDiem: entry.perDiem,
     };
     if (entry.visitType) {
-      const rate = await getClientRateForDate(clientId, entry.visitType, entry.date);
+      // Try role-specific visit rate first (e.g. "soc-RN"), fall back to the
+      // generic visit type so clients with a single rate per visit type still work.
+      const roleVisitRate = entry.employeeRole
+        ? await getClientRateForDate(clientId, `${entry.visitType}-${entry.employeeRole}`, entry.date)
+        : undefined;
+      const rate = roleVisitRate ?? (await getClientRateForDate(clientId, entry.visitType, entry.date));
       if (rate) input.visitRate = rate.rate;
     } else if (entry.hours != null && entry.hours > 0) {
       // Try role-specific hourly rate first (e.g. "hourly-RN"), fall back to

@@ -1994,7 +1994,13 @@ components:
         clientName:
           type: string
         visitType:
-          $ref: "#/components/schemas/ClientRateType"
+          type: string
+          description: >
+            The rate key stored in the database. For plain visit types this is
+            the ClientRateType value (e.g. "soc"). For discipline-specific rates
+            it is "{ClientRateType}-{Discipline}" (e.g. "soc-RN"). For
+            discipline-specific hourly rates it is "hourly-{Discipline}"
+            (e.g. "hourly-RN").
         rate:
           type: number
         effectiveDate:
@@ -2017,6 +2023,18 @@ components:
       required:
         - rate
         - effectiveDate
+    Discipline:
+      type: string
+      description: Employee discipline/role abbreviation
+      enum:
+        - RN
+        - PT
+        - OT
+        - SLP
+        - PTA
+        - LPN
+        - ST
+        - LCSW
     CreateClientRate:
       type: object
       properties:
@@ -2025,6 +2043,13 @@ components:
           minLength: 1
         rateType:
           $ref: "#/components/schemas/ClientRateType"
+        discipline:
+          $ref: "#/components/schemas/Discipline"
+          description: >
+            If set, this rate applies only to employees of that discipline.
+            The stored key becomes "{rateType}-{discipline}" (e.g. "soc-RN"),
+            so the invoice route can try the role-specific key first and fall
+            back to the plain rateType for clients with a single rate per visit type.
         rate:
           type: number
           minimum: 0

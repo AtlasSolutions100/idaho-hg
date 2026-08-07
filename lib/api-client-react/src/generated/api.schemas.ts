@@ -410,14 +410,40 @@ export const ClientRateType = {
   'physical-therapy': 'physical-therapy',
   'occupational-therapy': 'occupational-therapy',
   'speech-therapy': 'speech-therapy',
+  'soc': 'soc',
+  'routine-visit': 'routine-visit',
+  'eval': 'eval',
+  'recert': 'recert',
+  'roc': 'roc',
+  'discharge': 'discharge',
+  'non-visit': 'non-visit',
+  'hospital-at-home': 'hospital-at-home',
+  'hospice': 'hospice',
+  'training': 'training',
+  'non-billable': 'non-billable',
+  'on-call': 'on-call',
   hourly: 'hourly',
+} as const;
+
+/** Employee discipline / role abbreviation. */
+export type Discipline = typeof Discipline[keyof typeof Discipline];
+
+export const Discipline = {
+  RN: 'RN',
+  PT: 'PT',
+  OT: 'OT',
+  SLP: 'SLP',
+  PTA: 'PTA',
+  LPN: 'LPN',
+  ST: 'ST',
+  LCSW: 'LCSW',
 } as const;
 
 export interface ClientRate {
   id: string;
   clientId: string;
   clientName: string;
-  visitType: ClientRateType;
+  visitType: string;
   rate: number;
   effectiveDate: string;
 }
@@ -432,6 +458,13 @@ export interface CreateClientRate {
   /** @minLength 1 */
   clientId: string;
   rateType: ClientRateType;
+  /**
+   * If set, this rate applies only to employees of that discipline.
+   * The stored key becomes "{rateType}-{discipline}" (e.g. "soc-RN"),
+   * so the invoice route can try the role-specific key first and fall
+   * back to the plain rateType for clients with a single rate per visit type.
+   */
+  discipline?: Discipline;
   /** @minimum 0 */
   rate: number;
   effectiveDate: string;
