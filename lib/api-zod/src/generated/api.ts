@@ -23,7 +23,7 @@ export const HealthCheckResponse = zod.object({
  */
 export const ListTimeEntriesQueryParams = zod.object({
   "employeeId": zod.coerce.string().optional(),
-  "status": zod.enum(['submitted', 'approved', 'rejected']).optional()
+  "status": zod.enum(['draft', 'submitted', 'approved', 'rejected']).optional()
 })
 
 export const ListTimeEntriesResponseItem = zod.object({
@@ -44,7 +44,7 @@ export const ListTimeEntriesResponseItem = zod.object({
   "isWeekend": zod.boolean(),
   "isHoliday": zod.boolean(),
   "note": zod.string().optional(),
-  "status": zod.enum(['submitted', 'approved', 'rejected']),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'rejected']),
   "isDemo": zod.boolean().optional(),
   "submittedAt": zod.string(),
   "approvedAt": zod.string().optional()
@@ -80,7 +80,8 @@ export const CreateTimeEntryBody = zod.object({
   "perDiemType": zod.enum(['first_last', 'full']).optional().describe('Per-diem option — \"First\/Last day\" or \"Full day\"'),
   "isWeekend": zod.boolean().optional().describe('Ignored — the server derives weekend from the date'),
   "isHoliday": zod.boolean().optional().describe('Ignored — the server determines holidays from its own calendar'),
-  "note": zod.string().optional()
+  "note": zod.string().optional(),
+  "status": zod.enum(['draft', 'submitted']).optional().describe('Initial status for a new entry — save as a private draft or submit for approval. Defaults to submitted.')
 })
 
 export const CreateTimeEntryResponse = zod.object({
@@ -101,7 +102,66 @@ export const CreateTimeEntryResponse = zod.object({
   "isWeekend": zod.boolean(),
   "isHoliday": zod.boolean(),
   "note": zod.string().optional(),
-  "status": zod.enum(['submitted', 'approved', 'rejected']),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'rejected']),
+  "isDemo": zod.boolean().optional(),
+  "submittedAt": zod.string(),
+  "approvedAt": zod.string().optional()
+})
+
+
+/**
+ * Replaces the entry's editable fields, re-running all creation rules (visit-type gating, mileage-on-contract, clock-time hours, valid dates). Only the entry's own employee may edit; approved entries are locked. Passing status "submitted" on a draft or rejected entry submits it.
+ * @summary Edit a time entry (draft, submitted, or rejected — never approved)
+ */
+export const UpdateTimeEntryParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const updateTimeEntryBodyTimeInRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const updateTimeEntryBodyTimeOutRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+export const updateTimeEntryBodyHoursMin = 0;
+export const updateTimeEntryBodyHoursMax = 24;
+
+export const updateTimeEntryBodyMileageMin = 0;
+
+export const updateTimeEntryBodyPerDiemMin = 0;
+export const updateTimeEntryBodyPerDiemMax = 1;
+
+
+
+export const UpdateTimeEntryBody = zod.object({
+  "clientId": zod.string(),
+  "date": zod.string(),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'mccall-per-diem', 'mie-first-last-day', 'mie-full-day']).optional(),
+  "timeIn": zod.string().regex(updateTimeEntryBodyTimeInRegExp).optional().describe('Clock-in time \"HH:MM\" (24-hour). Provide with timeOut instead of hours.'),
+  "timeOut": zod.string().regex(updateTimeEntryBodyTimeOutRegExp).optional().describe('Clock-out time \"HH:MM\" (24-hour); an earlier time than timeIn means the shift crossed midnight'),
+  "hours": zod.number().min(updateTimeEntryBodyHoursMin).max(updateTimeEntryBodyHoursMax).optional().describe('Legacy direct hours; ignored when timeIn\/timeOut are provided'),
+  "mileage": zod.number().min(updateTimeEntryBodyMileageMin).optional(),
+  "perDiem": zod.number().min(updateTimeEntryBodyPerDiemMin).max(updateTimeEntryBodyPerDiemMax).optional(),
+  "perDiemType": zod.enum(['first_last', 'full']).optional().describe('Per-diem option — \"First\/Last day\" or \"Full day\"'),
+  "note": zod.string().optional(),
+  "status": zod.enum(['draft', 'submitted']).optional().describe('Initial status for a new entry — save as a private draft or submit for approval. Defaults to submitted.')
+}).describe('Full replacement of an entry\'s editable fields. The employee never changes — only client, date, work details, and (optionally) status.\n')
+
+export const UpdateTimeEntryResponse = zod.object({
+  "id": zod.string(),
+  "employeeId": zod.string(),
+  "employeeName": zod.string(),
+  "employeeRole": zod.string(),
+  "clientId": zod.string(),
+  "clientName": zod.string(),
+  "date": zod.string(),
+  "visitType": zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'mccall-per-diem', 'mie-first-last-day', 'mie-full-day']).optional(),
+  "timeIn": zod.string().optional().describe('Clock-in time \"HH:MM\" (24-hour)'),
+  "timeOut": zod.string().optional().describe('Clock-out time \"HH:MM\" (24-hour)'),
+  "hours": zod.number().optional(),
+  "mileage": zod.number().optional(),
+  "perDiem": zod.number().optional(),
+  "perDiemType": zod.enum(['first_last', 'full']).optional().describe('Per-diem option — \"First\/Last day\" or \"Full day\"'),
+  "isWeekend": zod.boolean(),
+  "isHoliday": zod.boolean(),
+  "note": zod.string().optional(),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'rejected']),
   "isDemo": zod.boolean().optional(),
   "submittedAt": zod.string(),
   "approvedAt": zod.string().optional()
@@ -133,7 +193,7 @@ export const ApproveTimeEntryResponse = zod.object({
   "isWeekend": zod.boolean(),
   "isHoliday": zod.boolean(),
   "note": zod.string().optional(),
-  "status": zod.enum(['submitted', 'approved', 'rejected']),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'rejected']),
   "isDemo": zod.boolean().optional(),
   "submittedAt": zod.string(),
   "approvedAt": zod.string().optional()
@@ -165,7 +225,7 @@ export const RejectTimeEntryResponse = zod.object({
   "isWeekend": zod.boolean(),
   "isHoliday": zod.boolean(),
   "note": zod.string().optional(),
-  "status": zod.enum(['submitted', 'approved', 'rejected']),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'rejected']),
   "isDemo": zod.boolean().optional(),
   "submittedAt": zod.string(),
   "approvedAt": zod.string().optional()
@@ -189,7 +249,8 @@ export const BatchCreateTimeEntriesBody = zod.object({
   "visitTypes": zod.array(zod.enum(['skilled-nursing', 'physical-therapy', 'occupational-therapy', 'speech-therapy', 'soc', 'routine-visit', 'eval', 'recert', 'roc', 'discharge', 'non-visit', 'hospital-at-home', 'hospice', 'training', 'non-billable', 'on-call', 'mccall-per-diem', 'mie-first-last-day', 'mie-full-day'])).min(1).max(batchCreateTimeEntriesBodyVisitTypesMax),
   "mileage": zod.number().min(batchCreateTimeEntriesBodyMileageMin).optional(),
   "perDiemType": zod.enum(['first_last', 'full']).optional().describe('Per-diem option — \"First\/Last day\" or \"Full day\"'),
-  "note": zod.string().optional()
+  "note": zod.string().optional(),
+  "status": zod.enum(['draft', 'submitted']).optional().describe('Initial status for a new entry — save as a private draft or submit for approval. Defaults to submitted.')
 }).describe('Submit multiple visit types for the same client\/date in a single atomic request. The server inserts one time entry per visit type inside one transaction; mileage and per diem are recorded on the first entry only.\n')
 
 export const BatchCreateTimeEntriesResponseItem = zod.object({
@@ -210,7 +271,7 @@ export const BatchCreateTimeEntriesResponseItem = zod.object({
   "isWeekend": zod.boolean(),
   "isHoliday": zod.boolean(),
   "note": zod.string().optional(),
-  "status": zod.enum(['submitted', 'approved', 'rejected']),
+  "status": zod.enum(['draft', 'submitted', 'approved', 'rejected']),
   "isDemo": zod.boolean().optional(),
   "submittedAt": zod.string(),
   "approvedAt": zod.string().optional()

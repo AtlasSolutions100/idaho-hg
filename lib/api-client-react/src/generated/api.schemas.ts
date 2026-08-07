@@ -527,9 +527,21 @@ export type EntryStatus = typeof EntryStatus[keyof typeof EntryStatus];
 
 
 export const EntryStatus = {
+  draft: 'draft',
   submitted: 'submitted',
   approved: 'approved',
   rejected: 'rejected',
+} as const;
+
+/**
+ * Initial status for a new entry — save as a private draft or submit for approval. Defaults to submitted.
+ */
+export type CreateEntryStatus = typeof CreateEntryStatus[keyof typeof CreateEntryStatus];
+
+
+export const CreateEntryStatus = {
+  draft: 'draft',
+  submitted: 'submitted',
 } as const;
 
 /**
@@ -604,6 +616,7 @@ export interface CreateTimeEntry {
   /** Ignored — the server determines holidays from its own calendar */
   isHoliday?: boolean;
   note?: string;
+  status?: CreateEntryStatus;
 }
 
 /**
@@ -622,6 +635,42 @@ export interface BatchCreateTimeEntry {
   mileage?: number;
   perDiemType?: PerDiemType;
   note?: string;
+  status?: CreateEntryStatus;
+}
+
+/**
+ * Full replacement of an entry's editable fields. The employee never changes — only client, date, work details, and (optionally) status.
+ */
+export interface UpdateTimeEntry {
+  clientId: string;
+  date: string;
+  visitType?: VisitType;
+  /**
+     * Clock-in time "HH:MM" (24-hour). Provide with timeOut instead of hours.
+     * @pattern ^([01][0-9]|2[0-3]):[0-5][0-9]$
+     */
+  timeIn?: string;
+  /**
+     * Clock-out time "HH:MM" (24-hour); an earlier time than timeIn means the shift crossed midnight
+     * @pattern ^([01][0-9]|2[0-3]):[0-5][0-9]$
+     */
+  timeOut?: string;
+  /**
+     * Legacy direct hours; ignored when timeIn/timeOut are provided
+     * @minimum 0
+     * @maximum 24
+     */
+  hours?: number;
+  /** @minimum 0 */
+  mileage?: number;
+  /**
+     * @minimum 0
+     * @maximum 1
+     */
+  perDiem?: number;
+  perDiemType?: PerDiemType;
+  note?: string;
+  status?: CreateEntryStatus;
 }
 
 export interface ApproveAllResult {

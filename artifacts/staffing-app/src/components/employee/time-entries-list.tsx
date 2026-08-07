@@ -1,16 +1,18 @@
 import { useListTimeEntries, type TimeEntry } from '@workspace/api-client-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { statusLabels, visitTypeLabels } from '@/lib/data';
 import { format } from 'date-fns';
-import { Calendar, MapPin, DollarSign, FileText, AlertCircle } from 'lucide-react';
+import { Calendar, MapPin, DollarSign, FileText, AlertCircle, Lock, Pencil } from 'lucide-react';
 
 interface TimeEntriesListProps {
   employeeId?: string;
+  onEdit?: (entry: TimeEntry) => void;
 }
 
-export function TimeEntriesList({ employeeId = '1' }: TimeEntriesListProps) {
+export function TimeEntriesList({ employeeId = '1', onEdit }: TimeEntriesListProps) {
   const { data: entries, isLoading, isError } = useListTimeEntries({ employeeId });
 
   if (isLoading) {
@@ -40,7 +42,7 @@ export function TimeEntriesList({ employeeId = '1' }: TimeEntriesListProps) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Your Submitted Hours</CardTitle>
+          <CardTitle>Your Hours</CardTitle>
           <CardDescription>No time entries yet</CardDescription>
         </CardHeader>
         <CardContent className="py-12">
@@ -57,13 +59,13 @@ export function TimeEntriesList({ employeeId = '1' }: TimeEntriesListProps) {
   return (
     <div className="space-y-3">
       {entries.map(entry => (
-        <TimeEntryCard key={entry.id} entry={entry} />
+        <TimeEntryCard key={entry.id} entry={entry} onEdit={onEdit} />
       ))}
     </div>
   );
 }
 
-function TimeEntryCard({ entry }: { entry: TimeEntry }) {
+function TimeEntryCard({ entry, onEdit }: { entry: TimeEntry; onEdit?: (entry: TimeEntry) => void }) {
   const getStatusColor = (status: TimeEntry['status']) => {
     switch (status) {
       case 'approved':
@@ -72,10 +74,15 @@ function TimeEntryCard({ entry }: { entry: TimeEntry }) {
         return 'secondary';
       case 'rejected':
         return 'destructive';
+      case 'draft':
+        return 'outline';
       default:
         return 'outline';
     }
   };
+
+  // Anything Molly hasn't approved yet can still be edited by its owner.
+  const editable = entry.status !== 'approved';
 
   return (
     <Card className="transition-smooth hover:shadow-md" data-testid={`time-entry-${entry.id}`}>
@@ -88,9 +95,31 @@ function TimeEntryCard({ entry }: { entry: TimeEntry }) {
               {format(new Date(entry.date), 'MMM d, yyyy')}
             </div>
           </div>
-          <Badge variant={getStatusColor(entry.status)} data-testid={`status-${entry.id}`}>
-            {statusLabels[entry.status]}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant={getStatusColor(entry.status)} data-testid={`status-${entry.id}`}>
+              {statusLabels[entry.status]}
+            </Badge>
+            {editable && onEdit ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => onEdit(entry)}
+                data-testid={`button-edit-${entry.id}`}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </Button>
+            ) : entry.status === 'approved' ? (
+              <span
+                className="flex items-center gap-1 text-xs text-muted-foreground"
+                title="Approved entries are locked"
+                data-testid={`locked-${entry.id}`}
+              >
+                <Lock className="h-3.5 w-3.5" />
+              </span>
+            ) : null}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">

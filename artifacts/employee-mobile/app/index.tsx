@@ -450,16 +450,36 @@ function SkeletonCard() {
 
 function EntryCard({ entry }: { entry: TimeEntry }) {
   const c = useColors();
+  const router = useRouter();
   const statusStyle =
     entry.status === 'approved'
       ? { bg: c.accent, fg: c.accentForeground, icon: 'check-circle' as const }
       : entry.status === 'rejected'
         ? { bg: '#FBE4E4', fg: c.destructive, icon: 'x-circle' as const }
-        : { bg: c.muted, fg: c.mutedForeground, icon: 'clock' as const };
+        : entry.status === 'draft'
+          ? { bg: c.card, fg: c.mutedForeground, icon: 'edit-3' as const }
+          : { bg: c.muted, fg: c.mutedForeground, icon: 'clock' as const };
+
+  // Anything Molly hasn't approved yet can still be opened and edited.
+  const editable = entry.status !== 'approved';
 
   return (
-    <View
-      style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}
+    <Pressable
+      onPress={
+        editable
+          ? () => router.push({ pathname: '/log-entry', params: { id: entry.id } })
+          : undefined
+      }
+      disabled={!editable}
+      style={({ pressed }) => [
+        styles.card,
+        {
+          backgroundColor: c.card,
+          borderColor: entry.status === 'draft' ? c.mutedForeground : c.border,
+          borderStyle: entry.status === 'draft' ? 'dashed' : 'solid',
+          opacity: pressed ? 0.85 : 1,
+        },
+      ]}
       testID={`entry-${entry.id}`}
     >
       <View style={styles.cardTop}>
@@ -480,6 +500,22 @@ function EntryCard({ entry }: { entry: TimeEntry }) {
             {statusLabels[entry.status]}
           </Text>
         </View>
+        {editable ? (
+          <Feather
+            name="chevron-right"
+            size={16}
+            color={c.mutedForeground}
+            style={{ marginLeft: 6, alignSelf: 'center' }}
+          />
+        ) : (
+          <Feather
+            name="lock"
+            size={13}
+            color={c.mutedForeground}
+            style={{ marginLeft: 6, alignSelf: 'center' }}
+            testID={`locked-${entry.id}`}
+          />
+        )}
       </View>
 
       <View style={styles.cardDetails}>
@@ -523,7 +559,7 @@ function EntryCard({ entry }: { entry: TimeEntry }) {
           {entry.note}
         </Text>
       ) : null}
-    </View>
+    </Pressable>
   );
 }
 

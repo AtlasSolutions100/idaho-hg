@@ -66,6 +66,7 @@ import type {
   UpdateEmployeeRate,
   UpdateEmployeeSignInAccess,
   UpdateOnboardingItem,
+  UpdateTimeEntry,
   VisitEntryCount,
   WorkflowStatus,
   WorkflowStatusUpdate
@@ -330,6 +331,79 @@ export const useCreateTimeEntry = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getCreateTimeEntryMutationOptions(options));
+    }
+
+export const getUpdateTimeEntryUrl = (id: string,) => {
+
+
+
+
+  return `/api/time-entries/${id}`
+}
+
+/**
+ * Replaces the entry's editable fields, re-running all creation rules (visit-type gating, mileage-on-contract, clock-time hours, valid dates). Only the entry's own employee may edit; approved entries are locked. Passing status "submitted" on a draft or rejected entry submits it.
+ * @summary Edit a time entry (draft, submitted, or rejected — never approved)
+ */
+export const updateTimeEntry = async (id: string,
+    updateTimeEntry: UpdateTimeEntry, options?: Parameters<typeof customFetch>[1]): Promise<TimeEntry> => {
+
+  return customFetch<TimeEntry>(getUpdateTimeEntryUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateTimeEntry)
+  }
+);}
+
+
+
+
+
+export const getUpdateTimeEntryMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTimeEntry>>, TError,{id: string;data: BodyType<UpdateTimeEntry>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateTimeEntry>>, TError,{id: string;data: BodyType<UpdateTimeEntry>}, TContext> => {
+
+const mutationKey = ['updateTimeEntry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTimeEntry>>, {id: string;data: BodyType<UpdateTimeEntry>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateTimeEntry(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateTimeEntryMutationResult = NonNullable<Awaited<ReturnType<typeof updateTimeEntry>>>
+    export type UpdateTimeEntryMutationBody = BodyType<UpdateTimeEntry>
+    export type UpdateTimeEntryMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Edit a time entry (draft, submitted, or rejected — never approved)
+ */
+export const useUpdateTimeEntry = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTimeEntry>>, TError,{id: string;data: BodyType<UpdateTimeEntry>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateTimeEntry>>,
+        TError,
+        {id: string;data: BodyType<UpdateTimeEntry>},
+        TContext
+      > => {
+      return useMutation(getUpdateTimeEntryMutationOptions(options));
     }
 
 export const getApproveTimeEntryUrl = (id: string,) => {

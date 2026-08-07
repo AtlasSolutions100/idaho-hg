@@ -15,14 +15,16 @@ import {
   getListTimeEntriesQueryKey,
   useBatchCreateTimeEntries,
   useCreateTimeEntry,
+  useUpdateTimeEntry,
   useGetMyEmployee,
   useListClients,
+  useListTimeEntries,
   type PerDiemType,
   type VisitType,
 } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { Redirect, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import colors from '@/constants/colors';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useColors } from '@/hooks/useColors';
@@ -85,6 +87,15 @@ export default function LogEntryScreen() {
   // Server derives the employee from the signed-in session; we only need it
   // here to know the form is ready to submit.
   const { data: employee } = useGetMyEmployee();
+  // Edit mode: /log-entry?id=123 opens an existing draft/submitted/rejected
+  // entry prefilled. The entry comes from the already-cached list.
+  const { id: editId } = useLocalSearchParams<{ id?: string }>();
+  const { data: allEntries, isLoading: entriesLoading } = useListTimeEntries(undefined, {
+    query: { enabled: !!editId, queryKey: getListTimeEntriesQueryKey() },
+  });
+  const editingEntry = editId
+    ? (allEntries ?? []).find((e) => e.id === editId)
+    : undefined;
 
   const [entryType, setEntryType] = useState<'visit' | 'hourly'>('visit');
   const [clientId, setClientId] = useState('');
@@ -100,11 +111,32 @@ export default function LogEntryScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [savingAction, setSavingAction] = useState<'draft' | 'submit'>('submit');
+  const [prefilledId, setPrefilledId] = useState<string | null>(null);
+
+  // Prefill once the entry is available (list may still be loading).
+  React.useEffect(() => {
+    if (!editingEntry || prefilledId === editingEntry.id) return;
+    setPrefilledId(editingEntry.id);
+    setEntryType(editingEntry.visitType ? 'visit' : 'hourly');
+    setClientId(editingEntry.clientId);
+    setSelectedVisitTypes(new Set(editingEntry.visitType ? [editingEntry.visitType] : []));
+    setTimeIn(editingEntry.timeIn ?? '');
+    setTimeOut(editingEntry.timeOut ?? '');
+    setDate(editingEntry.date);
+    setHasMileage(!!editingEntry.mileage);
+    setMileage(editingEntry.mileage ? String(editingEntry.mileage) : '');
+    setPerDiemType(editingEntry.perDiemType ?? '');
+    setNote(editingEntry.note ?? '');
+  }, [editingEntry, prefilledId]);
+
+  const isEditing = !!editId;
 
   const dates = useMemo(recentDates, []);
   const { data: clients, isLoading: clientsLoading } = useListClients();
 
   const createEntry = useCreateTimeEntry();
+  const updateEntry = useUpdateTimeEntry();
   const batchCreateEntries = useBatchCreateTimeEntries();
 
   const selectedClient = (clients ?? []).find((cl) => cl.id === clientId);
@@ -122,6 +154,9 @@ export default function LogEntryScreen() {
     !hasMileage || !mileage || (!Number.isNaN(mileageNumber) && mileageNumber >= 0);
   const canSubmit =
     !!employee &&
+    // Edit mode: block saving until the target entry has loaded and is
+    // still editable — never silently create a new entry instead.
+    (!isEditing || (!!editingEntry && editingEntry.status !== 'approved')) &&
     !!clientId &&
     !!date &&
     (effectiveEntryType === 'visit' ? selectedVisitTypes.size > 0 : timesValid) &&
@@ -135,6 +170,7 @@ export default function LogEntryScreen() {
       if (next.has(vt)) {
         next.delete(vt);
       } else {
+        if (isEditing) next.clear(); // an existing entry holds one visit type
         next.add(vt);
       }
       return next;
@@ -143,13 +179,35 @@ export default function LogEntryScreen() {
 
   if (!employee) return <Redirect href="/sign-in" />;
 
-  const handleSubmit = async () => {
+  const save = async (action: 'draft' | 'submit') => {
     if (!canSubmit || !employee) return;
+    // Never fall through to creating a brand-new entry when we were asked to
+    // edit one — if the target isn't loaded, saving is blocked below anyway.
+    if (isEditing && !editingEntry) return;
     setErrorMessage(null);
+    setSavingAction(action);
     setIsSubmitting(true);
 
     try {
-      if (effectiveEntryType === 'visit') {
+      if (isEditing && editingEntry) {
+        await updateEntry.mutateAsync({
+          id: editingEntry.id,
+          data: {
+            clientId,
+            date,
+            ...(effectiveEntryType === 'visit' && selectedVisitTypes.size > 0
+              ? { visitType: [...selectedVisitTypes][0] }
+              : {}),
+            ...(effectiveEntryType === 'hourly' && timesValid ? { timeIn, timeOut } : {}),
+            ...(mileageAllowed && hasMileage && mileageNumber > 0
+              ? { mileage: mileageNumber }
+              : {}),
+            ...(perDiemType ? { perDiemType } : {}),
+            ...(note.trim() ? { note: note.trim() } : {}),
+            status: action === 'draft' ? 'draft' : 'submitted',
+          },
+        });
+      } else if (effectiveEntryType === 'visit') {
         // Single atomic batch request — all visit types in one transaction.
         // If anything fails the whole batch rolls back; no partial state.
         await batchCreateEntries.mutateAsync({
@@ -163,6 +221,7 @@ export default function LogEntryScreen() {
               : {}),
             ...(perDiemType ? { perDiemType } : {}),
             ...(note.trim() ? { note: note.trim() } : {}),
+            ...(action === 'draft' ? { status: 'draft' as const } : {}),
           },
         });
       } else {
@@ -177,6 +236,7 @@ export default function LogEntryScreen() {
               : {}),
             ...(perDiemType ? { perDiemType } : {}),
             ...(note.trim() ? { note: note.trim() } : {}),
+            ...(action === 'draft' ? { status: 'draft' as const } : {}),
           },
         });
       }
@@ -187,6 +247,7 @@ export default function LogEntryScreen() {
       }
       setSaved(true);
       setTimeout(() => router.back(), 900);
+      return;
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : undefined;
       setErrorMessage(
@@ -200,13 +261,62 @@ export default function LogEntryScreen() {
   const topInset = Platform.OS === 'web' ? 67 : Math.max(insets.top, 12);
   const bottomInset = Platform.OS === 'web' ? 34 : insets.bottom;
 
+  // Edit mode with no loaded target: show a loader while the list fetches,
+  // and a clear message if the entry can't be found or is already locked —
+  // never a blank "new entry" form that would create a duplicate.
+  if (isEditing && (!editingEntry || editingEntry.status === 'approved')) {
+    return (
+      <View style={[styles.container, { backgroundColor: c.background }]}>
+        <View
+          style={[
+            styles.header,
+            { paddingTop: topInset, backgroundColor: c.card, borderBottomColor: c.border },
+          ]}
+        >
+          <Pressable onPress={() => router.back()} hitSlop={10} style={styles.closeButton} testID="button-close">
+            <Feather name="x" size={22} color={c.mutedForeground} />
+          </Pressable>
+          <Text style={[styles.headerTitle, { color: c.foreground }]}>Edit Entry</Text>
+          <View style={styles.closeButton} />
+        </View>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+          {entriesLoading ? (
+            <ActivityIndicator color={c.mutedForeground} />
+          ) : (
+            <>
+              <Feather
+                name={editingEntry?.status === 'approved' ? 'lock' : 'alert-circle'}
+                size={28}
+                color={c.mutedForeground}
+              />
+              <Text
+                style={[styles.helperText, { color: c.mutedForeground, textAlign: 'center', marginTop: 12, fontSize: 14 }]}
+                testID="text-edit-unavailable"
+              >
+                {editingEntry?.status === 'approved'
+                  ? 'This entry has been approved and can no longer be changed. Ask Molly if something looks wrong.'
+                  : "We couldn't find that entry. Pull to refresh your list and try again."}
+              </Text>
+            </>
+          )}
+        </View>
+      </View>
+    );
+  }
+
   const submitLabel = saved
-    ? 'Submitted!'
-    : isSubmitting
+    ? savingAction === 'draft'
+      ? 'Draft saved!'
+      : 'Submitted!'
+    : isSubmitting && savingAction === 'submit'
       ? 'Submitting…'
-      : effectiveEntryType === 'visit' && selectedVisitTypes.size > 1
+      : !isEditing && effectiveEntryType === 'visit' && selectedVisitTypes.size > 1
         ? `Submit ${selectedVisitTypes.size} Visits`
-        : 'Submit Hours';
+        : isEditing && editingEntry?.status !== 'draft'
+          ? 'Save & Resubmit'
+          : 'Submit Hours';
+  // Drafts can be saved on new entries and when re-saving an existing draft.
+  const canSaveDraft = !isEditing || editingEntry?.status === 'draft';
 
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
@@ -230,7 +340,7 @@ export default function LogEntryScreen() {
           <Feather name="x" size={22} color={c.mutedForeground} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: c.foreground }]}>
-          Log Hours
+          {isEditing ? 'Edit Entry' : 'Log Hours'}
         </Text>
         <View style={styles.closeButton} />
       </View>
@@ -474,8 +584,35 @@ export default function LogEntryScreen() {
           </View>
         ) : null}
 
+        {canSaveDraft && (
+          <Pressable
+            onPress={() => save('draft')}
+            disabled={!canSubmit}
+            style={({ pressed }) => [
+              styles.submitButton,
+              styles.draftButton,
+              {
+                borderColor: c.primary,
+                opacity: !canSubmit && !saved ? 0.5 : pressed ? 0.85 : 1,
+              },
+            ]}
+            testID="button-save-draft"
+          >
+            {isSubmitting && savingAction === 'draft' ? (
+              <ActivityIndicator color={c.primary} />
+            ) : (
+              <>
+                <Feather name="edit-3" size={18} color={c.primary} />
+                <Text style={[styles.submitText, { color: c.primary }]}>
+                  {saved && savingAction === 'draft' ? 'Draft saved!' : 'Save as draft'}
+                </Text>
+              </>
+            )}
+          </Pressable>
+        )}
+
         <Pressable
-          onPress={handleSubmit}
+          onPress={() => save('submit')}
           disabled={!canSubmit}
           style={({ pressed }) => [
             styles.submitButton,
@@ -486,7 +623,7 @@ export default function LogEntryScreen() {
           ]}
           testID="button-submit"
         >
-          {isSubmitting ? (
+          {isSubmitting && savingAction === 'submit' ? (
             <ActivityIndicator color={c.primaryForeground} />
           ) : saved ? (
             <>
@@ -772,6 +909,11 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_500Medium',
     fontSize: 13,
     lineHeight: 18,
+  },
+  draftButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    marginBottom: -12,
   },
   submitButton: {
     flexDirection: 'row',

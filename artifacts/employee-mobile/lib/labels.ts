@@ -23,6 +23,7 @@ export const visitTypeLabels: Record<VisitType, string> = {
 };
 
 export const statusLabels: Record<TimeEntry['status'], string> = {
+  draft: 'Draft',
   submitted: 'Waiting for approval',
   approved: 'Approved',
   rejected: 'Rejected',

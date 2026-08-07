@@ -93,6 +93,47 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /time-entries/{id}:
+    patch:
+      operationId: updateTimeEntry
+      tags: [time-entries]
+      summary: Edit a time entry (draft, submitted, or rejected — never approved)
+      description: >
+        Replaces the entry's editable fields, re-running all creation rules
+        (visit-type gating, mileage-on-contract, clock-time hours, valid dates).
+        Only the entry's own employee may edit; approved entries are locked.
+        Passing status "submitted" on a draft or rejected entry submits it.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTimeEntry"
+      responses:
+        "200":
+          description: Updated time entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeEntry"
+        "400":
+          description: Validation error or entry is locked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Entry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /time-entries/{id}/approve:
     post:
       operationId: approveTimeEntry
@@ -2203,7 +2244,11 @@ components:
         - status
     EntryStatus:
       type: string
-      enum: [submitted, approved, rejected]
+      enum: [draft, submitted, approved, rejected]
+    CreateEntryStatus:
+      type: string
+      enum: [draft, submitted]
+      description: Initial status for a new entry — save as a private draft or submit for approval. Defaults to submitted.
     VisitType:
       type: string
       enum:
@@ -2350,6 +2395,8 @@ components:
           description: Ignored — the server determines holidays from its own calendar
         note:
           type: string
+        status:
+          $ref: "#/components/schemas/CreateEntryStatus"
       required:
         - employeeId
         - clientId
@@ -2380,11 +2427,54 @@ components:
           $ref: "#/components/schemas/PerDiemType"
         note:
           type: string
+        status:
+          $ref: "#/components/schemas/CreateEntryStatus"
       required:
         - employeeId
         - clientId
         - date
         - visitTypes
+    UpdateTimeEntry:
+      type: object
+      description: >
+        Full replacement of an entry's editable fields. The employee never
+        changes — only client, date, work details, and (optionally) status.
+      properties:
+        clientId:
+          type: string
+        date:
+          type: string
+        visitType:
+          $ref: "#/components/schemas/VisitType"
+        timeIn:
+          type: string
+          pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          description: Clock-in time "HH:MM" (24-hour). Provide with timeOut instead of hours.
+        timeOut:
+          type: string
+          pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          description: Clock-out time "HH:MM" (24-hour); an earlier time than timeIn means the shift crossed midnight
+        hours:
+          type: number
+          minimum: 0
+          maximum: 24
+          description: Legacy direct hours; ignored when timeIn/timeOut are provided
+        mileage:
+          type: number
+          minimum: 0
+        perDiem:
+          type: number
+          minimum: 0
+          maximum: 1
+        perDiemType:
+          $ref: "#/components/schemas/PerDiemType"
+        note:
+          type: string
+        status:
+          $ref: "#/components/schemas/CreateEntryStatus"
+      required:
+        - clientId
+        - date
     PerDiemType:
       type: string
       enum: [first_last, full]

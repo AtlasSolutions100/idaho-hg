@@ -10,6 +10,7 @@ export type EntryStatus = typeof EntryStatus[keyof typeof EntryStatus];
 
 
 export const EntryStatus = {
+  draft: 'draft',
   submitted: 'submitted',
   approved: 'approved',
   rejected: 'rejected',

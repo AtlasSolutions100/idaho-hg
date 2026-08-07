@@ -231,7 +231,7 @@ export const clientRateTypeLabels: Record<string, string> = {
 };
 export const statusLabels: Record<EntryStatus, string> = {
   'draft': 'Draft',
-  'submitted': 'Submitted',
+  'submitted': 'Waiting for approval',
   'approved': 'Approved',
   'rejected': 'Rejected',
 };

@@ -3,9 +3,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   useBatchCreateTimeEntries,
   useCreateTimeEntry,
+  useUpdateTimeEntry,
   useListClients,
   getListTimeEntriesQueryKey,
   type PerDiemType,
+  type TimeEntry,
   type VisitType,
 } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
@@ -22,7 +24,11 @@ import { Check, Loader2, Plus, X } from 'lucide-react';
 
 interface LogHoursFormProps {
   employeeId?: string;
-  onSubmit: () => void;
+  /** When set, the form edits this existing entry instead of creating one. */
+  entry?: TimeEntry;
+  /** Drafts require a signed-in employee — the server refuses anonymous drafts. */
+  allowDraft?: boolean;
+  onSubmit: (savedAsDraft: boolean) => void;
   onCancel: () => void;
 }
 
@@ -37,24 +43,32 @@ export function calculateHours(timeIn: string, timeOut: string): number | null {
   return Math.round((minutes / 60) * 100) / 100;
 }
 
-export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursFormProps) {
-  const [entryType, setEntryType] = useState<'visit' | 'hourly'>('visit');
-  const [clientId, setClientId] = useState('');
-  // Multi-visit: track a set of selected visit types
-  const [selectedVisitTypes, setSelectedVisitTypes] = useState<Set<VisitType>>(new Set());
-  const [timeIn, setTimeIn] = useState('');
-  const [timeOut, setTimeOut] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [hasMileage, setHasMileage] = useState(false);
-  const [mileage, setMileage] = useState('');
-  const [perDiemType, setPerDiemType] = useState<PerDiemType | ''>('');
-  const [note, setNote] = useState('');
+export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSubmit, onCancel }: LogHoursFormProps) {
+  const isEditing = !!entry;
+  const [entryType, setEntryType] = useState<'visit' | 'hourly'>(
+    entry ? (entry.visitType ? 'visit' : 'hourly') : 'visit',
+  );
+  const [clientId, setClientId] = useState(entry?.clientId ?? '');
+  // Multi-visit: track a set of selected visit types. When editing, an entry
+  // holds exactly one visit type, so the checklist acts single-select.
+  const [selectedVisitTypes, setSelectedVisitTypes] = useState<Set<VisitType>>(
+    new Set(entry?.visitType ? [entry.visitType] : []),
+  );
+  const [timeIn, setTimeIn] = useState(entry?.timeIn ?? '');
+  const [timeOut, setTimeOut] = useState(entry?.timeOut ?? '');
+  const [date, setDate] = useState(entry?.date ?? new Date().toISOString().split('T')[0]);
+  const [hasMileage, setHasMileage] = useState(!!entry?.mileage);
+  const [mileage, setMileage] = useState(entry?.mileage ? String(entry.mileage) : '');
+  const [perDiemType, setPerDiemType] = useState<PerDiemType | ''>(entry?.perDiemType ?? '');
+  const [note, setNote] = useState(entry?.note ?? '');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [savingAction, setSavingAction] = useState<'draft' | 'submit'>('submit');
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: clients, isLoading: clientsLoading } = useListClients();
   const createEntry = useCreateTimeEntry();
+  const updateEntry = useUpdateTimeEntry();
   const batchCreateEntries = useBatchCreateTimeEntries();
 
   const selectedClient = (clients ?? []).find((c) => c.id === clientId);
@@ -73,20 +87,39 @@ export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursF
       if (next.has(vt)) {
         next.delete(vt);
       } else {
+        if (isEditing) next.clear(); // one visit type per entry when editing
         next.add(vt);
       }
       return next;
     });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const save = async (action: 'draft' | 'submit') => {
     if (effectiveEntryType === 'visit' && selectedVisitTypes.size === 0) return;
     if (effectiveEntryType === 'hourly' && (!timeIn || !timeOut)) return;
 
+    setSavingAction(action);
     setIsSubmitting(true);
     try {
-      if (effectiveEntryType === 'visit') {
+      if (isEditing && entry) {
+        // Editing keeps the entry a draft when "Save draft" is used on a
+        // draft; any other save submits (or resubmits) it.
+        await updateEntry.mutateAsync({
+          id: entry.id,
+          data: {
+            clientId,
+            date: date!,
+            ...(effectiveEntryType === 'visit' && selectedVisitTypes.size > 0
+              ? { visitType: [...selectedVisitTypes][0] }
+              : {}),
+            ...(effectiveEntryType === 'hourly' && timeIn && timeOut ? { timeIn, timeOut } : {}),
+            ...(mileageAllowed && hasMileage && mileage ? { mileage: parseFloat(mileage) } : {}),
+            ...(perDiemType ? { perDiemType } : {}),
+            ...(note.trim() ? { note: note.trim() } : {}),
+            status: action === 'draft' ? 'draft' : 'submitted',
+          },
+        });
+      } else if (effectiveEntryType === 'visit') {
         // Single atomic batch request — all visit types inserted in one transaction.
         // If anything fails the whole batch rolls back; no partial state.
         await batchCreateEntries.mutateAsync({
@@ -98,6 +131,7 @@ export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursF
             ...(mileageAllowed && hasMileage && mileage ? { mileage: parseFloat(mileage) } : {}),
             ...(perDiemType ? { perDiemType } : {}),
             ...(note.trim() ? { note: note.trim() } : {}),
+            ...(action === 'draft' ? { status: 'draft' as const } : {}),
           },
         });
       } else {
@@ -110,21 +144,27 @@ export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursF
             ...(mileageAllowed && hasMileage && mileage ? { mileage: parseFloat(mileage) } : {}),
             ...(perDiemType ? { perDiemType } : {}),
             ...(note.trim() ? { note: note.trim() } : {}),
+            ...(action === 'draft' ? { status: 'draft' as const } : {}),
           },
         });
       }
       queryClient.invalidateQueries({ queryKey: getListTimeEntriesQueryKey() });
-      onSubmit();
+      onSubmit(action === 'draft');
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : undefined;
       toast({
-        title: 'Could not submit hours',
+        title: action === 'draft' ? 'Could not save draft' : 'Could not submit hours',
         description: msg ?? 'Something went wrong. Please try again.',
         variant: 'destructive',
       });
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await save('submit');
   };
 
   const canSubmit =
@@ -139,8 +179,14 @@ export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursF
     <form onSubmit={handleSubmit} className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Log Hours</CardTitle>
-          <CardDescription>Submit your time for the week</CardDescription>
+          <CardTitle>{isEditing ? 'Edit Entry' : 'Log Hours'}</CardTitle>
+          <CardDescription>
+            {isEditing
+              ? entry?.status === 'draft'
+                ? 'Finish your draft — save it again or submit it for approval'
+                : 'Make your changes — the entry goes back to Molly for approval'
+              : 'Submit your time for the week'}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Client Selection */}
@@ -385,22 +431,41 @@ export function LogHoursForm({ employeeId = '1', onSubmit, onCancel }: LogHoursF
           >
             Cancel
           </Button>
+          {/* Drafts: available to signed-in employees on new entries and when
+              re-saving an existing draft */}
+          {allowDraft && (!isEditing || entry?.status === 'draft') && (
+            <Button
+              type="button"
+              variant="secondary"
+              className="flex-1 gap-2"
+              disabled={!canSubmit}
+              onClick={() => save('draft')}
+              data-testid="button-save-draft"
+            >
+              {isSubmitting && savingAction === 'draft' ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : null}
+              {isSubmitting && savingAction === 'draft' ? 'Saving...' : 'Save as draft'}
+            </Button>
+          )}
           <Button
             type="submit"
             className="flex-1 gap-2"
             disabled={!canSubmit}
             data-testid="button-submit"
           >
-            {isSubmitting ? (
+            {isSubmitting && savingAction === 'submit' ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Check className="h-4 w-4" />
             )}
-            {isSubmitting
+            {isSubmitting && savingAction === 'submit'
               ? 'Submitting...'
-              : effectiveEntryType === 'visit' && selectedVisitTypes.size > 1
+              : !isEditing && effectiveEntryType === 'visit' && selectedVisitTypes.size > 1
                 ? `Submit ${selectedVisitTypes.size} Visits`
-                : 'Submit Hours'}
+                : isEditing && entry?.status !== 'draft'
+                  ? 'Save & Resubmit'
+                  : 'Submit Hours'}
           </Button>
         </CardFooter>
       </Card>

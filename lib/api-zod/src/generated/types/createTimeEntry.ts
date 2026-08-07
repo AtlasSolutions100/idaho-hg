@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateEntryStatus } from './createEntryStatus';
 import type { PerDiemType } from './perDiemType';
 import type { VisitType } from './visitType';
 
@@ -43,4 +44,5 @@ export interface CreateTimeEntry {
   /** Ignored — the server determines holidays from its own calendar */
   isHoliday?: boolean;
   note?: string;
+  status?: CreateEntryStatus;
 }

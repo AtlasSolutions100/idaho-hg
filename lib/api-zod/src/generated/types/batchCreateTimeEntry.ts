@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateEntryStatus } from './createEntryStatus';
 import type { PerDiemType } from './perDiemType';
 import type { VisitType } from './visitType';
 
@@ -24,4 +25,5 @@ export interface BatchCreateTimeEntry {
   mileage?: number;
   perDiemType?: PerDiemType;
   note?: string;
+  status?: CreateEntryStatus;
 }

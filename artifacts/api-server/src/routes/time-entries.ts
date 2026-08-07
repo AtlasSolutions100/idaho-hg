@@ -13,6 +13,7 @@ import {
   BatchCreateTimeEntriesBody,
   CreateTimeEntryBody,
   ListTimeEntriesQueryParams,
+  UpdateTimeEntryBody,
 } from "@workspace/api-zod";
 import { resolveSessionEmployee, verifyAdminRequest } from "../lib/employee-auth";
 import {
@@ -92,6 +93,13 @@ router.get("/time-entries", async (req, res, next) => {
     if (query.employeeId) {
       rows = rows.filter((r) => r.employeeId === query.employeeId);
     }
+    // Drafts are private to the employee who wrote them. Only a signed-in,
+    // roster-linked employee ever receives drafts — and their list is already
+    // pinned to their own id above. Molly (admin), anonymous requests, and
+    // caller-supplied employeeId filters never see anyone's drafts.
+    if (session?.kind !== "employee") {
+      rows = rows.filter((r) => r.status !== "draft");
+    }
     if (query.status) {
       rows = rows.filter((r) => r.status === query.status);
     }
@@ -163,6 +171,13 @@ router.post("/time-entries", async (req, res, next) => {
     // When the request carries a signed-in session (mobile app), the entry is
     // always recorded against that employee — the client can't pick another.
     const session = await resolveSessionEmployee(req);
+    // Drafts are private to their author, which only means something for a
+    // signed-in employee — anonymous requests can't save drafts (they could
+    // never see or edit them again anyway).
+    if (body.status === "draft" && session.kind !== "employee") {
+      res.status(401).json({ message: "Please sign in to save drafts." });
+      return;
+    }
     if (session.kind === "employee") {
       body.employeeId = session.employee.id;
     } else if (session.kind === "disabled") {
@@ -288,7 +303,7 @@ router.post("/time-entries", async (req, res, next) => {
           isWeekend,
           isHoliday,
           note: body.note ?? null,
-          status: "submitted",
+          status: body.status ?? "submitted",
           isDemo,
         })
         .returning();
@@ -320,6 +335,12 @@ router.post("/time-entries/batch", async (req, res, next) => {
     const body = parsed.data;
     await ensureRosterSeeded();
     const session = await resolveSessionEmployee(req);
+    // Same draft rule as the single-entry route: drafts require a signed-in
+    // employee, or nobody could ever see or finish them.
+    if (body.status === "draft" && session.kind !== "employee") {
+      res.status(401).json({ message: "Please sign in to save drafts." });
+      return;
+    }
     if (session.kind === "employee") {
       body.employeeId = session.employee.id;
     } else if (session.kind === "disabled") {
@@ -398,7 +419,7 @@ router.post("/time-entries/batch", async (req, res, next) => {
             isWeekend,
             isHoliday,
             note: body.note ?? null,
-            status: "submitted",
+            status: body.status ?? "submitted",
             isDemo,
           })
           .returning();
@@ -416,19 +437,169 @@ router.post("/time-entries/batch", async (req, res, next) => {
   }
 });
 
+// Edit a draft, submitted, or rejected entry. Approved entries are locked.
+// Re-runs every create-time rule so an edit can't sneak past validation.
+router.patch("/time-entries/:id", async (req, res, next) => {
+  try {
+    const parsed = UpdateTimeEntryBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: parsed.error.issues[0]?.message ?? "Invalid time entry" });
+      return;
+    }
+    const body = parsed.data;
+    const numericId = Number(req.params.id);
+    if (!Number.isInteger(numericId)) {
+      res.status(404).json({ message: "Entry not found" });
+      return;
+    }
+    await ensureRosterSeeded();
+    const [existing] = await db
+      .select()
+      .from(timeEntriesTable)
+      .where(eq(timeEntriesTable.id, numericId));
+    if (!existing) {
+      res.status(404).json({ message: "Entry not found" });
+      return;
+    }
+    // Only the entry's own signed-in employee may edit it. Molly's admin
+    // session can't edit entries (that's a separate feature), anonymous
+    // requests are refused outright, and another signed-in employee must
+    // never even learn the entry exists.
+    const admin = await verifyAdminRequest(req);
+    if (admin.ok) {
+      res.status(403).json({ message: "Entries can only be edited by the employee who logged them." });
+      return;
+    }
+    const session = await resolveSessionEmployee(req);
+    if (session.kind === "none") {
+      res.status(401).json({ message: "Please sign in first." });
+      return;
+    }
+    if (session.kind === "disabled") {
+      res.status(403).json({ code: "SIGN_IN_DISABLED", message: "Your sign-in has been turned off. Ask Molly if you think this is a mistake." });
+      return;
+    }
+    if (session.kind === "pending") {
+      res.status(403).json({ code: "LINK_REQUEST_PENDING", message: "Molly still needs to confirm it's you. Check back in a bit." });
+      return;
+    }
+    if (session.kind === "unknown") {
+      res.status(403).json({ code: "NOT_LINKED", message: "This email isn't linked to a team profile yet. Pick your name to get set up." });
+      return;
+    }
+    if (session.kind === "employee" && session.employee.id !== existing.employeeId) {
+      // Don't reveal whether the entry exists to someone who doesn't own it.
+      res.status(404).json({ message: "Entry not found" });
+      return;
+    }
+    if (existing.status === "approved") {
+      res.status(400).json({
+        message: "This entry has been approved and can no longer be changed. Ask Molly if something's wrong.",
+      });
+      return;
+    }
+    // A draft can stay a draft or be submitted; a submitted or rejected entry
+    // always comes out of an edit as submitted (an edit is a resubmission).
+    if (body.status === "draft" && existing.status !== "draft") {
+      res.status(400).json({ message: "A submitted entry can't be turned back into a draft." });
+      return;
+    }
+    const nextStatus =
+      existing.status === "draft" ? (body.status ?? "draft") : "submitted";
+    const [client] = await db
+      .select()
+      .from(clientsTable)
+      .where(and(eq(clientsTable.id, body.clientId), eq(clientsTable.active, true)));
+    if (!client) {
+      res.status(400).json({ message: "Unknown client" });
+      return;
+    }
+    if (!isValidDateString(body.date)) {
+      res.status(400).json({ message: "That date doesn't exist — please check it" });
+      return;
+    }
+    const hasTimes = body.timeIn != null || body.timeOut != null;
+    let hours: number | null = body.hours ?? null;
+    if (hasTimes) {
+      if (!body.timeIn || !body.timeOut) {
+        res.status(400).json({ message: "Enter both a time in and a time out" });
+        return;
+      }
+      const computed = hoursBetween(body.timeIn, body.timeOut);
+      if (computed == null || computed <= 0) {
+        res.status(400).json({ message: "Those times don't work out to a valid shift" });
+        return;
+      }
+      hours = computed;
+    }
+    if (!body.visitType && hours == null) {
+      res.status(400).json({ message: "Provide a visit type or your time in and out" });
+      return;
+    }
+    if (body.visitType && !client.billsByVisitType) {
+      res.status(400).json({
+        message: `${client.name} doesn't bill by visit type — just log your time in and out.`,
+      });
+      return;
+    }
+    if (body.mileage != null && body.mileage > 0 && !client.mileageOnContract) {
+      res.status(400).json({
+        message: `${client.name} doesn't include mileage on their contract, so mileage can't be submitted for this client.`,
+      });
+      return;
+    }
+    const perDiemType = body.perDiemType ?? null;
+    const perDiem = perDiemType ? 1 : (body.perDiem ?? null);
+    // Submitting (a draft, or resubmitting after a rejection/edit) stamps a
+    // fresh submittedAt so Molly sees when it actually reached her.
+    const becameSubmitted = nextStatus === "submitted";
+    const [row] = await db
+      .update(timeEntriesTable)
+      .set({
+        clientId: body.clientId,
+        clientName: client.name,
+        date: body.date,
+        visitType: body.visitType ?? null,
+        timeIn: hasTimes ? (body.timeIn ?? null) : null,
+        timeOut: hasTimes ? (body.timeOut ?? null) : null,
+        hours,
+        mileage: body.mileage ?? null,
+        perDiem,
+        perDiemType,
+        isWeekend: isWeekendDate(body.date),
+        isHoliday: isHolidayDate(body.date),
+        note: body.note ?? null,
+        status: nextStatus,
+        ...(becameSubmitted ? { submittedAt: new Date() } : {}),
+        isDemo: existing.isDemo || client.isDemo,
+      })
+      .where(eq(timeEntriesTable.id, numericId))
+      .returning();
+    if (!row) {
+      res.status(500).json({ message: "Failed to update entry" });
+      return;
+    }
+    res.json(serialize(row));
+  } catch (err) {
+    next(err);
+  }
+});
+
 async function setStatus(
   id: string,
   status: "approved" | "rejected",
 ): Promise<TimeEntryRow | undefined> {
   const numericId = Number(id);
   if (!Number.isInteger(numericId)) return undefined;
+  // Drafts are private to the employee — they can't be approved or rejected,
+  // and the approval flow reports them as not found so nothing leaks.
   const [row] = await db
     .update(timeEntriesTable)
     .set({
       status,
       approvedAt: status === "approved" ? new Date() : null,
     })
-    .where(eq(timeEntriesTable.id, numericId))
+    .where(and(eq(timeEntriesTable.id, numericId), sql`${timeEntriesTable.status} <> 'draft'`))
     .returning();
   return row;
 }
