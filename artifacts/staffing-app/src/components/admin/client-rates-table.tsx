@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListClientRates,
@@ -95,6 +95,9 @@ export function ClientRatesTable() {
   // recent visit-type entries — she must confirm before the change saves.
   const [confirmVisitOff, setConfirmVisitOff] = useState(false);
   const [confirmVisitOn, setConfirmVisitOn] = useState(false);
+  // Set right before saving billing details when the save turns visit billing
+  // ON for a client with no visit rates — on success we open Add Visit Rate.
+  const visitRatePromptRef = useRef<{ clientId: string; clientName: string } | null>(null);
   const [removing, setRemoving] = useState<{ clientId: string; clientName: string } | null>(null);
 
   const [hourlyFor, setHourlyFor] = useState<{ clientId: string; clientName: string } | null>(null);
@@ -193,6 +196,19 @@ export function ClientRatesTable() {
         setConfirmVisitOff(false);
         setConfirmVisitOn(false);
         setBillingFor(null);
+        // If visit billing was just turned on for a client with no visit rates,
+        // take Molly straight to the Add Visit Rate dialog so new visit entries
+        // don't bill at $0.
+        const prompt = visitRatePromptRef.current;
+        visitRatePromptRef.current = null;
+        if (prompt) {
+          openAddVisitRate(prompt.clientId, prompt.clientName);
+          toast({
+            title: 'Visit billing turned on',
+            description: `${prompt.clientName} has no visit rates yet — add them now so visit entries don't bill at $0.`,
+          });
+          return;
+        }
         toast({
           title: 'Billing details saved',
           description: 'PDF invoices for this client will now show them in the Bill to section.',
@@ -236,6 +252,15 @@ export function ClientRatesTable() {
 
   const saveBilling = () => {
     if (!billingFor) return;
+    // Turning visit billing ON for a client with no per-visit rates yet? Queue
+    // the Add Visit Rate prompt so it opens right after the save succeeds.
+    const hasVisitRates = (rates ?? []).some(
+      (r) => r.clientId === billingFor.clientId && !isHourlyRateType(r.visitType),
+    );
+    visitRatePromptRef.current =
+      !savedBillsByVisitType && billsByVisitType && !hasVisitRates
+        ? { ...billingFor }
+        : null;
     billingMutation.mutate({
       id: billingFor.clientId,
       data: { billingContact, billingAddress, mileageOnContract, billsByVisitType },
