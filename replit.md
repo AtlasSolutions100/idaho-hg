@@ -4,12 +4,15 @@ Time-entry and payroll-approval app for Molly Hodge's healthcare staffing compan
 
 ## Run & Operate
 
+- In Replit, use the **Hodge Staffing Time App** preview at `/`. Its managed services are `artifacts/staffing-app: web` and `artifacts/api-server: API Server`; they start automatically after dependencies or environment settings change.
+- For local development outside Replit, start the API and web app together with `node dev-local.mjs` after providing a Postgres `DATABASE_URL`.
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
+- Replit-managed Clerk provisions `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, and `VITE_CLERK_PUBLISHABLE_KEY` for authentication; do not set these manually.
 
 ## Stack
 

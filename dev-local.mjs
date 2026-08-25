@@ -45,6 +45,7 @@ const base = { ...process.env, ...fileEnv };
 const API_PORT = base.API_PORT || '5000';
 const WEB_PORT = base.WEB_PORT || '5173';
 const BASE_PATH = base.BASE_PATH || '/';
+const WEB_HOST = base.REPL_ID ? '0.0.0.0' : '127.0.0.1';
 
 if (!base.DATABASE_URL) {
   console.error('[dev] DATABASE_URL missing. Start Postgres first:\n' +
@@ -133,7 +134,7 @@ async function main() {
     const vitePkg = JSON.parse(readFileSync(vitePkgPath, 'utf8'));
     const viteBinRel = typeof vitePkg.bin === 'string' ? vitePkg.bin : vitePkg.bin.vite;
     const viteBin = path.join(path.dirname(vitePkgPath), viteBinRel);
-    run('web', 'node', [viteBin, '--config', 'vite.config.ts', '--host', '127.0.0.1'], {
+    run('web', 'node', [viteBin, '--config', 'vite.config.ts', '--host', WEB_HOST], {
       cwd: webDir,
       env: { PORT: WEB_PORT, BASE_PATH, NODE_ENV: 'development' },
     });
