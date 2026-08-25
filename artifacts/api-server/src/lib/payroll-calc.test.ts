@@ -60,6 +60,40 @@ describe("computePayrollAmounts", () => {
     expect(r.missingRate).toBe(false);
   });
 
+  it("uses the per-visit-type pay rate when provided (overrides the flat visitRate)", () => {
+    // A St. Luke's start-of-care that pays $268 for this discipline.
+    const r = computePayrollAmounts(entry({ visitType: "soc" }), rate, { visitPayRate: 268 });
+    expect(r.basePay).toBe(268);
+    expect(r.total).toBe(268);
+    expect(r.missingRate).toBe(false);
+  });
+
+  it("falls back to the flat visitRate when no per-visit-type rate is given", () => {
+    const r = computePayrollAmounts(entry({ visitType: "soc" }), rate, {});
+    expect(r.basePay).toBe(50);
+  });
+
+  it("applies the weekend multiplier to the per-visit-type pay rate", () => {
+    const r = computePayrollAmounts(entry({ visitType: "soc", isWeekend: true }), rate, {
+      visitPayRate: 100,
+    });
+    expect(r.basePay).toBe(150); // 100 * 1.5, multiplier still applies
+  });
+
+  it("uses a per-client hourly pay rate when provided (overrides flat hourlyRate)", () => {
+    const r = computePayrollAmounts(entry({ hours: 2 }), rate, { hourlyPayRate: 71 });
+    expect(r.basePay).toBe(142); // 2h * $71 (client pay), not 2*20
+  });
+
+  it("uses a pre-resolved per-client multiplier when provided", () => {
+    // St. Luke's +10% weekend: 100 * 1.1 = 110, not the employee's 1.5x.
+    const r = computePayrollAmounts(entry({ visitType: "soc", isWeekend: true }), rate, {
+      visitPayRate: 100,
+      multiplier: 1.1,
+    });
+    expect(r.basePay).toBeCloseTo(110, 5);
+  });
+
   it("pays hours * hourlyRate for hourly entries", () => {
     const r = computePayrollAmounts(entry({ hours: 3.5 }), rate);
     expect(r.basePay).toBe(70);

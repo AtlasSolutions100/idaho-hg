@@ -8,8 +8,12 @@ import {
 } from "@workspace/db";
 import { UpdateOnboardingItemBody } from "@workspace/api-zod";
 import { ensureRosterSeeded } from "./roster";
+import { requireAdmin } from "../lib/employee-auth";
 
 const router: IRouter = Router();
+
+// The onboarding checklist is HR data (background checks, drug tests, ID
+// documents) — only Molly's admin session may read or change it.
 
 // Molly's real "New Employee checklist prior to working". Checklist only —
 // this app never stores the documents themselves, just whether each item
@@ -65,9 +69,9 @@ async function findEmployee(id: string) {
   return employee;
 }
 
-router.get("/employees/:id/onboarding", async (req, res, next) => {
+router.get("/employees/:id/onboarding", requireAdmin, async (req, res, next) => {
   try {
-    const employee = await findEmployee(req.params.id);
+    const employee = await findEmployee(String(req.params.id));
     if (!employee) {
       res.status(404).json({ message: "Employee not found" });
       return;
@@ -85,7 +89,7 @@ router.get("/employees/:id/onboarding", async (req, res, next) => {
   }
 });
 
-router.patch("/employees/:id/onboarding/:itemKey", async (req, res, next) => {
+router.patch("/employees/:id/onboarding/:itemKey", requireAdmin, async (req, res, next) => {
   try {
     const parsed = UpdateOnboardingItemBody.safeParse(req.body);
     if (!parsed.success) {
@@ -94,12 +98,12 @@ router.patch("/employees/:id/onboarding/:itemKey", async (req, res, next) => {
       });
       return;
     }
-    const employee = await findEmployee(req.params.id);
+    const employee = await findEmployee(String(req.params.id));
     if (!employee) {
       res.status(404).json({ message: "Employee not found" });
       return;
     }
-    const def = itemByKey.get(req.params.itemKey);
+    const def = itemByKey.get(String(req.params.itemKey));
     if (!def) {
       res.status(404).json({ message: "Checklist item not found" });
       return;

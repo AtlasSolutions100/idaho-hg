@@ -59,9 +59,20 @@ export function resolveMultiplier(
  * hours * hourlyRate; both are subject to the weekend/holiday multiplier.
  * Mileage and per diem reimbursements are NOT multiplied.
  */
+/** Resolved, per-entry pay inputs the report route computes (see rate-lookup). */
+export type PayrollComputeOptions = {
+  /** Per-visit-type pay (visit_pay_rates) for a visit entry; else rate.visitRate. */
+  visitPayRate?: number;
+  /** Per-client hourly pay (client_pay_rates) for an hourly entry; else rate.hourlyRate. */
+  hourlyPayRate?: number;
+  /** Pre-resolved weekend/holiday multiplier (per-client); else the employee rate's. */
+  multiplier?: number;
+};
+
 export function computePayrollAmounts(
   entry: PayrollEntryInput,
   rate: PayrollRate | undefined,
+  opts: PayrollComputeOptions = {},
 ): PayrollAmounts {
   // "Other" one-offs pay Molly's flat custom amount — no rate table, no
   // weekend/holiday multiplier. An unpriced Other entry is flagged
@@ -84,12 +95,21 @@ export function computePayrollAmounts(
   if (!rate) {
     return { multiplier: 1, basePay: 0, mileagePay: 0, perDiemPay: 0, total: 0, missingRate: true };
   }
-  const multiplier = resolveMultiplier(entry, rate);
+  // Per-client weekend/holiday multiplier when resolved (see rate-lookup);
+  // otherwise the employee rate's multiplier (backwards-compatible).
+  const multiplier = opts.multiplier ?? resolveMultiplier(entry, rate);
   let basePay = 0;
   if (entry.visitType) {
-    basePay = rate.visitRate * multiplier;
+    // Per-visit-type pay (visit_pay_rates) when set; otherwise fall back to the
+    // employee's flat visitRate so existing behavior is preserved until Molly
+    // fills in the discipline × visit-type pay matrix.
+    const perVisitPay = opts.visitPayRate ?? rate.visitRate;
+    basePay = perVisitPay * multiplier;
   } else if (entry.hours != null) {
-    basePay = entry.hours * rate.hourlyRate * multiplier;
+    // Per-client hourly pay (client_pay_rates) when set; else the employee's
+    // flat hourlyRate.
+    const hourlyPay = opts.hourlyPayRate ?? rate.hourlyRate;
+    basePay = entry.hours * hourlyPay * multiplier;
   }
   const mileagePay = entry.mileage != null ? entry.mileage * rate.mileageRate : 0;
   const perDiemPay = entry.perDiem != null ? entry.perDiem * rate.perDiemRate : 0;

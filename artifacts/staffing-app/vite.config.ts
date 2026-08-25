@@ -27,6 +27,12 @@ if (!basePath) {
   );
 }
 
+// Local-dev only: when VITE_DEV_API_PROXY is set (see .env), proxy /api to the
+// API server so the browser treats the app and API as one origin (Clerk session
+// cookies then flow). On Replit this var is unset, so no proxy is added and
+// behavior is unchanged.
+const devApiProxyTarget = process.env.VITE_DEV_API_PROXY;
+
 export default defineConfig({
   base: basePath,
   plugins: [
@@ -72,6 +78,16 @@ export default defineConfig({
     fs: {
       strict: true,
     },
+    ...(devApiProxyTarget
+      ? {
+          proxy: {
+            '/api': {
+              target: devApiProxyTarget,
+              changeOrigin: true,
+            },
+          },
+        }
+      : {}),
   },
   preview: {
     port,

@@ -203,7 +203,10 @@ export const mockTimeEntries: TimeEntry[] = [
 ];
 
 
-export const visitTypeLabels: Record<VisitType, string> = {
+// Widened to Record<string, string>: visit types are now an open, admin-managed
+// catalog (see use-visit-types.ts). This map remains a display fallback for the
+// original built-in keys; live labels come from the catalog via useVisitTypes().
+export const visitTypeLabels: Record<string, string> = {
   'skilled-nursing': 'Skilled Nursing (SNV)',
   'physical-therapy': 'Physical Therapy (PTV)',
   'occupational-therapy': 'Occupational Therapy',

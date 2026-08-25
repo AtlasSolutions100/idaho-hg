@@ -3,14 +3,18 @@ import { eq, and, desc, sql } from "drizzle-orm";
 import {
   db,
   clientRatesTable,
+  clientPayRatesTable,
+  visitPayRatesTable,
   employeeRatesTable,
   clientsTable,
   employeesTable,
   type ClientRateRow,
+  type ClientPayRateRow,
   type EmployeeRateRow,
 } from "@workspace/db";
 import {
   CreateClientRateBody,
+  CreateClientPayRateBody,
   UpdateClientRateBody,
   UpdateEmployeeRateBody,
 } from "@workspace/api-zod";
@@ -18,10 +22,22 @@ import {
   hasDemoEmployeeData,
   purgeDemoEmployeeData,
 } from "../lib/demo-cleanup";
+import { requireAdmin } from "../lib/employee-auth";
 
 const router: IRouter = Router();
 
 function serializeClientRate(row: ClientRateRow) {
+  return {
+    id: String(row.id),
+    clientId: row.clientId,
+    clientName: row.clientName,
+    visitType: row.visitType,
+    rate: row.rate,
+    effectiveDate: row.effectiveDate,
+  };
+}
+
+function serializeClientPayRate(row: ClientPayRateRow) {
   return {
     id: String(row.id),
     clientId: row.clientId,
@@ -141,7 +157,9 @@ const seedEmployeeRates = seedEmployeeRoster.map((emp) => {
   return {
     ...emp,
     ...defaults,
-    mileageRate: 0.655,
+    // Mileage reimbursement per Molly's master rate sheet (St. Luke's pays
+    // employees $0.69/mi; clients are billed $0.725 — see client mileage rate).
+    mileageRate: 0.69,
     perDiemRate: 45,
     weekendMultiplier: 1.5,
     holidayMultiplier: 2,
@@ -273,8 +291,130 @@ async function backfillMissingClientRates() {
   });
 }
 
+// --- Molly's real rates from the master rate sheet ("Master sheet for Radiant
+// AI") — St. Luke's discipline × visit-type PAY, per-client hourly PAY, Weiser's
+// distinct weekend rows, and the St. Luke's/Weiser weekend-holiday multipliers.
+// All applied idempotently (insert-if-missing / only-if-still-default).
+const ST_LUKES_VISIT_PAY: Record<string, [number, number, number, number]> = {
+  // [RN, PT, OT, SLP]
+  "routine-visit": [100.8, 112.8, 112.8, 112.8],
+  soc: [268.8, 300.8, 300.8, 300.8],
+  roc: [201.6, 225.6, 225.6, 225.6],
+  recert: [168, 188, 188, 188],
+  discharge: [134.4, 150.4, 150.4, 150.4],
+  eval: [168, 188, 188, 188],
+  "non-visit": [67.2, 75.2, 75.2, 75.2],
+  training: [67.2, 75.2, 63.2, 75.2],
+  "non-billable": [132.8, 151.192, 150.4, 150.4],
+  "on-call": [8, 8, 8, 8],
+  "mccall-per-diem": [200, 200, 200, 200],
+  "mie-first-last-day": [60, 60, 60, 60],
+  "mie-full-day": [80, 80, 80, 80],
+  "hospital-at-home": [67.2, 75.2, 75.2, 75.2],
+  hospice: [67.2, 75.2, 75.2, 75.2],
+};
+const PAY_DISCIPLINES = ["RN", "PT", "OT", "SLP"] as const;
+
+const seedVisitPayRates = Object.entries(ST_LUKES_VISIT_PAY).flatMap(([visitType, rates]) =>
+  PAY_DISCIPLINES.map((discipline, i) => ({
+    discipline,
+    visitType,
+    rate: rates[i]!,
+    effectiveDate: "2024-01-01",
+  })),
+);
+
+// Per-client hourly employee PAY (differs by client), plus Weiser's distinct
+// weekend pay rows. Keyed like client_rates: "hourly-{DISC}" / "...-weekend".
+const seedClientPayRates = [
+  // Weiser Memorial (weekday)
+  { clientId: "2", visitType: "hourly-RN", rate: 71 },
+  { clientId: "2", visitType: "hourly-PT", rate: 71 },
+  { clientId: "2", visitType: "hourly-OT", rate: 71 },
+  { clientId: "2", visitType: "hourly-SLP", rate: 80 },
+  { clientId: "2", visitType: "hourly-PTA", rate: 50 },
+  { clientId: "2", visitType: "hourly-LPN", rate: 45 },
+  // Weiser Memorial (weekend — distinct rate rows)
+  { clientId: "2", visitType: "hourly-RN-weekend", rate: 78 },
+  { clientId: "2", visitType: "hourly-PT-weekend", rate: 78 },
+  { clientId: "2", visitType: "hourly-OT-weekend", rate: 78 },
+  { clientId: "2", visitType: "hourly-SLP-weekend", rate: 88 },
+  { clientId: "2", visitType: "hourly-PTA-weekend", rate: 58 },
+  { clientId: "2", visitType: "hourly-LPN-weekend", rate: 53 },
+  // Idaho Youth Ranch
+  { clientId: "3", visitType: "hourly-RN", rate: 71 },
+  { clientId: "3", visitType: "hourly-LCSW", rate: 71 },
+  // Current PT / Thrive
+  { clientId: "6", visitType: "hourly-PT", rate: 57 },
+  { clientId: "7", visitType: "hourly-PT", rate: 57.2 },
+];
+
+// Weiser's distinct weekend BILLING rows (base hourly billing already seeded).
+const seedWeiserWeekendBilling = [
+  { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-RN-weekend", rate: 101.5, effectiveDate: "2024-01-01" },
+  { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-PT-weekend", rate: 104, effectiveDate: "2024-01-01" },
+  { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-OT-weekend", rate: 97, effectiveDate: "2024-01-01" },
+  { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-SLP-weekend", rate: 108, effectiveDate: "2024-01-01" },
+  { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-PTA-weekend", rate: 78, effectiveDate: "2024-01-01" },
+  { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-LPN-weekend", rate: 75, effectiveDate: "2024-01-01" },
+  // St. Luke's mileage billing (paid to employee at 0.69, billed at 0.725).
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "mileage", rate: 0.725, effectiveDate: "2024-01-01" },
+];
+
+// Per-client weekend/holiday multipliers: only set when still at the default 1,
+// so Molly's later admin edits are never overwritten.
+const clientDayMultipliers: Array<{ clientId: string; weekend: number; holiday: number }> = [
+  { clientId: "1", weekend: 1.1, holiday: 1.1 }, // St. Luke's: +10% for both
+  { clientId: "2", weekend: 1, holiday: 1.5 }, // Weiser: explicit weekend rows; holidays 1.5x
+];
+
+async function backfillMollyRates() {
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(${BACKFILL_LOCK_KEY})`);
+    // Client billing weekend rows + St. Luke's mileage.
+    for (const seed of seedWeiserWeekendBilling) {
+      const [ex] = await tx.select().from(clientRatesTable)
+        .where(and(eq(clientRatesTable.clientId, seed.clientId), eq(clientRatesTable.visitType, seed.visitType))).limit(1);
+      if (!ex) await tx.insert(clientRatesTable).values(seed);
+    }
+    // St. Luke's visit PAY matrix.
+    for (const seed of seedVisitPayRates) {
+      const [ex] = await tx.select().from(visitPayRatesTable)
+        .where(and(eq(visitPayRatesTable.discipline, seed.discipline), eq(visitPayRatesTable.visitType, seed.visitType))).limit(1);
+      if (!ex) await tx.insert(visitPayRatesTable).values(seed);
+    }
+    // Per-client hourly PAY.
+    const clientName = new Map(
+      (await tx.select().from(clientsTable)).map((c) => [c.id, c.name] as const),
+    );
+    for (const seed of seedClientPayRates) {
+      const [ex] = await tx.select().from(clientPayRatesTable)
+        .where(and(eq(clientPayRatesTable.clientId, seed.clientId), eq(clientPayRatesTable.visitType, seed.visitType))).limit(1);
+      if (!ex) {
+        await tx.insert(clientPayRatesTable).values({
+          clientId: seed.clientId,
+          clientName: clientName.get(seed.clientId) ?? seed.clientId,
+          visitType: seed.visitType,
+          rate: seed.rate,
+          effectiveDate: "2024-01-01",
+        });
+      }
+    }
+    // Per-client multipliers — only when still the default 1.
+    for (const m of clientDayMultipliers) {
+      await tx.update(clientsTable)
+        .set({ weekendMultiplier: m.weekend, holidayMultiplier: m.holiday })
+        .where(and(
+          eq(clientsTable.id, m.clientId),
+          eq(clientsTable.weekendMultiplier, 1),
+          eq(clientsTable.holidayMultiplier, 1),
+        ));
+    }
+  });
+}
+
 let seeded = false;
-async function ensureSeeded() {
+export async function ensureSeeded() {
   if (seeded) return;
   // Guard: if legacy demo employees (IDs "1"–"6") resurfaced (e.g. via a
   // restored backup), purge them and skip seeding — the database is not
@@ -293,11 +433,14 @@ async function ensureSeeded() {
     await db.insert(employeeRatesTable).values(seedEmployeeRates);
   }
   await backfillMissingClientRates();
+  await backfillMollyRates();
   seeded = true;
 }
 
 
-router.get("/client-rates", async (_req, res, next) => {
+// Rate tables expose company pay/billing data and are only read or written
+// from Molly's admin screens — every route here is admin-gated.
+router.get("/client-rates", requireAdmin, async (_req, res, next) => {
   try {
     await ensureSeeded();
     const rows = await db.select().from(clientRatesTable);
@@ -318,7 +461,7 @@ router.get("/client-rates", async (_req, res, next) => {
 // Adds a new rate type for an existing client (e.g. an hourly rate). Rejects
 // duplicates: once a client has any history rows for a rate type, changes go
 // through PATCH so the history stays append-only.
-router.post("/client-rates", async (req, res, next) => {
+router.post("/client-rates", requireAdmin, async (req, res, next) => {
   try {
     await ensureSeeded();
     const parsed = CreateClientRateBody.safeParse(req.body);
@@ -368,7 +511,7 @@ router.post("/client-rates", async (req, res, next) => {
 
 // Editing a rate never overwrites: it inserts a new history row so past
 // payroll/invoices can still resolve the rate that applied on their dates.
-router.patch("/client-rates/:id", async (req, res, next) => {
+router.patch("/client-rates/:id", requireAdmin, async (req, res, next) => {
   try {
     const parsed = UpdateClientRateBody.safeParse(req.body);
     if (!parsed.success) {
@@ -404,7 +547,7 @@ router.patch("/client-rates/:id", async (req, res, next) => {
   }
 });
 
-router.get("/client-rates/:id/history", async (req, res, next) => {
+router.get("/client-rates/:id/history", requireAdmin, async (req, res, next) => {
   try {
     await ensureSeeded();
     const numericId = Number(req.params.id);
@@ -436,7 +579,105 @@ router.get("/client-rates/:id/history", async (req, res, next) => {
   }
 });
 
-router.get("/employee-rates", async (_req, res, next) => {
+// ---- Per-client employee PAY rates (hourly pay that differs by client) ----
+
+router.get("/client-pay-rates", requireAdmin, async (_req, res, next) => {
+  try {
+    await ensureSeeded();
+    const rows = await db.select().from(clientPayRatesTable);
+    const inactive = new Set(
+      (await db.select().from(clientsTable).where(eq(clientsTable.active, false))).map((c) => c.id),
+    );
+    const current = latestPerGroup(
+      rows.filter((r) => !inactive.has(r.clientId)),
+      (row) => `${row.clientId}::${row.visitType}`,
+    ).sort(
+      (a, b) => a.clientName.localeCompare(b.clientName) || a.visitType.localeCompare(b.visitType),
+    );
+    res.json(current.map(serializeClientPayRate));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/client-pay-rates", requireAdmin, async (req, res, next) => {
+  try {
+    await ensureSeeded();
+    const parsed = CreateClientPayRateBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: parsed.error.issues[0]?.message ?? "Invalid pay rate" });
+      return;
+    }
+    const { clientId, rateType, discipline, rate, effectiveDate } = parsed.data;
+    const storedType = discipline ? `${rateType}-${discipline}` : rateType;
+    const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
+    if (!client || !client.active) {
+      res.status(404).json({ message: "Client not found" });
+      return;
+    }
+    const [existing] = await db
+      .select()
+      .from(clientPayRatesTable)
+      .where(
+        and(
+          eq(clientPayRatesTable.clientId, clientId),
+          eq(clientPayRatesTable.visitType, storedType),
+        ),
+      )
+      .limit(1);
+    if (existing) {
+      res
+        .status(409)
+        .json({ message: "This client already has a pay rate of this type — edit it instead" });
+      return;
+    }
+    const [row] = await db
+      .insert(clientPayRatesTable)
+      .values({ clientId, clientName: client.name, visitType: storedType, rate, effectiveDate })
+      .returning();
+    res.status(201).json(serializeClientPayRate(row));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch("/client-pay-rates/:id", requireAdmin, async (req, res, next) => {
+  try {
+    const parsed = UpdateClientRateBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: parsed.error.issues[0]?.message ?? "Invalid rate update" });
+      return;
+    }
+    const numericId = Number(req.params.id);
+    if (!Number.isInteger(numericId)) {
+      res.status(404).json({ message: "Rate not found" });
+      return;
+    }
+    const [existing] = await db
+      .select()
+      .from(clientPayRatesTable)
+      .where(eq(clientPayRatesTable.id, numericId));
+    if (!existing) {
+      res.status(404).json({ message: "Rate not found" });
+      return;
+    }
+    const [row] = await db
+      .insert(clientPayRatesTable)
+      .values({
+        clientId: existing.clientId,
+        clientName: existing.clientName,
+        visitType: existing.visitType,
+        rate: parsed.data.rate,
+        effectiveDate: parsed.data.effectiveDate,
+      })
+      .returning();
+    res.json(serializeClientPayRate(row));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/employee-rates", requireAdmin, async (_req, res, next) => {
   try {
     await ensureSeeded();
     const rows = await db.select().from(employeeRatesTable);
@@ -453,7 +694,7 @@ router.get("/employee-rates", async (_req, res, next) => {
   }
 });
 
-router.patch("/employee-rates/:id", async (req, res, next) => {
+router.patch("/employee-rates/:id", requireAdmin, async (req, res, next) => {
   try {
     const parsed = UpdateEmployeeRateBody.safeParse(req.body);
     if (!parsed.success) {
@@ -495,7 +736,7 @@ router.patch("/employee-rates/:id", async (req, res, next) => {
   }
 });
 
-router.get("/employee-rates/:id/history", async (req, res, next) => {
+router.get("/employee-rates/:id/history", requireAdmin, async (req, res, next) => {
   try {
     await ensureSeeded();
     const numericId = Number(req.params.id);

@@ -1,12 +1,14 @@
 import { Router, json, type IRouter } from "express";
 import { desc } from "drizzle-orm";
 import { db, feedbackTable } from "@workspace/db";
+import { requireAdmin, requireSignedIn } from "../lib/employee-auth";
 
 const router: IRouter = Router();
 
-// NOTE: like the rest of the API, these endpoints are unauthenticated until
-// the sign-in task lands. Until then: the list is bounded, POST bodies are
-// small, and submissions are throttled per client to limit abuse.
+// Reading the submitted feedback is Molly's admin view (requireAdmin below).
+// Submitting is open to any signed-in user (requireSignedIn below) so
+// employees and Molly can send feedback — the list stays bounded, POST bodies
+// are small, and submissions are throttled per client to limit abuse.
 
 /** Most recent submissions returned by GET /feedback. */
 const LIST_LIMIT = 200;
@@ -52,7 +54,7 @@ function serialize(row: typeof feedbackTable.$inferSelect) {
   };
 }
 
-router.get("/feedback", async (_req, res) => {
+router.get("/feedback", requireAdmin, async (_req, res) => {
   const rows = await db
     .select()
     .from(feedbackTable)
@@ -61,7 +63,7 @@ router.get("/feedback", async (_req, res) => {
   return res.json(rows.map(serialize));
 });
 
-router.post("/feedback", json({ limit: "16kb" }), async (req, res) => {
+router.post("/feedback", requireSignedIn, json({ limit: "16kb" }), async (req, res) => {
   if (throttled(req.ip ?? "unknown")) {
     return res
       .status(429)

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   useGetPayrollReport,
   getGetPayrollReportQueryKey,
+  useGetBusinessSettings,
   type PayrollReport,
 } from '@workspace/api-client-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,12 +14,16 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { visitTypeLabels } from '@/lib/data';
+import { useVisitTypes } from '@/lib/use-visit-types';
 import { downloadCsv, formatMoney } from '@/lib/report-csv';
+import { downloadEmployeePayrollPdf, downloadMasterPayrollPdf } from '@/lib/payroll-pdf';
 import { format } from 'date-fns';
-import { FileSpreadsheet, Download, Loader2, AlertCircle, Inbox } from 'lucide-react';
+import { FileSpreadsheet, FileText, Download, Loader2, AlertCircle, Inbox } from 'lucide-react';
 
-function payrollCsv(report: PayrollReport): string[][] {
+function payrollCsv(
+  report: PayrollReport,
+  labelFor: (key: string | null | undefined) => string,
+): string[][] {
   const rows: string[][] = [
     ['Employee', 'Role', 'Date', 'Client', 'Type', 'Hours', 'Multiplier', 'Base Pay', 'Mileage', 'Mileage Pay', 'Per Diem Pay', 'Total', 'Missing Rate'],
   ];
@@ -32,7 +37,7 @@ function payrollCsv(report: PayrollReport): string[][] {
         line.isOther
           ? `Other${line.description ? ` — ${line.description}` : ''}`
           : line.visitType
-            ? visitTypeLabels[line.visitType]
+            ? labelFor(line.visitType)
             : 'Hourly',
         line.hours != null ? String(line.hours) : '',
         String(line.multiplier),
@@ -69,6 +74,16 @@ export function PayrollReportCard() {
       },
     },
   );
+
+  // Live visit-type labels (so a type Molly just added renders) and employer
+  // contact details for the PDF header — both read-only.
+  const { labelFor } = useVisitTypes();
+  const { data: businessSettings } = useGetBusinessSettings();
+  const business = {
+    address: businessSettings?.address,
+    phone: businessSettings?.phone,
+    email: businessSettings?.email,
+  };
 
   const canGenerate = start !== '' && end !== '' && start <= end;
   const showResults = params !== null;
@@ -121,11 +136,38 @@ export function PayrollReportCard() {
           <Button
             variant="outline" className="gap-2"
             disabled={!report || report.entryCount === 0}
-            onClick={() => report && downloadCsv(`payroll-${report.start}-to-${report.end}.csv`, payrollCsv(report))}
+            onClick={() => report && downloadCsv(`payroll-${report.start}-to-${report.end}.csv`, payrollCsv(report, labelFor))}
             data-testid="button-download-payroll-export-(pezwise)"
           >
             <Download className="h-4 w-4" />
             Download CSV
+          </Button>
+          <Button
+            variant="outline" className="gap-2"
+            disabled={!report || report.entryCount === 0}
+            onClick={() => {
+              if (!report) return;
+              const period = { start: report.start, end: report.end };
+              for (const emp of report.employees) {
+                downloadEmployeePayrollPdf(emp, period, { business, labelFor });
+              }
+            }}
+            data-testid="button-download-employee-payroll-pdfs"
+          >
+            <FileText className="h-4 w-4" />
+            Download employee PDFs
+          </Button>
+          <Button
+            variant="outline" className="gap-2"
+            disabled={!report || report.entryCount === 0}
+            onClick={() =>
+              report &&
+              downloadMasterPayrollPdf(report, { start: report.start, end: report.end }, { business, labelFor })
+            }
+            data-testid="button-download-master-payroll-pdf"
+          >
+            <FileText className="h-4 w-4" />
+            Download master payroll PDF
           </Button>
         </div>
 
@@ -192,7 +234,7 @@ export function PayrollReportCard() {
                           <TableCell>
                             <div className="flex items-center gap-1 flex-wrap">
                               <span className="text-sm">
-                                {line.isOther ? 'Other' : line.visitType ? visitTypeLabels[line.visitType] : 'Hourly'}
+                                {line.isOther ? 'Other' : line.visitType ? labelFor(line.visitType) : 'Hourly'}
                               </span>
                               {line.isOther && line.description ? (
                                 <span className="text-xs text-muted-foreground truncate max-w-[180px]" title={line.description}>

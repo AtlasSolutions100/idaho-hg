@@ -19,4 +19,10 @@ export interface Client {
   mileageOnContract: boolean;
   /** Whether this client bills by visit type (only St. Luke's by default); other clients use the simple hourly form */
   billsByVisitType: boolean;
+  /** Per-client weekend pay+bill multiplier (1 = none; e.g. St. Luke's uses 1.1 for +10%) */
+  weekendMultiplier: number;
+  /** Per-client holiday pay+bill multiplier (1 = none) */
+  holidayMultiplier: number;
+  /** Optional per-client footer note shown on the PDF invoice */
+  noteToCustomer?: string;
 }

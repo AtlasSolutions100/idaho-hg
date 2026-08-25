@@ -6,12 +6,26 @@ import {
   clientsTable,
   type TimeEntryRow,
 } from "@workspace/db";
-import { getClientRateForDate, getEmployeeRateForDate } from "../lib/rate-lookup";
+import {
+  getClientRateForDate,
+  getClientPayRateForDate,
+  getEmployeeRateForDate,
+  getVisitPayRateForDate,
+  resolveDayTypeRate,
+  pickDayMultiplier,
+} from "../lib/rate-lookup";
 import { computePayrollAmounts, round2 } from "../lib/payroll-calc";
 import { computeInvoiceReport } from "../lib/invoice-report";
-import { buildReconciliationReport } from "../lib/reconciliation-lines";
+import {
+  buildReconciliationReport,
+  type ReconciliationEntryInput,
+} from "../lib/reconciliation-lines";
+import { requireAdmin } from "../lib/employee-auth";
 
 const router: IRouter = Router();
+
+// Payroll, invoice, and reconciliation reports expose company-wide pay and
+// billing figures — every route in this file is Molly's (admin) only.
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -36,7 +50,86 @@ async function approvedEntriesInRange(start: string, end: string): Promise<TimeE
     .orderBy(asc(timeEntriesTable.date), asc(timeEntriesTable.id));
 }
 
-router.get("/reports/payroll", async (req, res, next) => {
+/**
+ * The total dollars this entry bills the CLIENT — the reconciliation view of
+ * an entry's contribution to the invoice. It resolves the very same rates,
+ * multipliers, and fallbacks as computeInvoiceReport (invoice-report.ts) and
+ * sums the entry's components (visit or hourly + mileage + per-diem, or an
+ * "Other" flat amount). Because every entry is priced identically to the
+ * invoice and each amount is summed, the reconciliation grand total equals the
+ * invoice total for the same client + period. Full precision; the pure builder
+ * rounds the per-line, subtotal, and grand-total figures.
+ */
+async function resolveEntryBilledAmount(
+  entry: TimeEntryRow,
+  client: { id: string; weekendMultiplier: number; holidayMultiplier: number },
+): Promise<number> {
+  // "Other" one-offs bill only Molly's flat amount (already on the entry) —
+  // no rate, mileage, or per-diem lookups — mirroring the invoice.
+  if (entry.isOther) {
+    return entry.customBillAmount != null && entry.customBillAmount > 0
+      ? entry.customBillAmount
+      : 0;
+  }
+
+  let amount = 0;
+  if (entry.visitType) {
+    // Role-specific visit rate first (e.g. "soc-RN"), then the generic type.
+    const roleVisitRate = entry.employeeRole
+      ? await getClientRateForDate(client.id, `${entry.visitType}-${entry.employeeRole}`, entry.date)
+      : undefined;
+    const rate =
+      roleVisitRate ?? (await getClientRateForDate(client.id, entry.visitType, entry.date));
+    if (rate) {
+      const mult = pickDayMultiplier(
+        entry.isWeekend,
+        entry.isHoliday,
+        client.weekendMultiplier,
+        client.holidayMultiplier,
+      );
+      amount += rate.rate * mult;
+    }
+  } else if (entry.hours != null && entry.hours > 0) {
+    const resolved = await resolveDayTypeRate(
+      (key) => getClientRateForDate(client.id, key, entry.date),
+      [`hourly-${entry.employeeRole}`, "hourly"],
+      entry.isWeekend,
+      entry.isHoliday,
+      client.weekendMultiplier,
+      client.holidayMultiplier,
+    );
+    if (resolved) amount += entry.hours * resolved.rate * resolved.multiplier;
+  }
+
+  // Mileage / per-diem bill at the CLIENT rate when Molly set one, else the
+  // employee reimbursement rate — the exact fallback the invoice uses.
+  if ((entry.mileage ?? 0) > 0 || (entry.perDiem ?? 0) > 0) {
+    const needsMileage = (entry.mileage ?? 0) > 0;
+    const needsPerDiem = (entry.perDiem ?? 0) > 0;
+    const clientMileage = needsMileage
+      ? await getClientRateForDate(client.id, "mileage", entry.date)
+      : undefined;
+    const clientPerDiem = needsPerDiem
+      ? await getClientRateForDate(client.id, "per-diem", entry.date)
+      : undefined;
+    const needEmpFallback =
+      (needsMileage && !clientMileage) || (needsPerDiem && !clientPerDiem);
+    const empRate = needEmpFallback
+      ? await getEmployeeRateForDate(entry.employeeId, entry.date)
+      : undefined;
+    if (needsMileage) {
+      const rate = clientMileage?.rate ?? empRate?.mileageRate;
+      if (rate != null) amount += entry.mileage! * rate;
+    }
+    if (needsPerDiem) {
+      const rate = clientPerDiem?.rate ?? empRate?.perDiemRate;
+      if (rate != null) amount += entry.perDiem! * rate;
+    }
+  }
+  return amount;
+}
+
+router.get("/reports/payroll", requireAdmin, async (req, res, next) => {
   try {
     const range = parseRange(req.query.start, req.query.end);
     if (!range) {
@@ -44,6 +137,10 @@ router.get("/reports/payroll", async (req, res, next) => {
       return;
     }
     const entries = await approvedEntriesInRange(range.start, range.end);
+    // Per-client weekend/holiday multipliers (default 1) — fetched once.
+    const clientById = new Map(
+      (await db.select().from(clientsTable)).map((c) => [c.id, c]),
+    );
 
     type EmployeeGroup = {
       employeeId: string;
@@ -62,10 +159,38 @@ router.get("/reports/payroll", async (req, res, next) => {
 
     for (const entry of entries) {
       const rate = await getEmployeeRateForDate(entry.employeeId, entry.date);
-      // Weekend/holiday multiplier rule and all pay math live in
-      // lib/payroll-calc.ts (pure + unit tested).
+      const client = clientById.get(entry.clientId);
+      const wM = client?.weekendMultiplier ?? 1;
+      const hM = client?.holidayMultiplier ?? 1;
+
+      // Resolve this entry's pay + weekend/holiday multiplier (see rate-lookup):
+      // - visit entries: per-discipline visit pay × the client day multiplier;
+      // - hourly entries: per-client hourly pay (honoring explicit weekend/
+      //   holiday rate rows), falling back to the employee's flat hourly rate.
+      let visitPayRate: number | undefined;
+      let hourlyPayRate: number | undefined;
+      let dayMultiplier = pickDayMultiplier(entry.isWeekend, entry.isHoliday, wM, hM);
+      if (entry.visitType) {
+        visitPayRate = (
+          await getVisitPayRateForDate(entry.employeeRole, entry.visitType, entry.date)
+        )?.rate;
+      } else if (entry.hours != null) {
+        const resolved = await resolveDayTypeRate(
+          (key) => getClientPayRateForDate(entry.clientId, key, entry.date),
+          [`hourly-${entry.employeeRole}`, "hourly"],
+          entry.isWeekend,
+          entry.isHoliday,
+          wM,
+          hM,
+        );
+        if (resolved) {
+          hourlyPayRate = resolved.rate;
+          dayMultiplier = resolved.multiplier;
+        }
+      }
+      // All pay math lives in lib/payroll-calc.ts (pure + unit tested).
       const { multiplier, basePay, mileagePay, perDiemPay, total, missingRate } =
-        computePayrollAmounts(entry, rate);
+        computePayrollAmounts(entry, rate, { visitPayRate, hourlyPayRate, multiplier: dayMultiplier });
       if (missingRate) missingRateCount += 1;
 
       let group = groups.get(entry.employeeId);
@@ -129,7 +254,7 @@ router.get("/reports/payroll", async (req, res, next) => {
   }
 });
 
-router.get("/reports/invoice", async (req, res, next) => {
+router.get("/reports/invoice", requireAdmin, async (req, res, next) => {
   try {
     const range = parseRange(req.query.start, req.query.end);
     const clientId = req.query.clientId;
@@ -152,7 +277,7 @@ router.get("/reports/invoice", async (req, res, next) => {
   }
 });
 
-router.get("/reports/reconciliation", async (req, res, next) => {
+router.get("/reports/reconciliation", requireAdmin, async (req, res, next) => {
   try {
     const range = parseRange(req.query.start, req.query.end);
     const clientId = req.query.clientId;
@@ -174,7 +299,31 @@ router.get("/reports/reconciliation", async (req, res, next) => {
       (e) => e.clientId === clientId,
     );
 
-    const { employees, totals } = buildReconciliationReport(entries);
+    // Price each entry exactly as the invoice does, then let the pure builder
+    // carry the billed dollars onto every line, subtotal, and the grand total.
+    // Summing per-entry amounts reconciles to the invoice total (see
+    // resolveEntryBilledAmount).
+    const annotated: ReconciliationEntryInput[] = [];
+    for (const entry of entries) {
+      annotated.push({
+        id: entry.id,
+        date: entry.date,
+        employeeId: entry.employeeId,
+        employeeName: entry.employeeName,
+        employeeRole: entry.employeeRole,
+        visitType: entry.visitType,
+        hours: entry.hours,
+        mileage: entry.mileage,
+        perDiem: entry.perDiem,
+        isWeekend: entry.isWeekend,
+        isHoliday: entry.isHoliday,
+        note: entry.note,
+        ...(entry.isOther ? { isOther: true } : {}),
+        amount: await resolveEntryBilledAmount(entry, client),
+      });
+    }
+
+    const { employees, totals } = buildReconciliationReport(annotated);
 
     res.json({
       clientId,

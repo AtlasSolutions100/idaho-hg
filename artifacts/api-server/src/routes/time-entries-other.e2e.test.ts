@@ -201,10 +201,10 @@ describe("Other one-off entries end-to-end", () => {
     // Reject the helper hourly entry so another file's global approve-all
     // (shared DB, concurrent test files) can't approve it into this month's
     // invoice as a missing-rate line.
-    await post(`/time-entries/${hourly.body.id}/reject`);
+    await asAdmin(() => post(`/time-entries/${hourly.body.id}/reject`));
 
     // Approved = locked.
-    const approved = await post(`/time-entries/${id}/approve`);
+    const approved = await asAdmin(() => post(`/time-entries/${id}/approve`));
     expect(approved.status).toBe(200);
     const afterApproval = await asAdmin(() =>
       post(`/time-entries/${id}/price`, { customPayAmount: 999 }),
@@ -274,10 +274,12 @@ describe("Other one-off entries end-to-end", () => {
     await asAdmin(() => post(`/time-entries/${priced.body.id}/price`, { customPayAmount: 200 }));
     // Unpriced one-off — must be flagged, not silently $0-and-fine.
     const unpriced = await post("/time-entries", otherEntryBody(6));
-    await post(`/time-entries/${priced.body.id}/approve`);
-    await post(`/time-entries/${unpriced.body.id}/approve`);
+    await asAdmin(() => post(`/time-entries/${priced.body.id}/approve`));
+    await asAdmin(() => post(`/time-entries/${unpriced.body.id}/approve`));
 
-    const report = await api(`/reports/payroll?start=${MONTH_START}&end=${MONTH_END}`);
+    const report = await asAdmin(() =>
+      api(`/reports/payroll?start=${MONTH_START}&end=${MONTH_END}`),
+    );
     expect(report.status).toBe(200);
     const emp = report.body.employees.find((e: any) => e.employeeId === EMP_ID);
     expect(emp).toBeTruthy();
@@ -304,11 +306,11 @@ describe("Other one-off entries end-to-end", () => {
     );
     const notBilled = await post("/time-entries", otherEntryBody(11, { note: "staff meeting" }));
     await asAdmin(() => post(`/time-entries/${notBilled.body.id}/price`, { customPayAmount: 60 }));
-    await post(`/time-entries/${billed.body.id}/approve`);
-    await post(`/time-entries/${notBilled.body.id}/approve`);
+    await asAdmin(() => post(`/time-entries/${billed.body.id}/approve`));
+    await asAdmin(() => post(`/time-entries/${notBilled.body.id}/approve`));
 
-    const invoice = await api(
-      `/reports/invoice?clientId=${CLIENT_ID}&start=${MONTH_START}&end=${MONTH_END}`,
+    const invoice = await asAdmin(() =>
+      api(`/reports/invoice?clientId=${CLIENT_ID}&start=${MONTH_START}&end=${MONTH_END}`),
     );
     expect(invoice.status).toBe(200);
     const otherLines = invoice.body.lines.filter((l: any) => l.kind === "other");
@@ -330,7 +332,7 @@ describe("Other one-off entries end-to-end", () => {
     const priced = await post("/time-entries", otherEntryBody(16, { note: "training day" }));
     await asAdmin(() => post(`/time-entries/${priced.body.id}/price`, { customPayAmount: 45 }));
 
-    const result = await post("/time-entries/approve-all");
+    const result = await asAdmin(() => post("/time-entries/approve-all"));
     expect(result.status).toBe(200);
     expect(result.body.skippedUnpricedOtherCount).toBeGreaterThanOrEqual(1);
 
@@ -342,13 +344,13 @@ describe("Other one-off entries end-to-end", () => {
 
     // Once priced, it can be approved normally.
     await asAdmin(() => post(`/time-entries/${unpriced.body.id}/price`, { customPayAmount: 30 }));
-    const approve = await post(`/time-entries/${unpriced.body.id}/approve`);
+    const approve = await asAdmin(() => post(`/time-entries/${unpriced.body.id}/approve`));
     expect(approve.status).toBe(200);
   });
 
   it("labels Other lines on the reconciliation report with hours in the totals", async () => {
-    const recon = await api(
-      `/reports/reconciliation?clientId=${CLIENT_ID}&start=${MONTH_START}&end=${MONTH_END}`,
+    const recon = await asAdmin(() =>
+      api(`/reports/reconciliation?clientId=${CLIENT_ID}&start=${MONTH_START}&end=${MONTH_END}`),
     );
     expect(recon.status).toBe(200);
     const group = recon.body.employees.find((e: any) => e.employeeId === EMP_ID);

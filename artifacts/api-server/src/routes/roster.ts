@@ -201,6 +201,9 @@ function serializeClient(row: ClientRow) {
     ...(row.billingAddress ? { billingAddress: row.billingAddress } : {}),
     mileageOnContract: row.mileageOnContract,
     billsByVisitType: row.billsByVisitType,
+    weekendMultiplier: row.weekendMultiplier,
+    holidayMultiplier: row.holidayMultiplier,
+    ...(row.noteToCustomer ? { noteToCustomer: row.noteToCustomer } : {}),
   };
 }
 
@@ -289,7 +292,9 @@ router.get("/clients", async (_req, res, next) => {
   }
 });
 
-router.post("/clients", async (req, res, next) => {
+// Admin-only: adding a client (and its starting rate) shapes billing and what
+// employees can log against — only Molly may create one.
+router.post("/clients", requireAdmin, async (req, res, next) => {
   try {
     await ensureRosterSeeded();
     const parsed = CreateClientBody.safeParse(req.body);
@@ -360,6 +365,15 @@ router.patch("/clients/:id", requireAdmin, async (req, res, next) => {
         ...(parsed.data.billsByVisitType !== undefined
           ? { billsByVisitType: parsed.data.billsByVisitType }
           : {}),
+        ...(parsed.data.weekendMultiplier !== undefined
+          ? { weekendMultiplier: parsed.data.weekendMultiplier }
+          : {}),
+        ...(parsed.data.holidayMultiplier !== undefined
+          ? { holidayMultiplier: parsed.data.holidayMultiplier }
+          : {}),
+        ...(parsed.data.noteToCustomer !== undefined
+          ? { noteToCustomer: parsed.data.noteToCustomer.trim() || null }
+          : {}),
       })
       .where(eq(clientsTable.id, String(req.params.id)))
       .returning();
@@ -373,13 +387,17 @@ router.patch("/clients/:id", requireAdmin, async (req, res, next) => {
   }
 });
 
-router.delete("/clients/:id", async (req, res, next) => {
+// Admin-only: removing a client hides them from billing and stops new
+// entries against them — only Molly's verified session may do it.
+router.delete("/clients/:id", requireAdmin, async (req, res, next) => {
   try {
     await ensureRosterSeeded();
     const [row] = await db
       .update(clientsTable)
       .set({ active: false })
-      .where(eq(clientsTable.id, req.params.id))
+      // String(): with a middleware in the chain, Express widens the param
+      // type to string | string[]; this route's :id is always a single string.
+      .where(eq(clientsTable.id, String(req.params.id)))
       .returning();
     if (!row) {
       res.status(404).json({ message: "Client not found" });

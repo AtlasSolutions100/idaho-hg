@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { visitTypeLabels, perDiemTypeLabels } from '@/lib/data';
+import { useVisitTypes } from '@/lib/use-visit-types';
 import { format } from 'date-fns';
 import { Check, X, Loader2, AlertCircle, ChevronDown, ChevronRight, Pencil } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -45,7 +46,16 @@ export function weekLabel(mondayKey: string): string {
  * summary counts visit types across siblings and reports mileage/per diem
  * once for the whole day.
  */
-export function daySummary(entry: TimeEntry, all: TimeEntry[]) {
+export function daySummary(
+  entry: TimeEntry,
+  all: TimeEntry[],
+  // Resolves a visit-type key to its catalog label. Defaults to the legacy
+  // hardcoded map so this pure helper stays usable outside React (and in unit
+  // tests); the component passes labelFor from the visit-types catalog so
+  // newly-added types render with their real label instead of the raw key.
+  labelFor: (key: string | null | undefined) => string = (key) =>
+    key ? (visitTypeLabels[key] ?? key) : '',
+) {
   // Only entries that still count toward the day: waiting or already
   // approved. Drafts are private and rejected siblings are out of play —
   // including them would show Molly stale visit counts, mileage, or notes.
@@ -68,7 +78,7 @@ export function daySummary(entry: TimeEntry, all: TimeEntry[]) {
     if (e.isWeekend) isWeekend = true;
     if (e.isHoliday) isHoliday = true;
     if (e.visitType) {
-      const label = visitTypeLabels[e.visitType] ?? e.visitType;
+      const label = labelFor(e.visitType);
       visitCounts.set(label, (visitCounts.get(label) ?? 0) + 1);
     }
     if (e.mileage) mileage += e.mileage;
@@ -180,6 +190,7 @@ function OtherPricingForm({ entry, onError }: { entry: TimeEntry; onError: (mess
 export function ApprovePayrollTable() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { labelFor } = useVisitTypes();
   const { data: entries, isLoading, isError } = useListTimeEntries();
 
   const invalidate = () =>
@@ -348,7 +359,7 @@ export function ApprovePayrollTable() {
               <TableBody>
                 {weekGroups.get(weekKey)!.map(entry => {
                   const expanded = expandedIds.has(entry.id);
-                  const day = expanded ? daySummary(entry, entries ?? []) : null;
+                  const day = expanded ? daySummary(entry, entries ?? [], labelFor) : null;
                   return [
                   <TableRow
                     key={entry.id}
@@ -406,7 +417,7 @@ export function ApprovePayrollTable() {
                           )}
                         </div>
                       ) : entry.visitType ? (
-                        <span className="text-sm">{visitTypeLabels[entry.visitType]}</span>
+                        <span className="text-sm">{labelFor(entry.visitType)}</span>
                       ) : (
                         <span className="text-sm text-muted-foreground">Hourly</span>
                       )}
@@ -501,7 +512,7 @@ export function ApprovePayrollTable() {
                                 </div>
                                 <ul className="space-y-0.5" data-testid={`detail-visits-${entry.id}`}>
                                   {day.visitCounts.map(([label, count]) => (
-                                    <li key={label} className={label === (entry.visitType ? visitTypeLabels[entry.visitType] : '') ? 'font-medium' : ''}>
+                                    <li key={label} className={label === (entry.visitType ? labelFor(entry.visitType) : '') ? 'font-medium' : ''}>
                                       {count} × {label}
                                     </li>
                                   ))}

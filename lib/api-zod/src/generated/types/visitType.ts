@@ -6,27 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type VisitType = typeof VisitType[keyof typeof VisitType];
-
-
-export const VisitType = {
-  'skilled-nursing': 'skilled-nursing',
-  'physical-therapy': 'physical-therapy',
-  'occupational-therapy': 'occupational-therapy',
-  'speech-therapy': 'speech-therapy',
-  soc: 'soc',
-  'routine-visit': 'routine-visit',
-  eval: 'eval',
-  recert: 'recert',
-  roc: 'roc',
-  discharge: 'discharge',
-  'non-visit': 'non-visit',
-  'hospital-at-home': 'hospital-at-home',
-  hospice: 'hospice',
-  training: 'training',
-  'non-billable': 'non-billable',
-  'on-call': 'on-call',
-  'mccall-per-diem': 'mccall-per-diem',
-  'mie-first-last-day': 'mie-first-last-day',
-  'mie-full-day': 'mie-full-day',
-} as const;
+/**
+ * Visit-type key from the admin-managed visit_types catalog (e.g. "soc", "eval"). Open string — no fixed enum — so Molly can add new visit types with no code change; the server validates it against the catalog on write.
+ */
+export type VisitType = string;

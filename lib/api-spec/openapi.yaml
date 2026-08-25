@@ -384,6 +384,243 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /client-pay-rates:
+    get:
+      operationId: listClientPayRates
+      tags: [rates]
+      summary: List per-client employee PAY rates (hourly pay by client)
+      responses:
+        "200":
+          description: List of client pay rates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ClientPayRate"
+    post:
+      operationId: createClientPayRate
+      tags: [rates]
+      summary: Add a per-client hourly PAY rate for a discipline
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateClientPayRate"
+      responses:
+        "201":
+          description: Created client pay rate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientPayRate"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: A pay rate of this type already exists for the client
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /client-pay-rates/{id}:
+    patch:
+      operationId: updateClientPayRate
+      tags: [rates]
+      summary: Update a per-client pay rate (inserts a new history row)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateClientRate"
+      responses:
+        "200":
+          description: Updated client pay rate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientPayRate"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Rate not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /visit-types:
+    get:
+      operationId: listVisitTypes
+      tags: [rates]
+      summary: List visit types (admin-managed catalog)
+      responses:
+        "200":
+          description: List of visit types
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VisitTypeItem"
+    post:
+      operationId: createVisitType
+      tags: [rates]
+      summary: Add a new visit type
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVisitType"
+      responses:
+        "201":
+          description: Created visit type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VisitTypeItem"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: A visit type with this key already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /visit-types/{key}:
+    patch:
+      operationId: updateVisitType
+      tags: [rates]
+      summary: Update a visit type (label, abbreviation, active, sort order)
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateVisitType"
+      responses:
+        "200":
+          description: Updated visit type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VisitTypeItem"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Visit type not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /visit-pay-rates:
+    get:
+      operationId: listVisitPayRates
+      tags: [rates]
+      summary: List per-discipline visit PAY rates
+      responses:
+        "200":
+          description: List of visit pay rates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VisitPayRate"
+    post:
+      operationId: createVisitPayRate
+      tags: [rates]
+      summary: Set a per-discipline pay rate for a visit type (append-only history)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVisitPayRate"
+      responses:
+        "201":
+          description: Created visit pay rate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VisitPayRate"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /visit-pay-rates/{id}:
+    patch:
+      operationId: updateVisitPayRate
+      tags: [rates]
+      summary: Update a visit pay rate (inserts a new history row)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateVisitPayRate"
+      responses:
+        "200":
+          description: Updated visit pay rate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VisitPayRate"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Visit pay rate not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /employee-rates:
     get:
       operationId: listEmployeeRates
@@ -1782,6 +2019,9 @@ components:
           type: number
         unbilledCount:
           type: number
+        noteToCustomer:
+          type: string
+          description: Optional per-client footer note shown on the PDF invoice
       required:
         - clientId
         - clientName
@@ -1816,12 +2056,16 @@ components:
         isOther:
           type: boolean
           description: One-off "Other" work (training, meetings) — see the note for what it was
+        amount:
+          type: number
+          description: Billed dollar amount for this line (same pricing as the invoice)
       required:
         - entryId
         - date
         - isWeekend
         - isHoliday
         - note
+        - amount
     VisitTypeCount:
       type: object
       properties:
@@ -1857,6 +2101,9 @@ components:
           type: number
         totalPerDiem:
           type: number
+        totalAmount:
+          type: number
+          description: Total billed dollars for this employee (matches the invoice)
       required:
         - employeeId
         - employeeName
@@ -1867,6 +2114,7 @@ components:
         - totalHours
         - totalMileage
         - totalPerDiem
+        - totalAmount
     ReconciliationTotals:
       type: object
       properties:
@@ -1882,12 +2130,16 @@ components:
           type: number
         totalPerDiem:
           type: number
+        totalAmount:
+          type: number
+          description: Grand total billed dollars (equals the invoice total for the period)
       required:
         - visitCounts
         - totalVisits
         - totalHours
         - totalMileage
         - totalPerDiem
+        - totalAmount
     ReconciliationReport:
       type: object
       properties:
@@ -2028,6 +2280,15 @@ components:
         billsByVisitType:
           type: boolean
           description: Whether this client bills by visit type (only St. Luke's by default); other clients use the simple hourly form
+        weekendMultiplier:
+          type: number
+          description: Per-client weekend pay+bill multiplier (1 = none; e.g. St. Luke's uses 1.1 for +10%)
+        holidayMultiplier:
+          type: number
+          description: Per-client holiday pay+bill multiplier (1 = none)
+        noteToCustomer:
+          type: string
+          description: Optional per-client footer note shown on the PDF invoice
       required:
         - id
         - name
@@ -2035,6 +2296,8 @@ components:
         - isDemo
         - mileageOnContract
         - billsByVisitType
+        - weekendMultiplier
+        - holidayMultiplier
     ClientInput:
       type: object
       properties:
@@ -2067,6 +2330,17 @@ components:
         billsByVisitType:
           type: boolean
           description: Only applied when present; controls whether the visit-type entry form is shown
+        weekendMultiplier:
+          type: number
+          minimum: 0
+          description: Only applied when present; per-client weekend pay+bill multiplier
+        holidayMultiplier:
+          type: number
+          minimum: 0
+          description: Only applied when present; per-client holiday pay+bill multiplier
+        noteToCustomer:
+          type: string
+          description: Only applied when present; per-client PDF invoice footer note (clears on blank)
     Employee:
       type: object
       properties:
@@ -2240,6 +2514,51 @@ components:
         - rateType
         - rate
         - effectiveDate
+    ClientPayRate:
+      type: object
+      description: Per-client employee PAY rate (hourly pay that differs by client).
+      properties:
+        id:
+          type: string
+        clientId:
+          type: string
+        clientName:
+          type: string
+        visitType:
+          type: string
+          description: Rate key, e.g. "hourly-RN", "hourly", or a "-weekend"/"-holiday" variant.
+        rate:
+          type: number
+        effectiveDate:
+          type: string
+      required:
+        - id
+        - clientId
+        - clientName
+        - visitType
+        - rate
+        - effectiveDate
+    CreateClientPayRate:
+      type: object
+      properties:
+        clientId:
+          type: string
+          minLength: 1
+        rateType:
+          type: string
+          description: Base rate key, usually "hourly" (a discipline makes it "hourly-{discipline}").
+        discipline:
+          $ref: "#/components/schemas/Discipline"
+        rate:
+          type: number
+          minimum: 0
+        effectiveDate:
+          type: string
+      required:
+        - clientId
+        - rateType
+        - rate
+        - effectiveDate
     EmployeeRate:
       type: object
       properties:
@@ -2324,49 +2643,91 @@ components:
       description: Initial status for a new entry — save as a private draft or submit for approval. Defaults to submitted.
     VisitType:
       type: string
-      enum:
-        - skilled-nursing
-        - physical-therapy
-        - occupational-therapy
-        - speech-therapy
-        - soc
-        - routine-visit
-        - eval
-        - recert
-        - roc
-        - discharge
-        - non-visit
-        - hospital-at-home
-        - hospice
-        - training
-        - non-billable
-        - on-call
-        - mccall-per-diem
-        - mie-first-last-day
-        - mie-full-day
+      description: >-
+        Visit-type key from the admin-managed visit_types catalog (e.g. "soc",
+        "eval"). Open string — no fixed enum — so Molly can add new visit types
+        with no code change; the server validates it against the catalog on write.
     ClientRateType:
       type: string
-      enum:
-        - skilled-nursing
-        - physical-therapy
-        - occupational-therapy
-        - speech-therapy
-        - soc
-        - routine-visit
-        - eval
-        - recert
-        - roc
-        - discharge
-        - non-visit
-        - hospital-at-home
-        - hospice
-        - training
-        - non-billable
-        - on-call
-        - mccall-per-diem
-        - mie-first-last-day
-        - mie-full-day
-        - hourly
+      description: >-
+        Rate-line key for a client billing rate. A visit-type key from the
+        visit_types catalog, or one of the reserved keys "hourly",
+        "hourly-{ROLE}", "mileage", or "per-diem". Open string — validated
+        server-side.
+    VisitTypeItem:
+      type: object
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        abbreviation:
+          type: string
+        active:
+          type: boolean
+        sortOrder:
+          type: number
+      required: [key, label, abbreviation, active, sortOrder]
+    CreateVisitType:
+      type: object
+      properties:
+        key:
+          type: string
+          description: Stable slug (lowercase). Generated from the label when omitted.
+        label:
+          type: string
+        abbreviation:
+          type: string
+        sortOrder:
+          type: number
+      required: [label, abbreviation]
+    UpdateVisitType:
+      type: object
+      properties:
+        label:
+          type: string
+        abbreviation:
+          type: string
+        active:
+          type: boolean
+        sortOrder:
+          type: number
+    VisitPayRate:
+      type: object
+      description: Per-discipline employee PAY rate for a visit type (append-only history).
+      properties:
+        id:
+          type: string
+        discipline:
+          type: string
+        visitType:
+          $ref: "#/components/schemas/VisitType"
+        rate:
+          type: number
+        effectiveDate:
+          type: string
+      required: [id, discipline, visitType, rate, effectiveDate]
+    CreateVisitPayRate:
+      type: object
+      properties:
+        discipline:
+          type: string
+        visitType:
+          $ref: "#/components/schemas/VisitType"
+        rate:
+          type: number
+        effectiveDate:
+          type: string
+          description: YYYY-MM-DD; defaults to today.
+      required: [discipline, visitType, rate]
+    UpdateVisitPayRate:
+      type: object
+      properties:
+        rate:
+          type: number
+        effectiveDate:
+          type: string
+      required: [rate]
     TimeEntry:
       type: object
       properties:

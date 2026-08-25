@@ -13,4 +13,16 @@ export interface UpdateClientBilling {
   mileageOnContract?: boolean;
   /** Only applied when present; controls whether the visit-type entry form is shown */
   billsByVisitType?: boolean;
+  /**
+     * Only applied when present; per-client weekend pay+bill multiplier
+     * @minimum 0
+     */
+  weekendMultiplier?: number;
+  /**
+     * Only applied when present; per-client holiday pay+bill multiplier
+     * @minimum 0
+     */
+  holidayMultiplier?: number;
+  /** Only applied when present; per-client PDF invoice footer note (clears on blank) */
+  noteToCustomer?: string;
 }

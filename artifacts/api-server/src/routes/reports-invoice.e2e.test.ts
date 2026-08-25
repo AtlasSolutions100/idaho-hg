@@ -19,7 +19,8 @@ import {
 // its roster setup as Molly and everything else anonymously (time entries
 // with an explicit employeeId still work without a session). Clerk is mocked
 // at the @clerk/express boundary.
-process.env.ADMIN_EMAIL = "admin-reports-invoice-e2e@example.com";
+const ADMIN_EMAIL = "admin-reports-invoice-e2e@example.com";
+process.env.ADMIN_EMAIL = ADMIN_EMAIL;
 const mockSession: { email: string | null } = { email: null };
 vi.mock("@clerk/express", () => ({
   clerkMiddleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
@@ -72,6 +73,18 @@ async function patch(path: string, body: unknown) {
   return api(path, { method: "PATCH", body: JSON.stringify(body) });
 }
 
+// Rate/roster/report writes are admin-only now; time-entry creation must stay
+// anonymous (the admin email isn't a roster employee, so creating an entry as
+// admin would be rejected as NOT_LINKED). Wrap only the admin calls.
+const asAdmin = async <T>(fn: () => Promise<T>): Promise<T> => {
+  mockSession.email = ADMIN_EMAIL;
+  try {
+    return await fn();
+  } finally {
+    mockSession.email = null;
+  }
+};
+
 beforeAll(async () => {
   server = app.listen(0);
   await new Promise<void>((resolve) => server.once("listening", () => resolve()));
@@ -104,11 +117,13 @@ const END = "2026-03-31";
 describe("GET /reports/invoice end-to-end (mid-month rate change)", () => {
   it("splits invoice lines per rate with correct totals, including mileage/per-diem passthrough", async () => {
     // --- Set up client with rate history that changes mid-month ---
-    const clientRes = await post("/clients", {
-      name: clientName,
-      visitType: "skilled-nursing",
-      rate: 999, // placeholder; effective today, never applies to March entries
-    });
+    const clientRes = await asAdmin(() =>
+      post("/clients", {
+        name: clientName,
+        visitType: "skilled-nursing",
+        rate: 999, // placeholder; effective today, never applies to March entries
+      }),
+    );
     expect(clientRes.status).toBe(201);
     clientId = clientRes.body.id;
     // This test posts visit-type entries, so mark the client as visit-billing.
@@ -119,40 +134,42 @@ describe("GET /reports/invoice end-to-end (mid-month rate change)", () => {
 
     // Find the skilled-nursing rate row created with the client, then edit it
     // twice (append-only history): $80 effective Mar 1, $100 effective Mar 15.
-    const ratesRes = await api("/client-rates");
+    const ratesRes = await asAdmin(() => api("/client-rates"));
     expect(ratesRes.status).toBe(200);
     const snRate = ratesRes.body.find(
       (r: any) => r.clientId === clientId && r.visitType === "skilled-nursing",
     );
     expect(snRate).toBeTruthy();
-    expect((await patch(`/client-rates/${snRate.id}`, { rate: 80, effectiveDate: "2026-03-01" })).status).toBe(200);
-    expect((await patch(`/client-rates/${snRate.id}`, { rate: 100, effectiveDate: "2026-03-15" })).status).toBe(200);
+    expect((await asAdmin(() => patch(`/client-rates/${snRate.id}`, { rate: 80, effectiveDate: "2026-03-01" }))).status).toBe(200);
+    expect((await asAdmin(() => patch(`/client-rates/${snRate.id}`, { rate: 100, effectiveDate: "2026-03-15" }))).status).toBe(200);
 
     // Hourly billing rate: $60 effective Mar 1, raised to $75 effective Mar 15.
-    const hourlyRes = await post("/client-rates", {
-      clientId,
-      rateType: "hourly",
-      rate: 60,
-      effectiveDate: "2026-03-01",
-    });
+    const hourlyRes = await asAdmin(() =>
+      post("/client-rates", {
+        clientId,
+        rateType: "hourly",
+        rate: 60,
+        effectiveDate: "2026-03-01",
+      }),
+    );
     expect(hourlyRes.status).toBe(201);
-    expect((await patch(`/client-rates/${hourlyRes.body.id}`, { rate: 75, effectiveDate: "2026-03-15" })).status).toBe(200);
+    expect((await asAdmin(() => patch(`/client-rates/${hourlyRes.body.id}`, { rate: 75, effectiveDate: "2026-03-15" }))).status).toBe(200);
 
     // --- Employee whose mileage/per-diem rates pass through to the client ---
-    mockSession.email = "admin-reports-invoice-e2e@example.com";
-    const empRes = await post("/employees", {
-      name: employeeName,
-      role: "RN",
-      hourlyRate: 48,
-      visitRate: 75,
-      mileageRate: 0.7,
-      perDiemRate: 50,
-      weekendMultiplier: 1.5,
-      holidayMultiplier: 2,
-    });
+    const empRes = await asAdmin(() =>
+      post("/employees", {
+        name: employeeName,
+        role: "RN",
+        hourlyRate: 48,
+        visitRate: 75,
+        mileageRate: 0.7,
+        perDiemRate: 50,
+        weekendMultiplier: 1.5,
+        holidayMultiplier: 2,
+      }),
+    );
     expect(empRes.status).toBe(201);
     employeeId = empRes.body.id;
-    mockSession.email = null;
 
     // --- Submit entries across the rate change ---
     const mkEntry = (extra: Record<string, unknown>) => ({
@@ -178,20 +195,26 @@ describe("GET /reports/invoice end-to-end (mid-month rate change)", () => {
       expect(res.status).toBe(201);
       entryIds.push(res.body.id);
     }
-    // One extra entry that is never approved — must not be billed.
+    // One extra entry that is never approved — must not be billed. Reject it
+    // (as admin) so another file's global approve-all can't sweep it into this
+    // invoice on a shared DB with concurrent test files; a rejected entry is
+    // still "not approved" and stays excluded from billing.
     const unapproved = await post(
       "/time-entries",
       mkEntry({ date: "2026-03-12", visitType: "skilled-nursing" }),
     );
     expect(unapproved.status).toBe(201);
+    expect((await asAdmin(() => post(`/time-entries/${unapproved.body.id}/reject`))).status).toBe(200);
 
-    // --- Approve through the API ---
+    // --- Approve through the API (admin-only) ---
     for (const id of entryIds) {
-      expect((await post(`/time-entries/${id}/approve`)).status).toBe(200);
+      expect((await asAdmin(() => post(`/time-entries/${id}/approve`))).status).toBe(200);
     }
 
-    // --- Generate the invoice ---
-    const invoice = await api(`/reports/invoice?clientId=${clientId}&start=${START}&end=${END}`);
+    // --- Generate the invoice (admin-only) ---
+    const invoice = await asAdmin(() =>
+      api(`/reports/invoice?clientId=${clientId}&start=${START}&end=${END}`),
+    );
     expect(invoice.status).toBe(200);
     const { lines, total, entryCount, missingRateCount, unbilledCount } = invoice.body;
 

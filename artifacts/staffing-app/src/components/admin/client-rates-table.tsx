@@ -9,14 +9,19 @@ import {
   useRemoveClient,
   useListClients,
   useUpdateClientBilling,
+  useListClientPayRates,
+  useCreateClientPayRate,
+  useUpdateClientPayRate,
   useGetClientVisitEntryCount,
   getGetClientVisitEntryCountQueryKey,
   useGetClientHourlyEntryCount,
   getGetClientHourlyEntryCountQueryKey,
   getListClientRatesQueryKey,
   getListClientRateHistoryQueryKey,
+  getListClientPayRatesQueryKey,
   getListClientsQueryKey,
   type ClientRate,
+  type ClientPayRate,
 } from '@workspace/api-client-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -37,8 +42,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { visitTypeLabels, clientRateTypeLabels, type VisitType } from '@/lib/data';
-import { Pencil, Loader2, AlertCircle, History, Plus, Trash2, Clock, MapPin } from 'lucide-react';
+import { clientRateTypeLabels, type VisitType } from '@/lib/data';
+import { useVisitTypes } from '@/lib/use-visit-types';
+import { Pencil, Loader2, AlertCircle, History, Plus, Trash2, Clock, MapPin, Route, Wallet } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 // Disciplines that can have a per-discipline visit-type billing rate.
@@ -66,10 +72,41 @@ function isHourlyRateType(visitType: string): boolean {
   return visitType === 'hourly' || visitType.startsWith('hourly-');
 }
 
+// Human label for a client_pay_rates key (what the EMPLOYEE is paid at this
+// client). Keys look like "hourly", "hourly-RN", or a "-weekend"/"-holiday"
+// variant such as "hourly-RN-weekend". Returns e.g. "RN", "RN (weekend)", or
+// "All disciplines" for the plain "hourly" key.
+function payRateLabel(visitType: string): string {
+  let rest = visitType.startsWith('hourly') ? visitType.slice('hourly'.length) : visitType;
+  if (rest.startsWith('-')) rest = rest.slice(1);
+  if (!rest) return 'All disciplines';
+  const [discipline, variant] = rest.split('-');
+  return variant ? `${discipline} (${variant})` : discipline;
+}
+
+// Reserved client_rates keys for the two flat BILLING rates a client is charged
+// (no discipline). These are what the CLIENT is billed — distinct from the
+// employee reimbursement rates set on the Employees page.
+const BILLING_RATE_KINDS = ['mileage', 'per-diem'] as const;
+type BillingRateKind = (typeof BILLING_RATE_KINDS)[number];
+
+/** Parsed `message` field from a generated-client ApiError, if present. */
+function serverErrorMessage(error: unknown): string | null {
+  return error && typeof error === 'object' && 'data' in error &&
+    error.data && typeof error.data === 'object' && 'message' in error.data &&
+    typeof (error.data as { message?: unknown }).message === 'string'
+    ? (error.data as { message: string }).message
+    : null;
+}
+
 export function ClientRatesTable() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { visitTypes } = useVisitTypes();
   const { data: rates, isLoading, isError } = useListClientRates();
+  // Per-client employee PAY rates (hourly pay that differs by client). The list
+  // returns the current row per client+discipline.
+  const { data: payRates } = useListClientPayRates();
 
   const [editing, setEditing] = useState<ClientRate | null>(null);
   const [rateValue, setRateValue] = useState('');
@@ -91,6 +128,12 @@ export function ClientRatesTable() {
   const [billingAddress, setBillingAddress] = useState('');
   const [mileageOnContract, setMileageOnContract] = useState(true);
   const [billsByVisitType, setBillsByVisitType] = useState(false);
+  // Per-client weekend/holiday multipliers (1 = no change) and the optional PDF
+  // invoice footer note — all saved through the same update-client-billing PATCH.
+  // Kept as strings so the numeric inputs stay controlled while being edited.
+  const [weekendMultiplier, setWeekendMultiplier] = useState('1');
+  const [holidayMultiplier, setHolidayMultiplier] = useState('1');
+  const [noteToCustomer, setNoteToCustomer] = useState('');
   // Set when Molly tries to turn off visit billing for a client that still has
   // recent visit-type entries — she must confirm before the change saves.
   const [confirmVisitOff, setConfirmVisitOff] = useState(false);
@@ -114,6 +157,32 @@ export function ClientRatesTable() {
   const [visitRateValue, setVisitRateValue] = useState<string>('');
   const [visitRateDate, setVisitRateDate] = useState<string>('');
   const [visitRateError, setVisitRateError] = useState<string | null>(null);
+
+  // "Mileage / per-diem billed to client" editor. `existing` is the current
+  // client_rates row for that kind, if any — present ⇒ update, absent ⇒ create.
+  const [billingRateFor, setBillingRateFor] = useState<{
+    clientId: string;
+    clientName: string;
+    kind: BillingRateKind;
+    existing?: ClientRate;
+  } | null>(null);
+  const [billingRateValue, setBillingRateValue] = useState('');
+  const [billingRateDate, setBillingRateDate] = useState('');
+  const [billingRateError, setBillingRateError] = useState<string | null>(null);
+
+  // "Employee pay — hourly" editor. This is what the EMPLOYEE is paid at this
+  // client (a client_pay_rates row), distinct from the client BILLING rate and
+  // from the flat per-employee rate on the Employees page. `existing` present ⇒
+  // edit that row's rate; absent ⇒ create a new per-discipline hourly pay rate.
+  const [payRateFor, setPayRateFor] = useState<{
+    clientId: string;
+    clientName: string;
+    existing?: ClientPayRate;
+  } | null>(null);
+  const [payRateDiscipline, setPayRateDiscipline] = useState<string>('RN');
+  const [payRateValue, setPayRateValue] = useState('');
+  const [payRateDate, setPayRateDate] = useState('');
+  const [payRateError, setPayRateError] = useState<string | null>(null);
 
   const historyQuery = useListClientRateHistory(historyFor?.id ?? '', {
     query: {
@@ -261,9 +330,21 @@ export function ClientRatesTable() {
       !savedBillsByVisitType && billsByVisitType && !hasVisitRates
         ? { ...billingFor }
         : null;
+    // Coerce the multiplier inputs; an empty or invalid value falls back to 1
+    // (no change) rather than blocking the whole billing save.
+    const parsedWeekend = Number(weekendMultiplier);
+    const parsedHoliday = Number(holidayMultiplier);
     billingMutation.mutate({
       id: billingFor.clientId,
-      data: { billingContact, billingAddress, mileageOnContract, billsByVisitType },
+      data: {
+        billingContact,
+        billingAddress,
+        mileageOnContract,
+        billsByVisitType,
+        weekendMultiplier: Number.isFinite(parsedWeekend) && parsedWeekend >= 0 ? parsedWeekend : 1,
+        holidayMultiplier: Number.isFinite(parsedHoliday) && parsedHoliday >= 0 ? parsedHoliday : 1,
+        noteToCustomer,
+      },
     });
   };
 
@@ -290,6 +371,9 @@ export function ClientRatesTable() {
     setBillingAddress(client?.billingAddress ?? '');
     setMileageOnContract(client?.mileageOnContract ?? true);
     setBillsByVisitType(client?.billsByVisitType ?? false);
+    setWeekendMultiplier(String(client?.weekendMultiplier ?? 1));
+    setHolidayMultiplier(String(client?.holidayMultiplier ?? 1));
+    setNoteToCustomer(client?.noteToCustomer ?? '');
     setBillingFor({ clientId, clientName });
   };
 
@@ -371,6 +455,178 @@ export function ClientRatesTable() {
         effectiveDate: visitRateDate,
       },
     });
+  };
+
+  // Human label + unit for a billing-rate kind, used in the section and dialog.
+  const billingKindLabel = (kind: BillingRateKind) =>
+    kind === 'mileage' ? 'Mileage — billed to client ($/mile)' : 'Per diem — billed to client ($/day)';
+  const billingKindUnit = (kind: BillingRateKind) => (kind === 'mileage' ? '/mile' : '/day');
+
+  // Current client_rates row for a client's flat mileage / per-diem billing rate.
+  const findBillingRate = (clientId: string, kind: BillingRateKind): ClientRate | undefined =>
+    (rates ?? []).find((r) => r.clientId === clientId && r.visitType === kind);
+
+  const createBillingRateMutation = useCreateClientRate({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListClientRatesQueryKey() });
+        setBillingRateFor(null);
+        toast({
+          title: 'Billing rate saved',
+          description: 'The client will be billed at this rate on invoices going forward.',
+        });
+      },
+      onError: (error) => {
+        setBillingRateError(serverErrorMessage(error) ?? 'Could not save the rate. Please try again.');
+      },
+    },
+  });
+
+  const updateBillingRateMutation = useUpdateClientRate({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListClientRatesQueryKey() });
+        setBillingRateFor(null);
+        toast({
+          title: 'Billing rate updated',
+          description: 'The new rate applies from the effective date; earlier entries keep the old rate.',
+        });
+      },
+      onError: (error) => {
+        setBillingRateError(serverErrorMessage(error) ?? 'Could not save the rate. Please try again.');
+      },
+    },
+  });
+
+  const billingRateSaving = createBillingRateMutation.isPending || updateBillingRateMutation.isPending;
+
+  const openBillingRate = (
+    clientId: string,
+    clientName: string,
+    kind: BillingRateKind,
+    existing?: ClientRate,
+  ) => {
+    setBillingRateValue(existing ? String(existing.rate) : '');
+    setBillingRateDate(new Date().toISOString().slice(0, 10));
+    setBillingRateError(null);
+    setBillingRateFor({ clientId, clientName, kind, existing });
+  };
+
+  const handleSaveBillingRate = () => {
+    if (!billingRateFor) return;
+    setBillingRateError(null);
+    const parsedRate = Number(billingRateValue);
+    if (!billingRateValue || !Number.isFinite(parsedRate) || parsedRate < 0) {
+      setBillingRateError('Enter a valid dollar amount.');
+      return;
+    }
+    if (!billingRateDate) {
+      setBillingRateError('Choose an effective date.');
+      return;
+    }
+    if (billingRateFor.existing) {
+      updateBillingRateMutation.mutate({
+        id: billingRateFor.existing.id,
+        data: { rate: parsedRate, effectiveDate: billingRateDate },
+      });
+    } else {
+      createBillingRateMutation.mutate({
+        data: {
+          clientId: billingRateFor.clientId,
+          rateType: billingRateFor.kind,
+          rate: parsedRate,
+          effectiveDate: billingRateDate,
+        },
+      });
+    }
+  };
+
+  // ---- Employee pay — hourly (client_pay_rates) --------------------------
+  // What the EMPLOYEE is paid at this client, per discipline. Distinct from the
+  // client BILLING rate above and from the flat per-employee rate on the
+  // Employees page.
+  const findPayRates = (clientId: string): ClientPayRate[] =>
+    (payRates ?? [])
+      .filter((r) => r.clientId === clientId)
+      .sort((a, b) => payRateLabel(a.visitType).localeCompare(payRateLabel(b.visitType)));
+
+  const createPayRateMutation = useCreateClientPayRate({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListClientPayRatesQueryKey() });
+        setPayRateFor(null);
+        toast({
+          title: 'Pay rate saved',
+          description: 'This is what the employee is paid at this client going forward.',
+        });
+      },
+      onError: (error) => {
+        setPayRateError(serverErrorMessage(error) ?? 'Could not save the pay rate. Please try again.');
+      },
+    },
+  });
+
+  const updatePayRateMutation = useUpdateClientPayRate({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListClientPayRatesQueryKey() });
+        setPayRateFor(null);
+        toast({
+          title: 'Pay rate updated',
+          description: 'The new rate applies from the effective date; earlier entries keep the old rate.',
+        });
+      },
+      onError: (error) => {
+        setPayRateError(serverErrorMessage(error) ?? 'Could not save the pay rate. Please try again.');
+      },
+    },
+  });
+
+  const payRateSaving = createPayRateMutation.isPending || updatePayRateMutation.isPending;
+
+  const openAddPayRate = (clientId: string, clientName: string) => {
+    setPayRateDiscipline('RN');
+    setPayRateValue('');
+    setPayRateDate(new Date().toISOString().slice(0, 10));
+    setPayRateError(null);
+    setPayRateFor({ clientId, clientName });
+  };
+
+  const openEditPayRate = (clientId: string, clientName: string, existing: ClientPayRate) => {
+    setPayRateValue(String(existing.rate));
+    setPayRateDate(new Date().toISOString().slice(0, 10));
+    setPayRateError(null);
+    setPayRateFor({ clientId, clientName, existing });
+  };
+
+  const handleSavePayRate = () => {
+    if (!payRateFor) return;
+    setPayRateError(null);
+    const parsedRate = Number(payRateValue);
+    if (!payRateValue || !Number.isFinite(parsedRate) || parsedRate < 0) {
+      setPayRateError('Enter a valid dollar amount.');
+      return;
+    }
+    if (!payRateDate) {
+      setPayRateError('Choose an effective date.');
+      return;
+    }
+    if (payRateFor.existing) {
+      updatePayRateMutation.mutate({
+        id: payRateFor.existing.id,
+        data: { rate: parsedRate, effectiveDate: payRateDate },
+      });
+    } else {
+      createPayRateMutation.mutate({
+        data: {
+          clientId: payRateFor.clientId,
+          rateType: 'hourly',
+          discipline: payRateDiscipline as any,
+          rate: parsedRate,
+          effectiveDate: payRateDate,
+        },
+      });
+    }
   };
 
   const openAddHourly = (clientId: string, clientName: string) => {
@@ -515,7 +771,9 @@ export function ClientRatesTable() {
           </div>
         ) : (
           <div className="space-y-8">
-            {Object.entries(clientGroups).map(([clientId, clientRates]) => (
+            {Object.entries(clientGroups).map(([clientId, clientRates]) => {
+              const clientPayRates = findPayRates(clientId);
+              return (
               <div key={clientId}>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -551,6 +809,16 @@ export function ClientRatesTable() {
                       size="sm"
                       variant="ghost"
                       className="gap-2"
+                      onClick={() => openAddPayRate(clientId, clientRates[0].clientName)}
+                      data-testid={`button-add-pay-rate-${clientId}`}
+                    >
+                      <Wallet className="h-3.5 w-3.5" />
+                      Add Pay Rate
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="gap-2"
                       onClick={() => openBilling(clientId, clientRates[0].clientName)}
                       data-testid={`button-edit-billing-${clientId}`}
                     >
@@ -569,6 +837,130 @@ export function ClientRatesTable() {
                     </Button>
                   </div>
                 </div>
+
+                {/* Mileage & per-diem BILLING rates — what the CLIENT is charged,
+                    stored as client_rates rows (rateType 'mileage' / 'per-diem',
+                    no discipline). Distinct from the employee reimbursement rates
+                    set on the Employees page. */}
+                <div className="mb-4 rounded-md border bg-muted/30 p-3" data-testid={`client-billing-rates-${clientId}`}>
+                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Billed to client
+                  </span>
+                  <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                    {BILLING_RATE_KINDS.map((kind) => {
+                      const billingRate = findBillingRate(clientId, kind);
+                      return (
+                        <div
+                          key={kind}
+                          className="flex items-start justify-between gap-3 rounded-md border bg-background p-3"
+                          data-testid={`client-billing-${kind}-${clientId}`}
+                        >
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-1.5 text-sm font-medium">
+                              {kind === 'mileage' ? (
+                                <Route className="h-3.5 w-3.5 text-muted-foreground" />
+                              ) : (
+                                <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                              )}
+                              {billingKindLabel(kind)}
+                            </div>
+                            {billingRate ? (
+                              <>
+                                <div className="font-mono text-sm">
+                                  ${billingRate.rate.toFixed(2)}
+                                  <span className="text-xs text-muted-foreground font-sans"> {billingKindUnit(kind)}</span>
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  Effective {billingRate.effectiveDate}
+                                </div>
+                              </>
+                            ) : (
+                              <div className="text-sm text-muted-foreground">Not set</div>
+                            )}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="gap-1.5 shrink-0"
+                            onClick={() => openBillingRate(clientId, clientRates[0].clientName, kind, billingRate)}
+                            data-testid={`button-set-${kind}-billing-${clientId}`}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            {billingRate ? 'Edit' : 'Set'}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    This is the BILLING rate charged to the client — separate from the employee
+                    reimbursement rate on the Employees page.
+                  </p>
+                </div>
+
+                {/* Employee PAY — hourly (client_pay_rates). What the EMPLOYEE is
+                    paid per hour at this client, per discipline. Distinct from the
+                    client BILLING rate above and from the flat per-employee rate on
+                    the Employees page. */}
+                <div className="mb-4 rounded-md border bg-muted/30 p-3" data-testid={`client-pay-rates-${clientId}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Employee pay — hourly
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="gap-1.5"
+                      onClick={() => openAddPayRate(clientId, clientRates[0].clientName)}
+                      data-testid={`button-add-pay-rate-inline-${clientId}`}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add pay rate
+                    </Button>
+                  </div>
+                  {clientPayRates.length === 0 ? (
+                    <div className="mt-2 text-sm text-muted-foreground">Not set</div>
+                  ) : (
+                    <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                      {clientPayRates.map((pr) => (
+                        <div
+                          key={pr.id}
+                          className="flex items-start justify-between gap-3 rounded-md border bg-background p-3"
+                          data-testid={`client-pay-rate-${pr.id}`}
+                        >
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-1.5 text-sm font-medium">
+                              <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
+                              {payRateLabel(pr.visitType)}
+                            </div>
+                            <div className="font-mono text-sm">
+                              ${pr.rate.toFixed(2)}
+                              <span className="text-xs text-muted-foreground font-sans"> /hr</span>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Effective {pr.effectiveDate}
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="gap-1.5 shrink-0"
+                            onClick={() => openEditPayRate(clientId, clientRates[0].clientName, pr)}
+                            data-testid={`button-edit-pay-rate-${pr.id}`}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Edit
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    This is what the EMPLOYEE is paid per hour at this client — separate from the
+                    client billing rate above and from the flat per-employee rate on the Employees page.
+                  </p>
+                </div>
+
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -580,7 +972,9 @@ export function ClientRatesTable() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {clientRates.map(rate => {
+                      {clientRates
+                        .filter((r) => r.visitType !== 'mileage' && r.visitType !== 'per-diem')
+                        .map(rate => {
                         const unusedVisitRate =
                           !isHourlyRateType(rate.visitType) &&
                           clientBillsByVisitType(rate.clientId) === false;
@@ -642,7 +1036,8 @@ export function ClientRatesTable() {
                   </Table>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </CardContent>
@@ -673,9 +1068,9 @@ export function ClientRatesTable() {
                   <SelectValue placeholder="Select visit type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(Object.keys(visitTypeLabels) as VisitType[]).map(type => (
-                    <SelectItem key={type} value={type} data-testid={`select-new-client-visit-type-${type}`}>
-                      {visitTypeLabels[type]}
+                  {visitTypes.map((item) => (
+                    <SelectItem key={item.key} value={item.key} data-testid={`select-new-client-visit-type-${item.key}`}>
+                      {item.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -832,6 +1227,51 @@ export function ClientRatesTable() {
                 onCheckedChange={setBillsByVisitType}
                 data-testid="switch-bills-by-visit-type"
               />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="weekend-multiplier">Weekend multiplier</Label>
+                <Input
+                  id="weekend-multiplier"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={weekendMultiplier}
+                  onChange={(e) => setWeekendMultiplier(e.target.value)}
+                  placeholder="1"
+                  data-testid="input-weekend-multiplier"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="holiday-multiplier">Holiday multiplier</Label>
+                <Input
+                  id="holiday-multiplier"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={holidayMultiplier}
+                  onChange={(e) => setHolidayMultiplier(e.target.value)}
+                  placeholder="1"
+                  data-testid="input-holiday-multiplier"
+                />
+              </div>
+            </div>
+            <p className="-mt-2 text-xs text-muted-foreground">
+              1 = no change; 1.1 = +10%; applies to both billing and pay.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="note-to-customer">Note to customer (optional)</Label>
+              <Textarea
+                id="note-to-customer"
+                value={noteToCustomer}
+                onChange={(e) => setNoteToCustomer(e.target.value)}
+                placeholder="e.g. Thank you for your business!"
+                rows={3}
+                data-testid="input-note-to-customer"
+              />
+              <p className="text-xs text-muted-foreground">
+                Optional footer note shown on this client's PDF invoice. Leave blank to clear it.
+              </p>
             </div>
           </div>
           <DialogFooter>
@@ -1053,9 +1493,9 @@ export function ClientRatesTable() {
                   <SelectValue placeholder="Select visit type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(Object.keys(visitTypeLabels) as (keyof typeof visitTypeLabels)[]).map((type) => (
-                    <SelectItem key={type} value={type} data-testid={`select-visit-rate-type-${type}`}>
-                      {visitTypeLabels[type]}
+                  {visitTypes.map((item) => (
+                    <SelectItem key={item.key} value={item.key} data-testid={`select-visit-rate-type-${item.key}`}>
+                      {item.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1143,6 +1583,166 @@ export function ClientRatesTable() {
             >
               {visitRateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
               Add Rate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mileage / per-diem BILLING rate editor — set or update what the client
+          is charged. Create when no row exists yet, otherwise update in place. */}
+      <Dialog open={!!billingRateFor} onOpenChange={(open) => !open && setBillingRateFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {billingRateFor?.kind === 'per-diem' ? 'Per Diem Billing Rate' : 'Mileage Billing Rate'}
+            </DialogTitle>
+            <DialogDescription>
+              {billingRateFor
+                ? `${billingRateFor.clientName} — this is what the client is billed ${
+                    billingRateFor.kind === 'mileage' ? 'per mile' : 'per day'
+                  }. It's separate from the employee reimbursement rate on the Employees page. The new rate applies from the effective date; earlier entries keep the old rate.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="billing-rate-value">
+                {billingRateFor?.kind === 'per-diem' ? 'Rate ($ per day)' : 'Rate ($ per mile)'}
+              </Label>
+              <Input
+                id="billing-rate-value"
+                type="number"
+                min="0"
+                step="0.01"
+                value={billingRateValue}
+                onChange={(e) => setBillingRateValue(e.target.value)}
+                placeholder={billingRateFor?.kind === 'per-diem' ? '50.00' : '0.65'}
+                data-testid="input-billing-rate-value"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="billing-rate-date">Effective Date</Label>
+              <Input
+                id="billing-rate-date"
+                type="date"
+                value={billingRateDate}
+                onChange={(e) => setBillingRateDate(e.target.value)}
+                data-testid="input-billing-rate-date"
+              />
+            </div>
+            {billingRateError && (
+              <div
+                className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+                data-testid="error-billing-rate"
+              >
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>{billingRateError}</span>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBillingRateFor(null)} data-testid="button-cancel-billing-rate">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveBillingRate}
+              disabled={billingRateSaving}
+              className="gap-2"
+              data-testid="button-save-billing-rate"
+            >
+              {billingRateSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Employee PAY (hourly) editor — add a per-discipline hourly pay rate for a
+          client, or edit an existing one. This is what the EMPLOYEE is paid at this
+          client, distinct from the client billing rate and from the flat
+          per-employee rate on the Employees page. */}
+      <Dialog open={!!payRateFor} onOpenChange={(open) => !open && setPayRateFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {payRateFor?.existing ? 'Edit Employee Pay Rate' : 'Add Employee Pay Rate'}
+            </DialogTitle>
+            <DialogDescription>
+              {payRateFor
+                ? `${payRateFor.clientName} — this is the hourly rate the EMPLOYEE is paid at this client. It's separate from the client billing rate and from the flat per-employee rate on the Employees page.${
+                    payRateFor.existing
+                      ? ` Editing the ${payRateLabel(payRateFor.existing.visitType)} rate.`
+                      : ''
+                  }`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {!payRateFor?.existing && (
+              <div className="space-y-2">
+                <Label htmlFor="pay-rate-discipline">Discipline</Label>
+                <Select value={payRateDiscipline} onValueChange={setPayRateDiscipline}>
+                  <SelectTrigger id="pay-rate-discipline" data-testid="select-pay-rate-discipline">
+                    <SelectValue placeholder="Select discipline" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DISCIPLINE_OPTIONS.map((d) => (
+                      <SelectItem key={d} value={d} data-testid={`select-pay-rate-discipline-${d}`}>
+                        {d}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Sets the hourly pay rate for employees of this discipline at this client.
+                </p>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="pay-rate-value">Rate ($ per hour)</Label>
+              <Input
+                id="pay-rate-value"
+                type="number"
+                min="0"
+                step="0.01"
+                value={payRateValue}
+                onChange={(e) => setPayRateValue(e.target.value)}
+                placeholder="65.00"
+                data-testid="input-pay-rate-value"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pay-rate-date">Effective Date</Label>
+              <Input
+                id="pay-rate-date"
+                type="date"
+                value={payRateDate}
+                onChange={(e) => setPayRateDate(e.target.value)}
+                data-testid="input-pay-rate-date"
+              />
+            </div>
+            {payRateError && (
+              <div
+                className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+                data-testid="error-pay-rate"
+              >
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>{payRateError}</span>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPayRateFor(null)} data-testid="button-cancel-pay-rate">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSavePayRate}
+              disabled={payRateSaving}
+              className="gap-2"
+              data-testid="button-save-pay-rate"
+            >
+              {payRateSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>

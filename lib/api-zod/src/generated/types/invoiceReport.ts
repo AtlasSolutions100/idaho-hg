@@ -17,4 +17,6 @@ export interface InvoiceReport {
   entryCount: number;
   missingRateCount: number;
   unbilledCount: number;
+  /** Optional per-client footer note shown on the PDF invoice */
+  noteToCustomer?: string;
 }

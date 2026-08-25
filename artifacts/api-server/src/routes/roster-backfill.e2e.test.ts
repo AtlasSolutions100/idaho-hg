@@ -4,12 +4,33 @@
 // pre-backfill state by deleting the rows directly, then hit the API (which
 // triggers ensureRosterSeeded / ensureSeeded in this fresh test process) and
 // assert the clients and their hourly-PT rates come back without duplicates.
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { Server } from "node:http";
 import { inArray, and, eq } from "drizzle-orm";
 import { db, pool, clientsTable, clientRatesTable, appliedBackfillsTable } from "@workspace/db";
-import app from "../app";
 import { backfillStLukesVisitBilling } from "./roster";
+
+// GET /client-rates is admin-only now, so this suite reads it as Molly (GET
+// /clients stays public). Clerk is mocked at the @clerk/express boundary.
+const mockState: { email: string | null } = { email: null };
+vi.mock("@clerk/express", () => ({
+  clerkMiddleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+  getAuth: () => (mockState.email ? { userId: "user_roster_backfill_e2e" } : null),
+  clerkClient: {
+    users: {
+      getUser: async () => ({
+        primaryEmailAddress: { emailAddress: mockState.email },
+        emailAddresses: [{ emailAddress: mockState.email }],
+      }),
+      getUserList: async () => ({ data: [] }),
+      createUser: async () => ({}),
+    },
+    sessions: { getSessionList: async () => ({ data: [] }), revokeSession: async () => ({}) },
+  },
+}));
+const ADMIN_EMAIL = "admin-roster-backfill-e2e@example.com";
+process.env.ADMIN_EMAIL = ADMIN_EMAIL;
+const { default: app } = await import("../app");
 
 let server: Server;
 let baseUrl: string;
@@ -17,6 +38,9 @@ let baseUrl: string;
 const BACKFILL_IDS = ["6", "7"];
 
 beforeAll(async () => {
+  // GET /client-rates is admin-only; read everything here as Molly (GET
+  // /clients is public and unaffected by the session).
+  mockState.email = ADMIN_EMAIL;
   // Simulate a live database from before Current PT / Thrive existed.
   await db
     .delete(clientRatesTable)

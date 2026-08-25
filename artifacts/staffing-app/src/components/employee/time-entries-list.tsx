@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { statusLabels, visitTypeLabels } from '@/lib/data';
+import { statusLabels } from '@/lib/data';
+import { useVisitTypes } from '@/lib/use-visit-types';
 import { format } from 'date-fns';
 import { Calendar, MapPin, DollarSign, FileText, AlertCircle, Lock, Pencil, BellRing } from 'lucide-react';
 
@@ -42,6 +43,7 @@ function adjustedAt(entry: TimeEntry): number | null {
 
 export function TimeEntriesList({ employeeId = '1', onEdit }: TimeEntriesListProps) {
   const { data: entries, isLoading, isError } = useListTimeEntries({ employeeId });
+  const { labelFor } = useVisitTypes();
   const [seenMarker, setSeenMarker] = useState(() => readSeenMarker(employeeId));
 
   const seenTime = seenMarker ? new Date(seenMarker).getTime() : 0;
@@ -135,6 +137,7 @@ export function TimeEntriesList({ employeeId = '1', onEdit }: TimeEntriesListPro
           key={entry.id}
           entry={entry}
           onEdit={onEdit}
+          labelFor={labelFor}
           recentlyAdjusted={unseenIds.has(entry.id)}
         />
       ))}
@@ -145,10 +148,12 @@ export function TimeEntriesList({ employeeId = '1', onEdit }: TimeEntriesListPro
 function TimeEntryCard({
   entry,
   onEdit,
+  labelFor,
   recentlyAdjusted = false,
 }: {
   entry: TimeEntry;
   onEdit?: (entry: TimeEntry) => void;
+  labelFor: (key: string | null | undefined) => string;
   recentlyAdjusted?: boolean;
 }) {
   const getStatusColor = (status: TimeEntry['status']) => {
@@ -227,7 +232,7 @@ function TimeEntryCard({
           {entry.visitType && (
             <div className="space-y-1">
               <div className="text-muted-foreground">Visit Type</div>
-              <div className="font-medium font-mono">{visitTypeLabels[entry.visitType]}</div>
+              <div className="font-medium font-mono">{labelFor(entry.visitType)}</div>
             </div>
           )}
           {entry.hours ? (

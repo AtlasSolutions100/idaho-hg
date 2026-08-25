@@ -1,8 +1,29 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { Server } from "node:http";
 import { eq } from "drizzle-orm";
 import { db, businessSettingsTable } from "@workspace/db";
-import app from "../app";
+
+// Business settings (GET/PUT) and invoice-number allocation are admin-only, so
+// this suite runs as Molly. Clerk is mocked at the @clerk/express boundary.
+const mockState: { email: string | null } = { email: null };
+vi.mock("@clerk/express", () => ({
+  clerkMiddleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+  getAuth: () => (mockState.email ? { userId: "user_business_settings_e2e" } : null),
+  clerkClient: {
+    users: {
+      getUser: async () => ({
+        primaryEmailAddress: { emailAddress: mockState.email },
+        emailAddresses: [{ emailAddress: mockState.email }],
+      }),
+      getUserList: async () => ({ data: [] }),
+      createUser: async () => ({}),
+    },
+    sessions: { getSessionList: async () => ({ data: [] }), revokeSession: async () => ({}) },
+  },
+}));
+const ADMIN_EMAIL = "admin-business-settings-e2e@example.com";
+process.env.ADMIN_EMAIL = ADMIN_EMAIL;
+const { default: app } = await import("../app");
 
 // This suite owns the singleton settings row: it snapshots whatever is stored
 // before the run and restores it afterwards, so it can assert exact values.
@@ -11,6 +32,8 @@ let base: string;
 let savedRow: typeof businessSettingsTable.$inferSelect | undefined;
 
 beforeAll(async () => {
+  // Every endpoint here is admin-only now; act as Molly for the whole suite.
+  mockState.email = ADMIN_EMAIL;
   [savedRow] = await db
     .select()
     .from(businessSettingsTable)

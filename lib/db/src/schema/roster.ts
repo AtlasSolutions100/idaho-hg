@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, timestamp, real } from "drizzle-orm/pg-core";
 
 export const clientsTable = pgTable("clients", {
   id: text("id").primaryKey(),
@@ -15,6 +15,14 @@ export const clientsTable = pgTable("clients", {
   // Whether this client bills by visit type (St. Luke's). When off, employees
   // only log time in/out — the visit-type flow is hidden and rejected.
   billsByVisitType: boolean("bills_by_visit_type").notNull().default(false),
+  // Per-client weekend/holiday pay+bill multipliers (e.g. St. Luke's applies
+  // +10% => 1.1 to both billing and pay). Default 1 = no change. Applied when a
+  // rate row has no explicit "-weekend"/"-holiday" variant for that day type.
+  weekendMultiplier: real("weekend_multiplier").notNull().default(1),
+  holidayMultiplier: real("holiday_multiplier").notNull().default(1),
+  // Optional free-text footer note shown on this client's PDF invoice
+  // (e.g. Weiser's "Time cards will be sent for reconciliation…").
+  noteToCustomer: text("note_to_customer"),
 });
 
 // One-time data backfills that have been applied to this database. Lets

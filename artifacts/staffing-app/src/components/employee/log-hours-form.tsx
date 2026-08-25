@@ -18,7 +18,7 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { visitTypeLabels } from '@/lib/data';
+import { useVisitTypes } from '@/lib/use-visit-types';
 import { useToast } from '@/hooks/use-toast';
 import { Check, Loader2, Plus, X } from 'lucide-react';
 
@@ -66,6 +66,10 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  // Active visit types come from the admin-managed catalog, so a type Molly
+  // adds shows up here with no code change. labelFor resolves display names
+  // (with a fallback for keys that predate the catalog).
+  const { visitTypes, labelFor, isLoading: visitTypesLoading } = useVisitTypes();
   const { data: clients, isLoading: clientsLoading } = useListClients();
   const createEntry = useCreateTimeEntry();
   const updateEntry = useUpdateTimeEntry();
@@ -278,44 +282,58 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
                         onClick={() => toggleVisitType(vt)}
                         data-testid={`badge-visit-${vt}`}
                       >
-                        {visitTypeLabels[vt]}
+                        {labelFor(vt)}
                         <X className="h-3 w-3" />
                       </Badge>
                     ))}
                   </div>
                 )}
 
-                {/* Scrollable checklist of all visit types */}
+                {/* Scrollable checklist of all active visit types, from the
+                    admin-managed catalog. Renders a spinner while the catalog
+                    loads rather than an empty (or crashing) list. */}
                 <div
                   className="rounded-md border border-input max-h-64 overflow-y-auto divide-y divide-border"
                   data-testid="visit-type-list"
                 >
-                  {(Object.keys(visitTypeLabels) as VisitType[]).map((vt) => {
-                    const checked = selectedVisitTypes.has(vt);
-                    return (
-                      <button
-                        key={vt}
-                        type="button"
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-muted ${
-                          checked ? 'bg-primary/10 font-medium' : ''
-                        }`}
-                        onClick={() => toggleVisitType(vt)}
-                        data-testid={`select-visit-type-${vt}`}
-                        aria-pressed={checked}
-                      >
-                        <span
-                          className={`flex-shrink-0 h-4 w-4 rounded border flex items-center justify-center ${
-                            checked
-                              ? 'bg-primary border-primary text-primary-foreground'
-                              : 'border-input'
+                  {visitTypesLoading ? (
+                    <div className="flex items-center justify-center gap-2 px-3 py-6 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading visit types…
+                    </div>
+                  ) : visitTypes.length === 0 ? (
+                    <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                      No visit types are set up yet.
+                    </div>
+                  ) : (
+                    visitTypes.map((item) => {
+                      const vt = item.key;
+                      const checked = selectedVisitTypes.has(vt);
+                      return (
+                        <button
+                          key={vt}
+                          type="button"
+                          className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-muted ${
+                            checked ? 'bg-primary/10 font-medium' : ''
                           }`}
+                          onClick={() => toggleVisitType(vt)}
+                          data-testid={`select-visit-type-${vt}`}
+                          aria-pressed={checked}
                         >
-                          {checked && <Check className="h-3 w-3" />}
-                        </span>
-                        {visitTypeLabels[vt]}
-                      </button>
-                    );
-                  })}
+                          <span
+                            className={`flex-shrink-0 h-4 w-4 rounded border flex items-center justify-center ${
+                              checked
+                                ? 'bg-primary border-primary text-primary-foreground'
+                                : 'border-input'
+                            }`}
+                          >
+                            {checked && <Check className="h-3 w-3" />}
+                          </span>
+                          {labelFor(vt)}
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
 
                 {selectedVisitTypes.size > 1 && (

@@ -1,6 +1,10 @@
-import type { TimeEntry, VisitType } from '@workspace/api-client-react';
+import type { TimeEntry } from '@workspace/api-client-react';
 
-export const visitTypeLabels: Record<VisitType, string> = {
+// Visit types are now an open string keyed off the admin-managed catalog
+// (GET /visit-types), so this map is a best-effort display fallback rather than
+// an exhaustive enum. Keyed by string: unknown/newly-added types just fall
+// through to their raw key at the call site.
+export const visitTypeLabels: Record<string, string> = {
   'skilled-nursing': 'Skilled Nursing (SNV)',
   'physical-therapy': 'Physical Therapy (PTV)',
   'occupational-therapy': 'Occupational Therapy',

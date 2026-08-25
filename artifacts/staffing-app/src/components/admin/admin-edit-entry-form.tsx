@@ -16,7 +16,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { visitTypeLabels, perDiemTypeLabels } from '@/lib/data';
+import { perDiemTypeLabels } from '@/lib/data';
+import { useVisitTypes } from '@/lib/use-visit-types';
 import { Loader2, Save } from 'lucide-react';
 
 const NONE = '__none__';
@@ -44,6 +45,15 @@ export function AdminEditEntryForm({
   const [visitType, setVisitType] = useState<string>(entry.visitType ?? NONE);
   const [perDiemType, setPerDiemType] = useState<string>(entry.perDiemType ?? NONE);
   const [note, setNote] = useState(entry.note ?? '');
+
+  // Visit-type options come from the admin-managed catalog. The entry's current
+  // type may have been retired since it was logged — keep it selectable so the
+  // dropdown shows the real label and Molly doesn't have to change it.
+  const { visitTypes, labelFor } = useVisitTypes();
+  const visitTypeOptions =
+    entry.visitType && !visitTypes.some((t) => t.key === entry.visitType)
+      ? [{ key: entry.visitType, label: labelFor(entry.visitType) }, ...visitTypes]
+      : visitTypes;
 
   const updateMutation = useUpdateTimeEntry({
     mutation: {
@@ -103,9 +113,9 @@ export function AdminEditEntryForm({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(visitTypeLabels).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
+                {visitTypeOptions.map((opt) => (
+                  <SelectItem key={opt.key} value={opt.key}>
+                    {opt.label}
                   </SelectItem>
                 ))}
               </SelectContent>

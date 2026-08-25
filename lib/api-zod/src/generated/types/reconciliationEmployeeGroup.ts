@@ -18,4 +18,6 @@ export interface ReconciliationEmployeeGroup {
   totalHours: number;
   totalMileage: number;
   totalPerDiem: number;
+  /** Total billed dollars for this employee (matches the invoice) */
+  totalAmount: number;
 }

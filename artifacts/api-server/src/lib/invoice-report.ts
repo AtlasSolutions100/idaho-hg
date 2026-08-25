@@ -5,7 +5,12 @@
 
 import { eq, and, gte, lte, asc } from "drizzle-orm";
 import { db, timeEntriesTable, clientsTable, type TimeEntryRow } from "@workspace/db";
-import { getClientRateForDate, getEmployeeRateForDate } from "./rate-lookup";
+import {
+  getClientRateForDate,
+  getEmployeeRateForDate,
+  resolveDayTypeRate,
+  pickDayMultiplier,
+} from "./rate-lookup";
 import { buildInvoiceLines, type InvoiceEntryInput, type InvoiceLine } from "./invoice-lines";
 
 export type InvoiceReportData = {
@@ -18,6 +23,8 @@ export type InvoiceReportData = {
   entryCount: number;
   missingRateCount: number;
   unbilledCount: number;
+  /** Optional per-client footer note shown on the PDF invoice. */
+  noteToCustomer?: string;
 };
 
 async function approvedEntriesInRange(start: string, end: string): Promise<TimeEntryRow[]> {
@@ -79,21 +86,57 @@ export async function computeInvoiceReport(
         ? await getClientRateForDate(clientId, `${entry.visitType}-${entry.employeeRole}`, entry.date)
         : undefined;
       const rate = roleVisitRate ?? (await getClientRateForDate(clientId, entry.visitType, entry.date));
-      if (rate) input.visitRate = rate.rate;
+      if (rate) {
+        // Apply the per-client weekend/holiday multiplier to billing too
+        // (St. Luke's +10% applies to "both billing and payment").
+        const mult = pickDayMultiplier(
+          entry.isWeekend,
+          entry.isHoliday,
+          client.weekendMultiplier,
+          client.holidayMultiplier,
+        );
+        input.visitRate = rate.rate * mult;
+      }
     } else if (entry.hours != null && entry.hours > 0) {
-      // Try role-specific hourly rate first (e.g. "hourly-RN"), fall back to
-      // the generic "hourly" rate so clients with a single hourly rate still work.
-      const roleRate = entry.employeeRole
-        ? await getClientRateForDate(clientId, `hourly-${entry.employeeRole}`, entry.date)
-        : undefined;
-      const rate = roleRate ?? (await getClientRateForDate(clientId, "hourly", entry.date));
-      if (rate) input.hourlyRate = rate.rate;
+      // Per-client hourly billing, honoring explicit "-weekend"/"-holiday" rate
+      // rows (e.g. Weiser's distinct weekend rate) then the base rate × the
+      // client day multiplier; role-specific ("hourly-RN") before generic.
+      const resolved = await resolveDayTypeRate(
+        (key) => getClientRateForDate(clientId, key, entry.date),
+        [`hourly-${entry.employeeRole}`, "hourly"],
+        entry.isWeekend,
+        entry.isHoliday,
+        client.weekendMultiplier,
+        client.holidayMultiplier,
+      );
+      if (resolved) input.hourlyRate = resolved.rate * resolved.multiplier;
     }
     if (!entry.isOther && ((entry.mileage ?? 0) > 0 || (entry.perDiem ?? 0) > 0)) {
-      const empRate = await getEmployeeRateForDate(entry.employeeId, entry.date);
-      if (empRate) {
-        input.mileageRate = empRate.mileageRate;
-        input.perDiemRate = empRate.perDiemRate;
+      const needsMileage = (entry.mileage ?? 0) > 0;
+      const needsPerDiem = (entry.perDiem ?? 0) > 0;
+      // Invoices bill mileage/per-diem at the CLIENT billing rate (e.g. $0.725/mi)
+      // when Molly has set one — this is distinct from the employee reimbursement
+      // rate used on payroll (e.g. $0.655/mi). Stored as client_rates rows keyed
+      // "mileage" / "per-diem". Falls back to the employee rate where no client
+      // billing rate is set, so existing invoices are unchanged until she sets one.
+      const clientMileage = needsMileage
+        ? await getClientRateForDate(clientId, "mileage", entry.date)
+        : undefined;
+      const clientPerDiem = needsPerDiem
+        ? await getClientRateForDate(clientId, "per-diem", entry.date)
+        : undefined;
+      const needEmpFallback =
+        (needsMileage && !clientMileage) || (needsPerDiem && !clientPerDiem);
+      const empRate = needEmpFallback
+        ? await getEmployeeRateForDate(entry.employeeId, entry.date)
+        : undefined;
+      if (needsMileage) {
+        const rate = clientMileage?.rate ?? empRate?.mileageRate;
+        if (rate != null) input.mileageRate = rate;
+      }
+      if (needsPerDiem) {
+        const rate = clientPerDiem?.rate ?? empRate?.perDiemRate;
+        if (rate != null) input.perDiemRate = rate;
       }
     }
     annotated.push(input);
@@ -111,5 +154,6 @@ export async function computeInvoiceReport(
     entryCount: entries.length,
     missingRateCount,
     unbilledCount,
+    ...(client.noteToCustomer ? { noteToCustomer: client.noteToCustomer } : {}),
   };
 }

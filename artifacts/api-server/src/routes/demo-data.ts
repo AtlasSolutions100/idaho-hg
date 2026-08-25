@@ -12,6 +12,7 @@ import {
   feedbackTable,
   qboSentInvoicesTable,
 } from "@workspace/db";
+import { requireAdmin } from "../lib/employee-auth";
 
 const router: IRouter = Router();
 
@@ -92,7 +93,9 @@ router.get("/demo-data", async (_req, res, next) => {
   }
 });
 
-router.post("/demo-data", async (_req, res, next) => {
+// Loading demo/practice data seeds fake clients, employees, and entries —
+// only Molly (admin) may do it.
+router.post("/demo-data", requireAdmin, async (_req, res, next) => {
   try {
     const oldEffectiveDate = "2020-01-01"; // covers any entry date
     // A recent second rate row so the rate-history dialogs have real history.
@@ -367,7 +370,9 @@ router.post("/demo-data", async (_req, res, next) => {
   }
 });
 
-router.delete("/demo-data", async (_req, res, next) => {
+// Wiping demo data is destructive (deletes rows across many tables) —
+// admin only.
+router.delete("/demo-data", requireAdmin, async (_req, res, next) => {
   try {
     await db.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock(${DEMO_LOCK_KEY})`);

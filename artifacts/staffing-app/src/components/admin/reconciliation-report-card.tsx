@@ -18,7 +18,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { visitTypeLabels } from '@/lib/data';
+import { useVisitTypes } from '@/lib/use-visit-types';
 import { downloadCsv } from '@/lib/report-csv';
 import { format } from 'date-fns';
 import { FileSpreadsheet, Download, Loader2, AlertCircle, Inbox } from 'lucide-react';
@@ -35,17 +35,55 @@ function num(value: number | null | undefined): string {
   return value != null && value !== 0 ? String(value) : '';
 }
 
-function visitSummary(counts: { visitType: string; count: number }[]): string {
+// The server now sends billed dollar amounts on every reconciliation line plus
+// each subtotal and the grand total, but the generated API types don't carry
+// them yet. Extend the generated shapes locally so the card is typed against
+// the real response (the amounts always arrive at runtime).
+type BilledLine = ReconciliationReport['employees'][number]['lines'][number] & {
+  amount?: number;
+};
+type BilledEmployee = Omit<ReconciliationReport['employees'][number], 'lines'> & {
+  lines: BilledLine[];
+  totalAmount?: number;
+};
+type BilledTotals = ReconciliationReport['totals'] & { totalAmount?: number };
+type BilledReport = Omit<ReconciliationReport, 'employees' | 'totals'> & {
+  employees: BilledEmployee[];
+  totals: BilledTotals;
+};
+
+/** "$1,234.50" — the billed figure Molly's client leadership cross-checks. */
+function money(value: number | null | undefined): string {
+  return (value ?? 0).toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/** Plain 2-decimal number for CSV cells (spreadsheet-friendly, re-summable). */
+function money2(value: number | null | undefined): string {
+  return (value ?? 0).toFixed(2);
+}
+
+function visitSummary(
+  counts: { visitType: string; count: number }[],
+  labelFor: (key: string | null | undefined) => string,
+): string {
   return counts
-    .map((v) => `${visitTypeLabels[v.visitType as keyof typeof visitTypeLabels] ?? v.visitType}: ${v.count}`)
+    .map((v) => `${labelFor(v.visitType)}: ${v.count}`)
     .join('; ');
 }
 
-function reconciliationCsv(report: ReconciliationReport): string[][] {
+function reconciliationCsv(
+  report: BilledReport,
+  labelFor: (key: string | null | undefined) => string,
+): string[][] {
   const rows: string[][] = [
-    [`${report.clientName} — Reconciliation ${report.start} to ${report.end}`, '', '', '', '', '', '', '', ''],
+    [`${report.clientName} — Reconciliation ${report.start} to ${report.end}`, '', '', '', '', '', '', '', '', ''],
     [],
-    ['Date', 'Employee', 'Role', 'Visit Type', 'Hours', 'Mileage', 'Per Diem', 'Flags', 'Notes'],
+    ['Date', 'Employee', 'Role', 'Visit Type', 'Hours', 'Mileage', 'Per Diem', 'Billed ($)', 'Flags', 'Notes'],
   ];
   for (const emp of report.employees) {
     for (const line of emp.lines) {
@@ -53,10 +91,11 @@ function reconciliationCsv(report: ReconciliationReport): string[][] {
         line.date,
         emp.employeeName,
         emp.employeeRole,
-        line.isOther ? 'Other' : line.visitType ? visitTypeLabels[line.visitType] : line.hours != null ? 'Hourly' : '',
+        line.isOther ? 'Other' : line.visitType ? labelFor(line.visitType) : line.hours != null ? 'Hourly' : '',
         num(line.hours),
         num(line.mileage),
         num(line.perDiem),
+        money2(line.amount),
         lineFlags(line),
         line.note,
       ]);
@@ -65,10 +104,11 @@ function reconciliationCsv(report: ReconciliationReport): string[][] {
       '',
       `${emp.employeeName} — subtotal`,
       '',
-      visitSummary(emp.visitCounts),
+      visitSummary(emp.visitCounts, labelFor),
       num(emp.totalHours),
       num(emp.totalMileage),
       num(emp.totalPerDiem),
+      money2(emp.totalAmount),
       '',
       '',
     ]);
@@ -79,10 +119,11 @@ function reconciliationCsv(report: ReconciliationReport): string[][] {
     '',
     'Grand total',
     '',
-    visitSummary(report.totals.visitCounts),
+    visitSummary(report.totals.visitCounts, labelFor),
     num(report.totals.totalHours),
     num(report.totals.totalMileage),
     num(report.totals.totalPerDiem),
+    money2(report.totals.totalAmount),
     '',
     '',
   ]);
@@ -96,6 +137,8 @@ export function ReconciliationReportCard() {
   const [params, setParams] = useState<{ clientId: string; start: string; end: string } | null>(null);
 
   const { data: clients } = useListClients();
+  // Live visit-type labels so a type Molly just added renders correctly.
+  const { labelFor } = useVisitTypes();
   // Highlight clients with approved entries ready — scoped to the chosen
   // period once both dates are set, otherwise across all approved entries.
   const rangeSelected = start !== '' && end !== '' && start <= end;
@@ -187,7 +230,7 @@ export function ReconciliationReportCard() {
           <Button
             variant="outline" className="gap-2"
             disabled={!report || report.entryCount === 0}
-            onClick={() => report && downloadCsv(`reconciliation-${report.clientName.replace(/\s+/g, '-').toLowerCase()}-${report.start}-to-${report.end}.csv`, reconciliationCsv(report))}
+            onClick={() => report && downloadCsv(`reconciliation-${report.clientName.replace(/\s+/g, '-').toLowerCase()}-${report.start}-to-${report.end}.csv`, reconciliationCsv(report, labelFor))}
             data-testid="button-download-client-reconciliation"
           >
             <Download className="h-4 w-4" />
@@ -218,15 +261,18 @@ export function ReconciliationReportCard() {
           </div>
         )}
         {report && report.entryCount > 0 && (() => {
-          // Which measures actually appear anywhere in this report? Columns
-          // with no data are dropped so a visit-heavy client (St. Luke's) and
-          // an hours-based client (Weiser) each get an uncluttered layout.
-          const hasHours = report.employees.some((e) => e.totalHours > 0);
-          const hasMileage = report.employees.some((e) => e.totalMileage > 0);
-          const hasPerDiem = report.employees.some((e) => e.totalPerDiem > 0);
+          // The billed dollars are the point of this report, so the Amount
+          // column always shows. Which quantity measures appear varies by
+          // client, so those columns are dropped when empty — a visit-heavy
+          // client (St. Luke's) and an hours-based client (Weiser) each get an
+          // uncluttered layout.
+          const billed = report as BilledReport;
+          const hasHours = billed.employees.some((e) => e.totalHours > 0);
+          const hasMileage = billed.employees.some((e) => e.totalMileage > 0);
+          const hasPerDiem = billed.employees.some((e) => e.totalPerDiem > 0);
           return (
           <div className="space-y-6 pt-2" data-testid="reconciliation-results">
-            {report.employees.map((emp) => (
+            {billed.employees.map((emp) => (
               <div key={emp.employeeId} className="border rounded-md overflow-hidden" data-testid={`reconciliation-employee-${emp.employeeId}`}>
                 <div className="bg-muted/50 px-4 py-3 border-b">
                   <span className="font-semibold">{emp.employeeName}</span>{' '}
@@ -241,6 +287,7 @@ export function ReconciliationReportCard() {
                         {hasHours && <TableHead className="text-right">Hours</TableHead>}
                         {hasMileage && <TableHead className="text-right">Mileage</TableHead>}
                         {hasPerDiem && <TableHead className="text-right">Per Diem</TableHead>}
+                        <TableHead className="text-right">Billed</TableHead>
                         <TableHead className="min-w-[16rem]">Notes</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -252,7 +299,7 @@ export function ReconciliationReportCard() {
                           </TableCell>
                           <TableCell className="text-sm whitespace-nowrap">
                             <div className="flex items-center gap-1 flex-wrap">
-                              <span>{line.isOther ? 'Other' : line.visitType ? visitTypeLabels[line.visitType] : line.hours != null ? 'Hourly' : ''}</span>
+                              <span>{line.isOther ? 'Other' : line.visitType ? labelFor(line.visitType) : line.hours != null ? 'Hourly' : ''}</span>
                               {line.isWeekend && <Badge variant="outline" className="text-xs">Weekend</Badge>}
                               {line.isHoliday && <Badge variant="outline" className="text-xs">Holiday</Badge>}
                             </div>
@@ -260,6 +307,9 @@ export function ReconciliationReportCard() {
                           {hasHours && <TableCell className="text-right font-mono">{line.hours || ''}</TableCell>}
                           {hasMileage && <TableCell className="text-right font-mono">{line.mileage || ''}</TableCell>}
                           {hasPerDiem && <TableCell className="text-right font-mono">{line.perDiem || ''}</TableCell>}
+                          <TableCell className="text-right font-mono font-medium whitespace-nowrap" data-testid={`reconciliation-line-amount-${line.entryId}`}>
+                            {money(line.amount)}
+                          </TableCell>
                           <TableCell className="text-sm max-w-md whitespace-normal">
                             {line.note !== '' && <span className="font-medium">{line.note}</span>}
                           </TableCell>
@@ -275,12 +325,15 @@ export function ReconciliationReportCard() {
                   <span className="font-medium mr-auto">{emp.employeeName} — subtotal</span>
                   {emp.visitCounts.map((v) => (
                     <Badge key={v.visitType} variant="secondary" className="font-normal">
-                      {visitTypeLabels[v.visitType]}: {v.count}
+                      {labelFor(v.visitType)}: {v.count}
                     </Badge>
                   ))}
                   {emp.totalHours > 0 && <Badge variant="secondary" className="font-normal">{emp.totalHours} hrs</Badge>}
                   {emp.totalMileage > 0 && <Badge variant="secondary" className="font-normal">{emp.totalMileage} mi</Badge>}
                   {emp.totalPerDiem > 0 && <Badge variant="secondary" className="font-normal">Per diem: {emp.totalPerDiem}</Badge>}
+                  <Badge className="font-semibold" data-testid={`reconciliation-subtotal-amount-${emp.employeeId}`}>
+                    Billed: {money(emp.totalAmount)}
+                  </Badge>
                 </div>
               </div>
             ))}
@@ -288,14 +341,17 @@ export function ReconciliationReportCard() {
               <span className="font-semibold mr-auto">
                 Totals for {report.clientName} ({report.entryCount} entr{report.entryCount === 1 ? 'y' : 'ies'})
               </span>
-              {report.totals.visitCounts.map((v) => (
+              {billed.totals.visitCounts.map((v) => (
                 <Badge key={v.visitType} variant="secondary" className="font-normal">
-                  {visitTypeLabels[v.visitType]}: {v.count}
+                  {labelFor(v.visitType)}: {v.count}
                 </Badge>
               ))}
-              {hasHours && <Badge variant="secondary" className="font-normal">{report.totals.totalHours} hrs</Badge>}
-              {hasMileage && <Badge variant="secondary" className="font-normal">{report.totals.totalMileage} mi</Badge>}
-              {hasPerDiem && <Badge variant="secondary" className="font-normal">Per diem: {report.totals.totalPerDiem}</Badge>}
+              {hasHours && <Badge variant="secondary" className="font-normal">{billed.totals.totalHours} hrs</Badge>}
+              {hasMileage && <Badge variant="secondary" className="font-normal">{billed.totals.totalMileage} mi</Badge>}
+              {hasPerDiem && <Badge variant="secondary" className="font-normal">Per diem: {billed.totals.totalPerDiem}</Badge>}
+              <Badge className="font-semibold text-sm" data-testid="reconciliation-total-amount">
+                Billed total: {money(billed.totals.totalAmount)}
+              </Badge>
             </div>
           </div>
           );

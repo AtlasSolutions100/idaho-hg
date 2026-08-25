@@ -1,8 +1,12 @@
 import { Router, json, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
 import { db, businessSettingsTable } from "@workspace/db";
+import { requireAdmin } from "../lib/employee-auth";
 
 const router: IRouter = Router();
+
+// Business settings (invoice header details + the next-invoice-number counter)
+// are only ever read or written from Molly's admin screens — all admin-gated.
 
 // Single business (Hodge Staffing), single settings row.
 const SINGLETON_ID = "singleton";
@@ -26,7 +30,7 @@ function serialize(row: typeof businessSettingsTable.$inferSelect) {
   };
 }
 
-router.get("/business-settings", async (_req, res) => {
+router.get("/business-settings", requireAdmin, async (_req, res) => {
   const [row] = await db
     .select()
     .from(businessSettingsTable)
@@ -34,7 +38,7 @@ router.get("/business-settings", async (_req, res) => {
   return res.json(row ? serialize(row) : DEFAULTS);
 });
 
-router.put("/business-settings", json({ limit: "16kb" }), async (req, res) => {
+router.put("/business-settings", requireAdmin, json({ limit: "16kb" }), async (req, res) => {
   const { address, phone, email, paymentTerms, nextInvoiceNumber } = req.body ?? {};
 
   for (const [name, value] of [
@@ -83,7 +87,7 @@ router.put("/business-settings", json({ limit: "16kb" }), async (req, res) => {
 // Atomically hand out the next invoice number and advance the counter, even
 // under concurrent requests. Fresh insert: counter row starts with next=2 and
 // number 1 is allocated; conflict: stored n is allocated and the row moves to n+1.
-router.post("/business-settings/next-invoice-number", async (_req, res) => {
+router.post("/business-settings/next-invoice-number", requireAdmin, async (_req, res) => {
   const [row] = await db
     .insert(businessSettingsTable)
     .values({ id: SINGLETON_ID, nextInvoiceNumber: 2 })

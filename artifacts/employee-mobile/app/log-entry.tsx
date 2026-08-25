@@ -13,12 +13,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   getListTimeEntriesQueryKey,
+  getListVisitTypesQueryKey,
   useBatchCreateTimeEntries,
   useCreateTimeEntry,
   useUpdateTimeEntry,
   useGetMyEmployee,
   useListClients,
   useListTimeEntries,
+  useListVisitTypes,
   type PerDiemType,
   type VisitType,
 } from '@workspace/api-client-react';
@@ -145,6 +147,33 @@ export default function LogEntryScreen() {
   // Visit types only apply to clients that bill by visit type (St. Luke's);
   // everyone else gets the simple time-in/time-out form.
   const billsByVisit = selectedClient?.billsByVisitType ?? false;
+
+  // Visit types come from the admin-managed catalog (GET /visit-types) rather
+  // than a hardcoded list, so Molly can add or retire types with no app
+  // release. Only fetch it for clients that actually bill by visit type.
+  const { data: visitTypeCatalog, isLoading: visitTypesLoading } = useListVisitTypes({
+    query: { enabled: billsByVisit, queryKey: getListVisitTypesQueryKey() },
+  });
+  // Active types only, in the order the admin arranged them.
+  const activeVisitTypes = useMemo(
+    () =>
+      (visitTypeCatalog ?? [])
+        .filter((vt) => vt.active)
+        .sort((a, b) => a.sortOrder - b.sortOrder),
+    [visitTypeCatalog],
+  );
+  // What the picker renders: the active catalog, plus any already-selected type
+  // that's no longer in it (e.g. deactivated after an entry was created) so a
+  // selection never silently vanishes. labels.ts is the display fallback for
+  // those stragglers, falling through to the raw key if it's unknown too.
+  const visitTypeOptions = useMemo(() => {
+    const options = activeVisitTypes.map((vt) => ({ key: vt.key, label: vt.label }));
+    const known = new Set(options.map((o) => o.key));
+    for (const key of selectedVisitTypes) {
+      if (!known.has(key)) options.push({ key, label: visitTypeLabels[key] ?? key });
+    }
+    return options;
+  }, [activeVisitTypes, selectedVisitTypes]);
   // "Other" one-offs (training, meetings) are available for any client;
   // Visit only for clients that bill by visit type.
   const effectiveEntryType: 'visit' | 'hourly' | 'other' =
@@ -478,17 +507,23 @@ export default function LogEntryScreen() {
             <Text style={[styles.helperText, { color: c.mutedForeground, marginTop: 0, marginBottom: 8 }]}>
               Tap to select — you can pick more than one for the same day
             </Text>
-            <View style={styles.chipWrap}>
-              {(Object.keys(visitTypeLabels) as VisitType[]).map((t) => (
-                <MultiChip
-                  key={t}
-                  label={visitTypeLabels[t]}
-                  selected={selectedVisitTypes.has(t)}
-                  onPress={() => toggleVisitType(t)}
-                  testID={`chip-visit-${t}`}
-                />
-              ))}
-            </View>
+            {visitTypesLoading && visitTypeOptions.length === 0 ? (
+              <View style={[styles.loadingRow, { backgroundColor: c.muted }]}>
+                <ActivityIndicator color={c.mutedForeground} />
+              </View>
+            ) : (
+              <View style={styles.chipWrap}>
+                {visitTypeOptions.map((vt) => (
+                  <MultiChip
+                    key={vt.key}
+                    label={vt.label}
+                    selected={selectedVisitTypes.has(vt.key)}
+                    onPress={() => toggleVisitType(vt.key)}
+                    testID={`chip-visit-${vt.key}`}
+                  />
+                ))}
+              </View>
+            )}
             {selectedVisitTypes.size > 1 && (
               <Text style={[styles.helperText, { color: c.mutedForeground, marginTop: 8 }]}>
                 {selectedVisitTypes.size} visits selected — mileage and per diem attach to the first

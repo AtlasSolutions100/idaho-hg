@@ -25,6 +25,7 @@ import {
   findOrCreateItem,
 } from "../lib/qbo-invoice";
 import { computeInvoiceReport } from "../lib/invoice-report";
+import { requireAdmin } from "../lib/employee-auth";
 
 const router: IRouter = Router();
 
@@ -74,7 +75,7 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 // ---- Start the OAuth flow: redirect Molly to Intuit's consent screen.
-router.get("/qbo/connect", (_req, res) => {
+router.get("/qbo/connect", requireAdmin, (_req, res) => {
   const creds = qboCredentials();
   if (!creds) {
     return res
@@ -106,6 +107,12 @@ router.get("/qbo/connect", (_req, res) => {
 });
 
 // ---- Intuit redirects back here after Molly approves (or cancels).
+// Deliberately NOT admin-gated: Intuit redirects the browser here directly,
+// and that top-level navigation carries no app (Clerk) session, so a
+// requireAdmin gate would reject every callback. The flow is secured instead
+// by the signed `state` value that must match the httpOnly cookie set when
+// the admin started the connect flow above; without that match the callback
+// is rejected before any tokens are exchanged.
 router.get("/qbo/callback", async (req, res) => {
   const back = (result: string) => res.redirect(`${ADMIN_PATH}?quickbooks=${result}`);
 
@@ -134,7 +141,7 @@ router.get("/qbo/callback", async (req, res) => {
 });
 
 // ---- Connection status (+ live company-name check when connected).
-router.get("/qbo/status", async (_req, res) => {
+router.get("/qbo/status", requireAdmin, async (_req, res) => {
   const configured = qboCredentials() !== null;
   // Surface the exact redirect URI so the Admin page can tell Molly what to
   // register in the Intuit developer portal when the connect flow breaks.
@@ -238,7 +245,7 @@ function alreadySentResponse(prior: QboSentInvoiceRow) {
 
 // ---- Latest recorded send for a client + period, so the invoice screen can
 // show "Sent to QuickBooks on … as invoice #…" before Molly clicks Send.
-router.get("/qbo/sent-invoices", async (req, res, next) => {
+router.get("/qbo/sent-invoices", requireAdmin, async (req, res, next) => {
   try {
     const { clientId, start, end } = req.query as Record<string, string | undefined>;
     const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -267,7 +274,7 @@ router.get("/qbo/sent-invoices", async (req, res, next) => {
 });
 
 // ---- Send an invoice into QuickBooks as a draft (unsent) invoice.
-router.post("/qbo/invoice", async (req, res, next) => {
+router.post("/qbo/invoice", requireAdmin, async (req, res, next) => {
   try {
     const { clientId, start, end, confirmDuplicate } = (req.body ?? {}) as Record<string, unknown>;
     const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -411,7 +418,7 @@ router.post("/qbo/invoice", async (req, res, next) => {
 });
 
 // ---- Disconnect: revoke with Intuit, then delete our stored tokens.
-router.post("/qbo/disconnect", async (_req, res) => {
+router.post("/qbo/disconnect", requireAdmin, async (_req, res) => {
   const conn = await getConnection();
   if (conn) {
     try {

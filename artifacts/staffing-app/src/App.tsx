@@ -12,6 +12,8 @@ import EmployeeDashboard from '@/pages/employee-dashboard';
 import AdminDashboard from '@/pages/admin-dashboard';
 import ApprovePayrollPage from '@/pages/admin/approve-payroll';
 import ClientRatesPage from '@/pages/admin/client-rates';
+import VisitTypesPage from '@/pages/admin/visit-types';
+import VisitPayRatesPage from '@/pages/admin/visit-pay-rates';
 import EmployeeRatesPage from '@/pages/admin/employee-rates';
 import ReportsPage from '@/pages/admin/reports';
 import OnboardingPage from '@/pages/admin/onboarding';
@@ -166,6 +168,16 @@ function Router() {
       <Route path="/admin/client-rates">
         <AdminGate>
           <ClientRatesPage />
+        </AdminGate>
+      </Route>
+      <Route path="/admin/visit-types">
+        <AdminGate>
+          <VisitTypesPage />
+        </AdminGate>
+      </Route>
+      <Route path="/admin/visit-pay-rates">
+        <AdminGate>
+          <VisitPayRatesPage />
         </AdminGate>
       </Route>
       <Route path="/admin/employee-rates">

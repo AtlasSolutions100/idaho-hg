@@ -101,7 +101,20 @@ async function api(path: string, init?: RequestInit): Promise<{ status: number; 
 const post = (path: string, body?: unknown) =>
   api(path, { method: "POST", body: body != null ? JSON.stringify(body) : undefined });
 
-const sendInvoice = (body: Record<string, unknown>) => post("/qbo/invoice", body);
+// Roster/rate writes, approvals, and every QBO endpoint are admin-only; run
+// them as Molly. Time-entry creation stays anonymous (the admin email isn't a
+// roster employee, so creating an entry as admin would be rejected).
+const asAdmin = async <T>(fn: () => Promise<T>): Promise<T> => {
+  mockSession.email = QBO_ADMIN_EMAIL;
+  try {
+    return await fn();
+  } finally {
+    mockSession.email = null;
+  }
+};
+
+const sendInvoice = (body: Record<string, unknown>) =>
+  asAdmin(() => post("/qbo/invoice", body));
 
 async function recordedSends(start: string, end: string) {
   const rows = await db
@@ -120,11 +133,13 @@ beforeAll(async () => {
 
   // Seed: a client with an hourly rate, an employee, and approved entries in
   // the billing month.
-  const clientRes = await post("/clients", {
-    name: clientName,
-    visitType: "skilled-nursing",
-    rate: 90,
-  });
+  const clientRes = await asAdmin(() =>
+    post("/clients", {
+      name: clientName,
+      visitType: "skilled-nursing",
+      rate: 90,
+    }),
+  );
   expect(clientRes.status).toBe(201);
   clientId = clientRes.body.id;
   // This test posts visit-type entries, so mark the client as visit-billing.
@@ -132,28 +147,30 @@ beforeAll(async () => {
     .update(clientsTable)
     .set({ billsByVisitType: true })
     .where(eq(clientsTable.id, clientId));
-  const hourly = await post("/client-rates", {
-    clientId,
-    rateType: "hourly",
-    rate: 60,
-    effectiveDate: "2027-01-01",
-  });
+  const hourly = await asAdmin(() =>
+    post("/client-rates", {
+      clientId,
+      rateType: "hourly",
+      rate: 60,
+      effectiveDate: "2027-01-01",
+    }),
+  );
   expect(hourly.status).toBe(201);
 
-  mockSession.email = QBO_ADMIN_EMAIL;
-  const empRes = await post("/employees", {
-    name: employeeName,
-    role: "RN",
-    hourlyRate: 40,
-    visitRate: 70,
-    mileageRate: 0.65,
-    perDiemRate: 45,
-    weekendMultiplier: 1.5,
-    holidayMultiplier: 2,
-  });
+  const empRes = await asAdmin(() =>
+    post("/employees", {
+      name: employeeName,
+      role: "RN",
+      hourlyRate: 40,
+      visitRate: 70,
+      mileageRate: 0.65,
+      perDiemRate: 45,
+      weekendMultiplier: 1.5,
+      holidayMultiplier: 2,
+    }),
+  );
   expect(empRes.status).toBe(201);
   employeeId = empRes.body.id;
-  mockSession.email = null;
 
   // 2027-05-20 exists so the second-half period used by the parallel-send
   // test has something billable too.
@@ -167,7 +184,7 @@ beforeAll(async () => {
       isHoliday: false,
     });
     expect(entry.status).toBe(201);
-    const approve = await post(`/time-entries/${entry.body.id}/approve`);
+    const approve = await asAdmin(() => post(`/time-entries/${entry.body.id}/approve`));
     expect(approve.status).toBe(200);
   }
 });
@@ -251,7 +268,7 @@ describe("POST /qbo/invoice duplicate-send guard", () => {
 
 describe("GET /qbo/sent-invoices", () => {
   const get = (query: Record<string, string>) =>
-    api(`/qbo/sent-invoices?${new URLSearchParams(query)}`);
+    asAdmin(() => api(`/qbo/sent-invoices?${new URLSearchParams(query)}`));
 
   it("returns sent=false for a period never sent", async () => {
     const res = await get({ clientId, start: "2027-05-02", end: "2027-05-03" });

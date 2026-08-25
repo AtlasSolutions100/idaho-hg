@@ -1,8 +1,12 @@
 import { Router, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
 import { db, workflowStatusTable } from "@workspace/db";
+import { requireAdmin } from "../lib/employee-auth";
 
 const router: IRouter = Router();
+
+// The weekly payroll/invoice workflow checklist is part of Molly's admin
+// dashboard only — both reading and updating it are admin-gated.
 
 // Period keys are the Monday of the week, YYYY-MM-DD.
 function validPeriod(period: unknown): period is string {
@@ -18,7 +22,7 @@ function validPeriod(period: unknown): period is string {
 
 const PERIOD_ERROR = { message: "period must be a Monday in YYYY-MM-DD form" };
 
-router.get("/workflow-status", async (req, res) => {
+router.get("/workflow-status", requireAdmin, async (req, res) => {
   const period = req.query.period;
   if (!validPeriod(period)) {
     return res.status(400).json(PERIOD_ERROR);
@@ -37,7 +41,7 @@ router.get("/workflow-status", async (req, res) => {
 // Partial update: only the flags present in the body change; the other keeps
 // its stored value. This avoids lost updates when both boxes are toggled in
 // quick succession.
-router.put("/workflow-status", async (req, res) => {
+router.put("/workflow-status", requireAdmin, async (req, res) => {
   const { period, exportDone, invoicesDone } = req.body ?? {};
   if (!validPeriod(period)) {
     return res.status(400).json(PERIOD_ERROR);

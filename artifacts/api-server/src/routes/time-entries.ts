@@ -17,6 +17,7 @@ import {
   UpdateTimeEntryBody,
 } from "@workspace/api-zod";
 import { resolveSessionEmployee, verifyAdminRequest } from "../lib/employee-auth";
+import { getVisitTypeKeySet } from "../lib/visit-types";
 import {
   hoursBetween,
   isHolidayDate,
@@ -333,6 +334,11 @@ router.post("/time-entries", async (req, res, next) => {
       });
       return;
     }
+    // Visit type must exist in the admin-managed catalog (the enum is now open).
+    if (body.visitType && !(await getVisitTypeKeySet()).has(body.visitType)) {
+      res.status(400).json({ message: `Unknown visit type "${body.visitType}".` });
+      return;
+    }
     // Mileage is only billable when the client's contract includes it.
     if (body.mileage != null && body.mileage > 0 && !client.mileageOnContract) {
       res.status(400).json({
@@ -467,6 +473,14 @@ router.post("/time-entries/batch", async (req, res, next) => {
         message: `${client.name} doesn't bill by visit type — just log your time in and out.`,
       });
       return;
+    }
+    // All visit types must exist in the admin-managed catalog (open enum).
+    const validVisitKeys = await getVisitTypeKeySet();
+    for (const vt of body.visitTypes) {
+      if (!validVisitKeys.has(vt)) {
+        res.status(400).json({ message: `Unknown visit type "${vt}".` });
+        return;
+      }
     }
     const isWeekend = isWeekendDate(body.date);
     const isHoliday = isHolidayDate(body.date);
@@ -806,6 +820,12 @@ async function setStatus(
 
 router.post("/time-entries/:id/approve", async (req, res, next) => {
   try {
+    // Approving locks an entry and feeds payroll/invoices — admin only.
+    const admin = await verifyAdminRequest(req);
+    if (!admin.ok) {
+      res.status(admin.status).json({ message: admin.message });
+      return;
+    }
     const row = await setStatus(req.params.id, "approved");
     if (!row) {
       res.status(404).json({ message: "Entry not found" });
@@ -819,6 +839,12 @@ router.post("/time-entries/:id/approve", async (req, res, next) => {
 
 router.post("/time-entries/:id/reject", async (req, res, next) => {
   try {
+    // Only Molly reviews and rejects employees' entries — admin only.
+    const admin = await verifyAdminRequest(req);
+    if (!admin.ok) {
+      res.status(admin.status).json({ message: admin.message });
+      return;
+    }
     const row = await setStatus(req.params.id, "rejected");
     if (!row) {
       res.status(404).json({ message: "Entry not found" });
@@ -830,8 +856,14 @@ router.post("/time-entries/:id/reject", async (req, res, next) => {
   }
 });
 
-router.post("/time-entries/approve-all", async (_req, res, next) => {
+router.post("/time-entries/approve-all", async (req, res, next) => {
   try {
+    // Bulk-approves the whole submitted queue — admin only.
+    const admin = await verifyAdminRequest(req);
+    if (!admin.ok) {
+      res.status(admin.status).json({ message: admin.message });
+      return;
+    }
     // Unpriced "Other" one-offs are skipped: approving locks the entry, and
     // a locked entry with no pay amount could never be priced. Molly sets
     // the amount first, then approves.

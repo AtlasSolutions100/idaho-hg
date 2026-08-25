@@ -23,6 +23,14 @@ export type ReconciliationEntryInput = {
   note: string | null;
   /** One-off "Other" work (training, meetings) — the note says what it was. */
   isOther?: boolean;
+  /**
+   * Total dollar amount this entry bills the CLIENT — the sum of its billed
+   * components (visit or hourly + mileage + per-diem, or an Other flat amount).
+   * Resolved by the route with the SAME rate helpers the invoice uses (see
+   * routes/reports.ts), so the reconciliation dollars reconcile to the invoice.
+   * Full precision; the builder rounds the per-line/subtotal/total figures.
+   */
+  amount?: number;
 };
 
 export type ReconciliationLine = {
@@ -36,6 +44,8 @@ export type ReconciliationLine = {
   isHoliday: boolean;
   note: string;
   isOther?: boolean;
+  /** Dollar amount billed to the client for this line (rounded to cents). */
+  amount: number;
 };
 
 export type VisitTypeCount = { visitType: string; count: number };
@@ -50,6 +60,8 @@ export type ReconciliationEmployeeGroup = {
   totalHours: number;
   totalMileage: number;
   totalPerDiem: number;
+  /** Sum of this employee's billed line amounts, rounded to cents. */
+  totalAmount: number;
 };
 
 export type ReconciliationTotals = {
@@ -58,6 +70,8 @@ export type ReconciliationTotals = {
   totalHours: number;
   totalMileage: number;
   totalPerDiem: number;
+  /** Report-wide billed total, rounded to cents — must equal the invoice total. */
+  totalAmount: number;
 };
 
 export type ReconciliationResult = {
@@ -94,6 +108,7 @@ export function buildReconciliationReport(
         totalHours: 0,
         totalMileage: 0,
         totalPerDiem: 0,
+        totalAmount: 0,
         visitMap: new Map(),
       };
       groups.set(entry.employeeId, group);
@@ -109,6 +124,10 @@ export function buildReconciliationReport(
       isWeekend: entry.isWeekend,
       isHoliday: entry.isHoliday,
       note: entry.note ?? "",
+      // Billed dollars for this line — the reconciliation view of what the
+      // invoice charges for this entry. Rounded for display; subtotals and the
+      // grand total accumulate in full precision below and round once.
+      amount: round2(entry.amount ?? 0),
     });
     if (entry.visitType) {
       group.visitMap.set(entry.visitType, (group.visitMap.get(entry.visitType) ?? 0) + 1);
@@ -130,6 +149,12 @@ export function buildReconciliationReport(
       group.totalPerDiem += entry.perDiem;
       totalPerDiem += entry.perDiem;
     }
+    // Per-employee billed dollars accumulate in full precision; each employee
+    // subtotal rounds once (below), then the grand total sums those rounded
+    // subtotals — see the totals block for why this reconciles to the invoice.
+    if (entry.amount != null) {
+      group.totalAmount += entry.amount;
+    }
   }
 
   const employees = [...groups.values()]
@@ -139,6 +164,7 @@ export function buildReconciliationReport(
       totalHours: round2(group.totalHours),
       totalMileage: round2(group.totalMileage),
       totalPerDiem: round2(group.totalPerDiem),
+      totalAmount: round2(group.totalAmount),
       lines: [...group.lines].sort(
         (a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : Number(a.entryId) - Number(b.entryId)),
       ),
@@ -153,6 +179,14 @@ export function buildReconciliationReport(
       totalHours: round2(totalHours),
       totalMileage: round2(totalMileage),
       totalPerDiem: round2(totalPerDiem),
+      // Grand billed total = the sum of the per-employee (already rounded)
+      // subtotals — the same aggregation the payroll grandTotal and the invoice
+      // total use. The invoice rounds each employee's billed bucket and sums
+      // those, so summing rounded subtotals here reconciles to the invoice to
+      // the penny even for sub-cent rates (e.g. mileage at $0.725/mi spread
+      // across several employees), where a single full-precision global sum
+      // could land a cent off.
+      totalAmount: round2(employees.reduce((sum, e) => sum + e.totalAmount, 0)),
     },
   };
 }

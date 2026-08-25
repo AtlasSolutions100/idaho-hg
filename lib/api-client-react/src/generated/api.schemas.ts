@@ -138,30 +138,10 @@ export interface PriceTimeEntry {
   customBillAmount?: number | null;
 }
 
-export type VisitType = typeof VisitType[keyof typeof VisitType];
-
-
-export const VisitType = {
-  'skilled-nursing': 'skilled-nursing',
-  'physical-therapy': 'physical-therapy',
-  'occupational-therapy': 'occupational-therapy',
-  'speech-therapy': 'speech-therapy',
-  soc: 'soc',
-  'routine-visit': 'routine-visit',
-  eval: 'eval',
-  recert: 'recert',
-  roc: 'roc',
-  discharge: 'discharge',
-  'non-visit': 'non-visit',
-  'hospital-at-home': 'hospital-at-home',
-  hospice: 'hospice',
-  training: 'training',
-  'non-billable': 'non-billable',
-  'on-call': 'on-call',
-  'mccall-per-diem': 'mccall-per-diem',
-  'mie-first-last-day': 'mie-first-last-day',
-  'mie-full-day': 'mie-full-day',
-} as const;
+/**
+ * Visit-type key from the admin-managed visit_types catalog (e.g. "soc", "eval"). Open string — no fixed enum — so Molly can add new visit types with no code change; the server validates it against the catalog on write.
+ */
+export type VisitType = string;
 
 export interface PayrollReportLine {
   entryId: string;
@@ -241,6 +221,8 @@ export interface InvoiceReport {
   entryCount: number;
   missingRateCount: number;
   unbilledCount: number;
+  /** Optional per-client footer note shown on the PDF invoice */
+  noteToCustomer?: string;
 }
 
 export interface ReconciliationReportLine {
@@ -255,6 +237,8 @@ export interface ReconciliationReportLine {
   note: string;
   /** One-off "Other" work (training, meetings) — see the note for what it was */
   isOther?: boolean;
+  /** Billed dollar amount for this line (same pricing as the invoice) */
+  amount: number;
 }
 
 export interface VisitTypeCount {
@@ -272,6 +256,8 @@ export interface ReconciliationEmployeeGroup {
   totalHours: number;
   totalMileage: number;
   totalPerDiem: number;
+  /** Total billed dollars for this employee (matches the invoice) */
+  totalAmount: number;
 }
 
 export interface ReconciliationTotals {
@@ -280,6 +266,8 @@ export interface ReconciliationTotals {
   totalHours: number;
   totalMileage: number;
   totalPerDiem: number;
+  /** Grand total billed dollars (equals the invoice total for the period) */
+  totalAmount: number;
 }
 
 export interface ReconciliationReport {
@@ -368,6 +356,12 @@ export interface Client {
   mileageOnContract: boolean;
   /** Whether this client bills by visit type (only St. Luke's by default); other clients use the simple hourly form */
   billsByVisitType: boolean;
+  /** Per-client weekend pay+bill multiplier (1 = none; e.g. St. Luke's uses 1.1 for +10%) */
+  weekendMultiplier: number;
+  /** Per-client holiday pay+bill multiplier (1 = none) */
+  holidayMultiplier: number;
+  /** Optional per-client footer note shown on the PDF invoice */
+  noteToCustomer?: string;
 }
 
 export interface ClientInput {
@@ -387,6 +381,18 @@ export interface UpdateClientBilling {
   mileageOnContract?: boolean;
   /** Only applied when present; controls whether the visit-type entry form is shown */
   billsByVisitType?: boolean;
+  /**
+     * Only applied when present; per-client weekend pay+bill multiplier
+     * @minimum 0
+     */
+  weekendMultiplier?: number;
+  /**
+     * Only applied when present; per-client holiday pay+bill multiplier
+     * @minimum 0
+     */
+  holidayMultiplier?: number;
+  /** Only applied when present; per-client PDF invoice footer note (clears on blank) */
+  noteToCustomer?: string;
 }
 
 export interface Employee {
@@ -472,37 +478,40 @@ export const Discipline = {
   LCSW: 'LCSW',
 } as const;
 
-export type ClientRateType = typeof ClientRateType[keyof typeof ClientRateType];
-
-
-export const ClientRateType = {
-  'skilled-nursing': 'skilled-nursing',
-  'physical-therapy': 'physical-therapy',
-  'occupational-therapy': 'occupational-therapy',
-  'speech-therapy': 'speech-therapy',
-  soc: 'soc',
-  'routine-visit': 'routine-visit',
-  eval: 'eval',
-  recert: 'recert',
-  roc: 'roc',
-  discharge: 'discharge',
-  'non-visit': 'non-visit',
-  'hospital-at-home': 'hospital-at-home',
-  hospice: 'hospice',
-  training: 'training',
-  'non-billable': 'non-billable',
-  'on-call': 'on-call',
-  'mccall-per-diem': 'mccall-per-diem',
-  'mie-first-last-day': 'mie-first-last-day',
-  'mie-full-day': 'mie-full-day',
-  hourly: 'hourly',
-} as const;
+/**
+ * Rate-line key for a client billing rate. A visit-type key from the visit_types catalog, or one of the reserved keys "hourly", "hourly-{ROLE}", "mileage", or "per-diem". Open string — validated server-side.
+ */
+export type ClientRateType = string;
 
 export interface CreateClientRate {
   /** @minLength 1 */
   clientId: string;
   rateType: ClientRateType;
   /** If set, this rate applies only to employees of that discipline. The stored key becomes "{rateType}-{discipline}" (e.g. "soc-RN"), so the invoice route can try the role-specific key first and fall back to the plain rateType for clients with a single rate per visit type. */
+  discipline?: Discipline;
+  /** @minimum 0 */
+  rate: number;
+  effectiveDate: string;
+}
+
+/**
+ * Per-client employee PAY rate (hourly pay that differs by client).
+ */
+export interface ClientPayRate {
+  id: string;
+  clientId: string;
+  clientName: string;
+  /** Rate key, e.g. "hourly-RN", "hourly", or a "-weekend"/"-holiday" variant. */
+  visitType: string;
+  rate: number;
+  effectiveDate: string;
+}
+
+export interface CreateClientPayRate {
+  /** @minLength 1 */
+  clientId: string;
+  /** Base rate key, usually "hourly" (a discipline makes it "hourly-{discipline}"). */
+  rateType: string;
   discipline?: Discipline;
   /** @minimum 0 */
   rate: number;
@@ -563,6 +572,53 @@ export const CreateEntryStatus = {
   draft: 'draft',
   submitted: 'submitted',
 } as const;
+
+export interface VisitTypeItem {
+  key: string;
+  label: string;
+  abbreviation: string;
+  active: boolean;
+  sortOrder: number;
+}
+
+export interface CreateVisitType {
+  /** Stable slug (lowercase). Generated from the label when omitted. */
+  key?: string;
+  label: string;
+  abbreviation: string;
+  sortOrder?: number;
+}
+
+export interface UpdateVisitType {
+  label?: string;
+  abbreviation?: string;
+  active?: boolean;
+  sortOrder?: number;
+}
+
+/**
+ * Per-discipline employee PAY rate for a visit type (append-only history).
+ */
+export interface VisitPayRate {
+  id: string;
+  discipline: string;
+  visitType: VisitType;
+  rate: number;
+  effectiveDate: string;
+}
+
+export interface CreateVisitPayRate {
+  discipline: string;
+  visitType: VisitType;
+  rate: number;
+  /** YYYY-MM-DD; defaults to today. */
+  effectiveDate?: string;
+}
+
+export interface UpdateVisitPayRate {
+  rate: number;
+  effectiveDate?: string;
+}
 
 /**
  * Per-diem option — "First/Last day" or "Full day"

@@ -8,15 +8,17 @@ import { PracticeDataCard } from '@/components/admin/practice-data-card';
 import { NextStepsCard } from '@/components/admin/next-steps-card';
 import { QuickBooksCard } from '@/components/admin/quickbooks-card';
 import { 
-  CheckSquare, 
-  DollarSign, 
-  Users, 
-  FileSpreadsheet, 
+  CheckSquare,
+  DollarSign,
+  Users,
+  FileSpreadsheet,
   ClipboardList,
   MessageSquare,
   Building2,
   ChevronRight,
   LogOut,
+  Stethoscope,
+  Table2,
 } from 'lucide-react';
 import { useLocation } from 'wouter';
 
@@ -68,6 +70,20 @@ export default function AdminDashboard() {
       icon: DollarSign,
       href: '/admin/client-rates',
       testId: 'link-client-rates',
+    },
+    {
+      title: 'Visit Types',
+      description: 'Add or edit St. Luke’s visit types',
+      icon: Stethoscope,
+      href: '/admin/visit-types',
+      testId: 'link-visit-types',
+    },
+    {
+      title: 'Visit Pay Rates',
+      description: 'Pay per visit type, by discipline',
+      icon: Table2,
+      href: '/admin/visit-pay-rates',
+      testId: 'link-visit-pay-rates',
     },
     {
       title: 'Employees',

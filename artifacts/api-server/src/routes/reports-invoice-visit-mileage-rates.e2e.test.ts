@@ -6,11 +6,42 @@
 // - Mileage/per-diem pass-throughs for an employee with no reimbursement
 //   rates on file must surface as flagged $0 pass-through lines.
 // Positive controls assert the same paths bill correctly when rates exist.
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { Server } from "node:http";
-import { inArray, eq } from "drizzle-orm";
-import { db, pool, timeEntriesTable, employeesTable, clientsTable } from "@workspace/db";
-import app from "../app";
+import { inArray, and, eq } from "drizzle-orm";
+import { db, pool, timeEntriesTable, employeesTable, employeeRatesTable, clientsTable, clientRatesTable } from "@workspace/db";
+
+// Client-rate / employee-rate reads, approvals, and invoice reports are
+// admin-only now, so those calls run as Molly. Time-entry creation stays
+// anonymous (the admin email isn't a roster employee). Clerk is mocked at the
+// @clerk/express boundary.
+const mockState: { email: string | null } = { email: null };
+vi.mock("@clerk/express", () => ({
+  clerkMiddleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+  getAuth: () => (mockState.email ? { userId: "user_visit_mileage_e2e" } : null),
+  clerkClient: {
+    users: {
+      getUser: async () => ({
+        primaryEmailAddress: { emailAddress: mockState.email },
+        emailAddresses: [{ emailAddress: mockState.email }],
+      }),
+      getUserList: async () => ({ data: [] }),
+      createUser: async () => ({}),
+    },
+    sessions: { getSessionList: async () => ({ data: [] }), revokeSession: async () => ({}) },
+  },
+}));
+const ADMIN_EMAIL = "admin-visit-mileage-e2e@example.com";
+process.env.ADMIN_EMAIL = ADMIN_EMAIL;
+const asAdmin = async <T>(fn: () => Promise<T>): Promise<T> => {
+  mockState.email = ADMIN_EMAIL;
+  try {
+    return await fn();
+  } finally {
+    mockState.email = null;
+  }
+};
+const { default: app } = await import("../app");
 
 let server: Server;
 let baseUrl: string;
@@ -65,15 +96,52 @@ beforeAll(async () => {
     .update(clientsTable)
     .set({ billsByVisitType: true })
     .where(eq(clientsTable.id, IDAHO_YOUTH_RANCH));
-  const ratesRes = await api("/client-rates");
+  const ratesRes = await asAdmin(() => api("/client-rates"));
   expect(ratesRes.status).toBe(200);
   clientRates = ratesRes.body;
+
+  // Durability guard for a fresh test DB: the app seeds employee rates only
+  // when the table is empty, so a concurrent POST /employees from another test
+  // file can make that seed skip, leaving the seeded RN (Adrian Eddins) with no
+  // rate — which the positive control below needs. If his rate is missing, seed
+  // one directly (a no-op once the roster rates are present).
+  const [existingRnRate] = await db
+    .select()
+    .from(employeeRatesTable)
+    .where(eq(employeeRatesTable.employeeId, RN_EMPLOYEE))
+    .limit(1);
+  if (!existingRnRate) {
+    await db.insert(employeeRatesTable).values({
+      employeeId: RN_EMPLOYEE,
+      employeeName: "Adrian Eddins",
+      employeeRole: "RN",
+      hourlyRate: 50,
+      visitRate: 80,
+      mileageRate: 0.5,
+      perDiemRate: 40,
+      weekendMultiplier: 1.5,
+      holidayMultiplier: 2,
+      effectiveDate: "2020-01-01",
+    });
+  }
 
   // Seed the rate-less employee directly in the roster table.
   await db
     .insert(employeesTable)
     .values({ id: NO_RATE_EMPLOYEE, name: "ZZ NoRate TestRN", role: "RN" })
     .onConflictDoNothing();
+
+  // These two cases verify the mileage/per-diem *employee-rate* resolution path:
+  // a genuinely missing rate must flag a $0 pass-through line, and a present
+  // employee reimbursement rate must pass through. Molly's rate sheet added a
+  // St. Luke's client mileage BILLING rate ($0.725), which now takes precedence
+  // over the employee lookup and would short-circuit that path. Remove it here
+  // so the employee-rate fallback these cases were written to exercise is
+  // genuinely hit; it is restored in afterAll. (Client mileage billing has its
+  // own coverage — see invoice-report.ts — and is not the focus of these cases.)
+  await db
+    .delete(clientRatesTable)
+    .where(and(eq(clientRatesTable.clientId, ST_LUKES), eq(clientRatesTable.visitType, "mileage")));
 });
 
 afterAll(async () => {
@@ -81,6 +149,15 @@ afterAll(async () => {
     await db.delete(timeEntriesTable).where(inArray(timeEntriesTable.id, createdEntryIds));
   }
   await db.delete(employeesTable).where(eq(employeesTable.id, NO_RATE_EMPLOYEE));
+  // Restore the St. Luke's client mileage billing rate removed in beforeAll so
+  // the shared test DB is left in its seeded state for later files.
+  await db.insert(clientRatesTable).values({
+    clientId: ST_LUKES,
+    clientName: "St. Luke's Health System",
+    visitType: "mileage",
+    rate: 0.725,
+    effectiveDate: "2024-01-01",
+  });
   // Restore Idaho Youth Ranch to the simple hourly form (only St. Luke's
   // bills by visit type outside this test).
   await db
@@ -100,19 +177,37 @@ function currentRate(clientId: string, visitType: string): number {
 }
 
 async function submitApprovedEntry(entry: Record<string, unknown>) {
-  const res = await post("/time-entries", {
+  // roster-backfill.e2e.test.ts briefly flips St. Luke's billsByVisitType off
+  // while it exercises the one-time backfill; on the shared DB a visit-entry
+  // POST landing in that window comes back 400 "doesn't bill by visit type".
+  // Retry through the transient window.
+  let res = await post("/time-entries", {
     isWeekend: false,
     isHoliday: false,
     ...entry,
   });
+  for (
+    let attempt = 0;
+    attempt < 20 && res.status === 400 && /bill by visit type/i.test(res.body?.message ?? "");
+    attempt++
+  ) {
+    await new Promise((r) => setTimeout(r, 50));
+    res = await post("/time-entries", {
+      isWeekend: false,
+      isHoliday: false,
+      ...entry,
+    });
+  }
   expect(res.status).toBe(201);
   createdEntryIds.push(Number(res.body.id));
-  expect((await post(`/time-entries/${res.body.id}/approve`)).status).toBe(200);
+  expect((await asAdmin(() => post(`/time-entries/${res.body.id}/approve`))).status).toBe(200);
   return res.body;
 }
 
 async function invoiceFor(clientId: string) {
-  const invoice = await api(`/reports/invoice?clientId=${clientId}&start=${START}&end=${END}`);
+  const invoice = await asAdmin(() =>
+    api(`/reports/invoice?clientId=${clientId}&start=${START}&end=${END}`),
+  );
   expect(invoice.status).toBe(200);
   return invoice.body;
 }
@@ -175,10 +270,14 @@ describe("mileage/per-diem invoice missing-rate flagging", () => {
     // reimbursement rates — which this employee doesn't have — so both must
     // come back as flagged $0 lines and count toward missingRateCount.
     const visitRate = currentRate(ST_LUKES, "skilled-nursing");
+    // Weekday date: St. Luke's now applies a +10% weekend/holiday multiplier and
+    // the server derives the day type from the date, so a weekend date would
+    // scale the visit line off its base rate. This case is about the mileage/
+    // per-diem pass-throughs, so keep the visit at its plain rate on a weekday.
     await submitApprovedEntry({
       employeeId: NO_RATE_EMPLOYEE,
       clientId: ST_LUKES,
-      date: "2026-04-11",
+      date: "2026-04-13",
       visitType: "skilled-nursing",
       mileage: 34,
       perDiem: 1,
@@ -217,15 +316,18 @@ describe("mileage/per-diem invoice missing-rate flagging", () => {
 
   it("passes mileage and per diem through at the employee's rates when on file (positive control)", async () => {
     const visitRate = currentRate(ST_LUKES, "skilled-nursing");
-    const empRatesRes = await api("/employee-rates");
+    const empRatesRes = await asAdmin(() => api("/employee-rates"));
     expect(empRatesRes.status).toBe(200);
     const empRate = empRatesRes.body.find((r: any) => r.employeeId === RN_EMPLOYEE);
     expect(empRate, "expected seeded rates for Adrian Eddins").toBeTruthy();
 
+    // Weekday date (see the missing-rate case above): avoids the St. Luke's
+    // weekend/holiday multiplier so mileage/per-diem pass through at the plain
+    // employee reimbursement rates this positive control checks.
     await submitApprovedEntry({
       employeeId: RN_EMPLOYEE,
       clientId: ST_LUKES,
-      date: "2026-04-12",
+      date: "2026-04-14",
       visitType: "skilled-nursing",
       mileage: 20,
       perDiem: 1,

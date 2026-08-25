@@ -1,8 +1,32 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { Server } from "node:http";
 import { eq } from "drizzle-orm";
 import { db, qboConnectionTable } from "@workspace/db";
-import app from "../app";
+
+// The QBO admin endpoints (status/connect/invoice/disconnect/sent-invoices)
+// are admin-only now, so this suite runs as Molly. The OAuth /qbo/callback is
+// intentionally NOT admin-gated (Intuit calls it with no session) and behaves
+// the same regardless of the session. Clerk is mocked at the @clerk/express
+// boundary.
+const mockState: { email: string | null } = { email: null };
+vi.mock("@clerk/express", () => ({
+  clerkMiddleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+  getAuth: () => (mockState.email ? { userId: "user_qbo_e2e" } : null),
+  clerkClient: {
+    users: {
+      getUser: async () => ({
+        primaryEmailAddress: { emailAddress: mockState.email },
+        emailAddresses: [{ emailAddress: mockState.email }],
+      }),
+      getUserList: async () => ({ data: [] }),
+      createUser: async () => ({}),
+    },
+    sessions: { getSessionList: async () => ({ data: [] }), revokeSession: async () => ({}) },
+  },
+}));
+const ADMIN_EMAIL = "admin-qbo-e2e@example.com";
+process.env.ADMIN_EMAIL = ADMIN_EMAIL;
+const { default: app } = await import("../app");
 
 // These tests run without Intuit credentials and without a stored connection
 // (except where a fake connection row is inserted), so no external calls to
@@ -12,9 +36,17 @@ let server: Server;
 let base: string;
 
 beforeAll(async () => {
+  // Admin endpoints below require Molly's session; the callback tests are
+  // unaffected by it.
+  mockState.email = ADMIN_EMAIL;
   // Ensure a clean slate and no accidental use of real credentials.
   delete process.env["QBO_CLIENT_ID"];
   delete process.env["QBO_CLIENT_SECRET"];
+  // Pin the callback base URL so the surfaced redirect URI is deterministic
+  // instead of depending on the ambient Replit domain env vars (which aren't
+  // present under a bare `vitest` run). The missing-credentials paths still
+  // fail on QBO_CLIENT_ID first, so this doesn't mask them.
+  process.env["QBO_REDIRECT_BASE_URL"] = "https://qbo-e2e.example.com";
   await db.delete(qboConnectionTable).where(eq(qboConnectionTable.id, "singleton"));
   server = app.listen(0);
   const address = server.address();
@@ -24,6 +56,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  delete process.env["QBO_REDIRECT_BASE_URL"];
   await db.delete(qboConnectionTable).where(eq(qboConnectionTable.id, "singleton"));
   await new Promise((resolve) => server.close(resolve));
 });

@@ -4,6 +4,9 @@ import {
   hasDemoEmployeeData,
   purgeDemoEmployeeData,
 } from "./lib/demo-cleanup";
+import { ensureVisitTypesSeeded } from "./lib/visit-types";
+import { ensureRosterSeeded } from "./routes/roster";
+import { ensureSeeded } from "./routes/rates";
 
 const rawPort = process.env["PORT"];
 
@@ -30,6 +33,19 @@ try {
   }
 } catch (err) {
   logger.error({ err }, "Failed to purge legacy demo employee data");
+  process.exit(1);
+}
+
+// Seed the database up front (all idempotent) so the app is fully usable on a
+// fresh boot without waiting for a lazy first admin request: the roster
+// (clients + employees), their rates (client + employee pay rates), and the
+// admin-managed visit-type catalog used by the entry form + write-validation.
+try {
+  await ensureRosterSeeded();
+  await ensureSeeded();
+  await ensureVisitTypesSeeded();
+} catch (err) {
+  logger.error({ err }, "Failed to seed the database on startup");
   process.exit(1);
 }
 

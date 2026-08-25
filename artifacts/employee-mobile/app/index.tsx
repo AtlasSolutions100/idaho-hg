@@ -630,7 +630,7 @@ function EntryCard({
 
       <View style={styles.cardDetails}>
         {entry.visitType && (
-          <Detail icon="activity" text={visitTypeLabels[entry.visitType]} />
+          <Detail icon="activity" text={visitTypeLabels[entry.visitType] ?? entry.visitType} />
         )}
         {entry.hours != null && entry.hours > 0 && (
           <Detail

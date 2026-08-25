@@ -6,28 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ClientRateType = typeof ClientRateType[keyof typeof ClientRateType];
-
-
-export const ClientRateType = {
-  'skilled-nursing': 'skilled-nursing',
-  'physical-therapy': 'physical-therapy',
-  'occupational-therapy': 'occupational-therapy',
-  'speech-therapy': 'speech-therapy',
-  soc: 'soc',
-  'routine-visit': 'routine-visit',
-  eval: 'eval',
-  recert: 'recert',
-  roc: 'roc',
-  discharge: 'discharge',
-  'non-visit': 'non-visit',
-  'hospital-at-home': 'hospital-at-home',
-  hospice: 'hospice',
-  training: 'training',
-  'non-billable': 'non-billable',
-  'on-call': 'on-call',
-  'mccall-per-diem': 'mccall-per-diem',
-  'mie-first-last-day': 'mie-first-last-day',
-  'mie-full-day': 'mie-full-day',
-  hourly: 'hourly',
-} as const;
+/**
+ * Rate-line key for a client billing rate. A visit-type key from the visit_types catalog, or one of the reserved keys "hourly", "hourly-{ROLE}", "mileage", or "per-diem". Open string — validated server-side.
+ */
+export type ClientRateType = string;

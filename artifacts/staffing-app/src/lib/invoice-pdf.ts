@@ -75,9 +75,9 @@ export function downloadInvoicePdf(
 
   // ---- Header: INVOICE + business block (left), contact (middle), logo (right)
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
+  doc.setFontSize(20);
   doc.setTextColor(...GREEN_DARK);
-  doc.text('I N V O I C E', margin, 56);
+  doc.text('INVOICE', margin, 58);
 
   // Business name is intentionally fixed: the business-details settings
   // (task: business details + invoice number) cover address/phone/email/terms
@@ -96,8 +96,9 @@ export function downloadInvoicePdf(
     }
   }
 
-  // Middle column: email + phone, like the real invoice.
-  const midX = margin + 190;
+  // Middle column: email + phone, like the real invoice — sits just to the
+  // right of the business-name column, aligned to the business-name baseline.
+  const midX = margin + 135;
   const midColW = pageWidth - margin - 60 - midX;
   let midY = 62;
   for (const raw of [details?.email ?? '', details?.phone ?? ''].map((s) => s.trim()).filter(Boolean)) {
@@ -118,10 +119,13 @@ export function downloadInvoicePdf(
 
   const headerBottom = Math.max(leftY, midY, 40 + logoH) + 18;
 
-  // ---- Pale green band: Bill to / Ship to. Shows the optional billing
-  // contact above the client name and the billing address below it, matching
-  // Molly's real QuickBooks invoices. Clients without these fields show the
-  // name only. Long lines wrap; the band grows to fit.
+  // ---- One continuous pale-green region holds the Bill to / Ship to block
+  // and the Invoice details block, separated by a light dashed divider —
+  // exactly how QuickBooks lays them out on Molly's real invoices. The band
+  // is full-bleed; the divider is inset by the page margin. Bill to shows the
+  // optional billing contact above the client name and the billing address
+  // below it; clients without those fields show the name only. Long lines
+  // wrap and the band grows to fit.
   const bandPad = 12;
   const colW = contentWidth / 2 - 16;
   doc.setFontSize(8.5);
@@ -136,21 +140,10 @@ export function downloadInvoicePdf(
   const nameLines = billToRaw.flatMap(
     (raw) => doc.splitTextToSize(raw, colW) as string[],
   );
-  const billBandH = bandPad + 2 + 14 + nameLines.length * 11 + bandPad - 4;
-  doc.setFillColor(...GREEN_PALE);
-  doc.rect(0, headerBottom, pageWidth, billBandH, 'F');
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...TEXT_DARK);
-  doc.text('Bill to', margin, headerBottom + bandPad + 2);
-  doc.text('Ship to', margin + contentWidth / 2, headerBottom + bandPad + 2);
-  doc.setFont('helvetica', 'normal');
-  nameLines.forEach((line, i) => {
-    const y = headerBottom + bandPad + 16 + i * 11;
-    doc.text(line, margin, y);
-    doc.text(line, margin + contentWidth / 2, y);
-  });
 
-  // ---- Invoice details block (pale green), like the real invoice.
+  // Invoice details lines. QuickBooks lists only these four — there is no
+  // "service period" line; the per-line date ranges live in the description
+  // column instead.
   const invoiceDate = todayIso();
   const terms = (details?.paymentTerms ?? '').trim() || 'Net 30';
   const dueIso = dueDateFromTerms(invoiceDate, terms);
@@ -159,12 +152,41 @@ export function downloadInvoicePdf(
     `Terms: ${terms}`,
     `Invoice date: ${qbDate(invoiceDate)}`,
     ...(dueIso ? [`Due date: ${qbDate(dueIso)}`] : []),
-    `Service period: ${qbDate(report.start)} – ${qbDate(report.end)}`,
   ];
-  const detailsTop = headerBottom + billBandH + 8;
-  const detailsH = 20 + detailLines.length * 13 + 8;
+
+  // Geometry: Bill-to sub-block, a dashed divider gap, then the Invoice-details
+  // sub-block, all inside a single filled rectangle.
+  const bandTop = headerBottom;
+  const billBlockH = bandPad + 14 + nameLines.length * 11 + bandPad;
+  const dividerGap = 16;
+  const detailsBlockH = 20 + detailLines.length * 13 + bandPad;
+  const bandH = billBlockH + dividerGap + detailsBlockH;
+  const dividerY = bandTop + billBlockH + dividerGap / 2;
+  const detailsTop = bandTop + billBlockH + dividerGap;
+
   doc.setFillColor(...GREEN_PALE);
-  doc.rect(0, detailsTop, pageWidth, detailsH, 'F');
+  doc.rect(0, bandTop, pageWidth, bandH, 'F');
+
+  // Bill to / Ship to headings and lines (Ship to mirrors Bill to).
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...TEXT_DARK);
+  doc.text('Bill to', margin, bandTop + bandPad + 2);
+  doc.text('Ship to', margin + contentWidth / 2, bandTop + bandPad + 2);
+  doc.setFont('helvetica', 'normal');
+  nameLines.forEach((line, i) => {
+    const y = bandTop + bandPad + 16 + i * 11;
+    doc.text(line, margin, y);
+    doc.text(line, margin + contentWidth / 2, y);
+  });
+
+  // Dashed divider between the two sub-blocks, inset by the page margin.
+  doc.setDrawColor(176, 190, 176);
+  doc.setLineWidth(0.5);
+  doc.setLineDashPattern([2, 2], 0);
+  doc.line(margin, dividerY, pageWidth - margin, dividerY);
+  doc.setLineDashPattern([], 0);
+
+  // Invoice details heading and lines.
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...TEXT_DARK);
   doc.text('Invoice details', margin, detailsTop + 16);
@@ -189,7 +211,7 @@ export function downloadInvoicePdf(
   );
 
   autoTable(doc, {
-    startY: detailsTop + detailsH + 18,
+    startY: bandTop + bandH + 18,
     margin: { left: margin, right: margin },
     head: [['#', 'Date', 'Product or service', 'Description', 'Qty', 'Rate', 'Amount']],
     body,
@@ -227,7 +249,7 @@ export function downloadInvoicePdf(
   // Page-safe: if the table ended near the bottom, move to a fresh page so the
   // total and any warning never render off-page.
   const afterTableY =
-    (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? detailsTop + detailsH + 18;
+    (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? bandTop + bandH + 18;
   const pageHeight = doc.internal.pageSize.getHeight();
   const footerSpaceNeeded = 24 + (report.missingRateCount > 0 ? 24 + 12 : 12);
   let totalY = afterTableY + 24;
@@ -258,6 +280,22 @@ export function downloadInvoicePdf(
       margin,
       totalY + 24,
     );
+    doc.setTextColor(0);
+  }
+
+  // ---- Optional per-client "Note to customer" footer, like Molly's QuickBooks
+  // invoices (e.g. Weiser's "Time cards will be sent for reconciliation…").
+  if (report.noteToCustomer && report.noteToCustomer.trim()) {
+    let noteY = totalY + (report.missingRateCount > 0 ? 44 : 24);
+    const noteLines = doc.splitTextToSize(report.noteToCustomer.trim(), pageWidth - margin * 2);
+    if (noteY + noteLines.length * 12 > pageHeight - margin) {
+      doc.addPage();
+      noteY = margin + 24;
+    }
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...TEXT_DARK);
+    doc.text(noteLines, margin, noteY);
     doc.setTextColor(0);
   }
 

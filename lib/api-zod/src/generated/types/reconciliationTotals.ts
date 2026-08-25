@@ -13,4 +13,6 @@ export interface ReconciliationTotals {
   totalHours: number;
   totalMileage: number;
   totalPerDiem: number;
+  /** Grand total billed dollars (equals the invoice total for the period) */
+  totalAmount: number;
 }

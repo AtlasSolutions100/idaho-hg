@@ -208,13 +208,16 @@ describe("draft privacy", () => {
     const created = await newEntry({ status: "draft", date: "2027-08-06" });
     const draftId = created.body.id as string;
 
-    mockState.email = null;
+    // Approving/rejecting is admin-only; act as Molly so the request passes the
+    // gate and reaches the draft-privacy logic that reports drafts as not found.
+    mockState.email = ADMIN_EMAIL;
     const approve = await api("POST", `/time-entries/${draftId}/approve`);
     expect(approve.status).toBe(404);
     const reject = await api("POST", `/time-entries/${draftId}/reject`);
     expect(reject.status).toBe(404);
 
     await api("POST", "/time-entries/approve-all");
+    mockState.email = null;
     const [row] = await db
       .select()
       .from(timeEntriesTable)
@@ -337,6 +340,7 @@ describe("editing entries", () => {
     mockState.email = null;
     const created = await newEntry({ date: "2027-08-18" });
     const id = created.body.id as string;
+    mockState.email = ADMIN_EMAIL; // rejecting is admin-only
     await api("POST", `/time-entries/${id}/reject`);
 
     mockState.email = EMP_EMAIL;
@@ -357,6 +361,7 @@ describe("approval locks the entry", () => {
     mockState.email = null;
     const created = await newEntry({ date: "2027-08-19" });
     const id = created.body.id as string;
+    mockState.email = ADMIN_EMAIL; // approving is admin-only
     const approved = await api("POST", `/time-entries/${id}/approve`);
     expect(approved.status).toBe(200);
 
@@ -376,9 +381,9 @@ describe("approval locks the entry", () => {
     mockState.email = null;
     const created = await newEntry({ date: "2027-08-20" });
     const id = created.body.id as string;
+    mockState.email = ADMIN_EMAIL; // approving is admin-only
     await api("POST", `/time-entries/${id}/approve`);
 
-    mockState.email = ADMIN_EMAIL;
     const edited = await api("PATCH", `/time-entries/${id}`, {
       clientId: CLIENT_ID,
       date: "2027-08-20",
@@ -485,9 +490,9 @@ describe("admin fixes an entry before approving it", () => {
     mockState.email = null;
     const created = await newEntry({ date: "2027-08-28" });
     const id = created.body.id as string;
+    mockState.email = ADMIN_EMAIL; // rejecting is admin-only
     await api("POST", `/time-entries/${id}/reject`);
 
-    mockState.email = ADMIN_EMAIL;
     const edited = await api("PATCH", `/time-entries/${id}`, {
       clientId: CLIENT_ID,
       date: "2027-08-28",

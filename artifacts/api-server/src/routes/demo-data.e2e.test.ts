@@ -19,6 +19,27 @@ import {
   qboSentInvoicesTable,
 } from "@workspace/db";
 
+// Loading/removing demo data and sending demo invoices are admin-only, so this
+// suite runs as Molly. Clerk is mocked at the @clerk/express boundary.
+const mockState: { email: string | null } = { email: null };
+vi.mock("@clerk/express", () => ({
+  clerkMiddleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+  getAuth: () => (mockState.email ? { userId: "user_demo_data_e2e" } : null),
+  clerkClient: {
+    users: {
+      getUser: async () => ({
+        primaryEmailAddress: { emailAddress: mockState.email },
+        emailAddresses: [{ emailAddress: mockState.email }],
+      }),
+      getUserList: async () => ({ data: [] }),
+      createUser: async () => ({}),
+    },
+    sessions: { getSessionList: async () => ({ data: [] }), revokeSession: async () => ({}) },
+  },
+}));
+const ADMIN_EMAIL = "admin-demo-data-e2e@example.com";
+process.env.ADMIN_EMAIL = ADMIN_EMAIL;
+
 // Pretend QuickBooks is connected and fake the QBO API wrappers, so the
 // sandbox-mode practice send below can go end-to-end without external calls.
 vi.mock("../lib/qbo", async (importOriginal) => {
@@ -58,6 +79,8 @@ async function cleanupReal() {
 }
 
 beforeAll(async () => {
+  // Every endpoint exercised here is admin-only; act as Molly throughout.
+  mockState.email = ADMIN_EMAIL;
   await cleanupReal();
   await db.insert(clientsTable).values({ id: REAL_CLIENT_ID, name: "Real Client Demo E2E" });
   await db.insert(employeesTable).values({ id: REAL_EMPLOYEE_ID, name: "Real Employee Demo E2E", role: "RN" });

@@ -6,11 +6,42 @@
 //   the fallback when no role-specific key exists.
 // Each test creates a real time entry via the API, approves it, generates the
 // invoice, and asserts the hourly line uses the client's current rate (never $0).
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { Server } from "node:http";
 import { inArray } from "drizzle-orm";
 import { db, pool, timeEntriesTable } from "@workspace/db";
-import app from "../app";
+
+// Reading client rates and generating invoices/approving entries are admin-only
+// now, so those calls run as Molly. Time-entry creation stays anonymous (the
+// admin email isn't a roster employee, so creating an entry as admin would be
+// rejected). Clerk is mocked at the @clerk/express boundary.
+const mockState: { email: string | null } = { email: null };
+vi.mock("@clerk/express", () => ({
+  clerkMiddleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+  getAuth: () => (mockState.email ? { userId: "user_hourly_rates_e2e" } : null),
+  clerkClient: {
+    users: {
+      getUser: async () => ({
+        primaryEmailAddress: { emailAddress: mockState.email },
+        emailAddresses: [{ emailAddress: mockState.email }],
+      }),
+      getUserList: async () => ({ data: [] }),
+      createUser: async () => ({}),
+    },
+    sessions: { getSessionList: async () => ({ data: [] }), revokeSession: async () => ({}) },
+  },
+}));
+const ADMIN_EMAIL = "admin-hourly-rates-e2e@example.com";
+process.env.ADMIN_EMAIL = ADMIN_EMAIL;
+const asAdmin = async <T>(fn: () => Promise<T>): Promise<T> => {
+  mockState.email = ADMIN_EMAIL;
+  try {
+    return await fn();
+  } finally {
+    mockState.email = null;
+  }
+};
+const { default: app } = await import("../app");
 
 let server: Server;
 let baseUrl: string;
@@ -59,7 +90,7 @@ beforeAll(async () => {
   // depends on are actually visible, so we never snapshot a half-seeded list.
   expect((await api("/clients")).status).toBe(200);
   for (let attempt = 0; attempt < 20; attempt++) {
-    const ratesRes = await api("/client-rates");
+    const ratesRes = await asAdmin(() => api("/client-rates"));
     expect(ratesRes.status).toBe(200);
     clientRates = ratesRes.body;
     const seeded =
@@ -105,12 +136,14 @@ async function submitApprovedHourlyEntry(
   });
   expect(res.status).toBe(201);
   createdEntryIds.push(Number(res.body.id));
-  expect((await post(`/time-entries/${res.body.id}/approve`)).status).toBe(200);
+  expect((await asAdmin(() => post(`/time-entries/${res.body.id}/approve`))).status).toBe(200);
   return res.body;
 }
 
 async function invoiceHourlyLines(clientId: string) {
-  const invoice = await api(`/reports/invoice?clientId=${clientId}&start=${START}&end=${END}`);
+  const invoice = await asAdmin(() =>
+    api(`/reports/invoice?clientId=${clientId}&start=${START}&end=${END}`),
+  );
   expect(invoice.status).toBe(200);
   return invoice.body;
 }

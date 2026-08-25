@@ -19,4 +19,6 @@ export interface ReconciliationReportLine {
   note: string;
   /** One-off "Other" work (training, meetings) — see the note for what it was */
   isOther?: boolean;
+  /** Billed dollar amount for this line (same pricing as the invoice) */
+  amount: number;
 }

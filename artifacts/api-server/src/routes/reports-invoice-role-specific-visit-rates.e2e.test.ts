@@ -20,7 +20,8 @@ import {
   timeEntriesTable,
 } from "@workspace/db";
 
-process.env.ADMIN_EMAIL = "admin-role-specific-visit-rates@example.com";
+const ADMIN_EMAIL = "admin-role-specific-visit-rates@example.com";
+process.env.ADMIN_EMAIL = ADMIN_EMAIL;
 const mockSession: { email: string | null } = { email: null };
 vi.mock("@clerk/express", () => ({
   clerkMiddleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
@@ -80,21 +81,49 @@ async function patch(path: string, body: unknown) {
   return api(path, { method: "PATCH", body: JSON.stringify(body) });
 }
 
+// Rate reads/writes and invoice reports are admin-only; time-entry creation
+// stays anonymous (the admin email isn't a roster employee).
+const asAdmin = async <T>(fn: () => Promise<T>): Promise<T> => {
+  mockSession.email = ADMIN_EMAIL;
+  try {
+    return await fn();
+  } finally {
+    mockSession.email = null;
+  }
+};
+
 async function approveEntry(id: string) {
-  mockSession.email = "admin-role-specific-visit-rates@example.com";
-  const res = await post(`/time-entries/${id}/approve`);
-  mockSession.email = null;
+  const res = await asAdmin(() => post(`/time-entries/${id}/approve`));
   expect(res.status).toBe(200);
 }
 
 async function submitEntry(extra: Record<string, unknown>) {
-  const res = await post("/time-entries", {
+  // roster-backfill.e2e.test.ts briefly flips St. Luke's billsByVisitType off
+  // while it exercises the one-time backfill; on the shared DB a visit-entry
+  // POST landing in that window comes back 400 "doesn't bill by visit type".
+  // Retry through the transient window instead of forcing the flag (which would
+  // race with that file's own assertion).
+  let res = await post("/time-entries", {
     employeeId: extra.employeeId,
     clientId: ST_LUKES,
     isWeekend: false,
     isHoliday: false,
     ...extra,
   });
+  for (
+    let attempt = 0;
+    attempt < 20 && res.status === 400 && /bill by visit type/i.test(res.body?.message ?? "");
+    attempt++
+  ) {
+    await new Promise((r) => setTimeout(r, 50));
+    res = await post("/time-entries", {
+      employeeId: extra.employeeId,
+      clientId: ST_LUKES,
+      isWeekend: false,
+      isHoliday: false,
+      ...extra,
+    });
+  }
   expect(res.status).toBe(201);
   createdEntryIds.push(Number(res.body.id));
   return res.body;
@@ -108,7 +137,7 @@ beforeAll(async () => {
   baseUrl = `http://127.0.0.1:${address.port}`;
 
   // Trigger seeding + backfill so discipline-specific rates are in the DB.
-  expect((await api("/client-rates")).status).toBe(200);
+  expect((await asAdmin(() => api("/client-rates"))).status).toBe(200);
 });
 
 afterAll(async () => {
@@ -146,7 +175,9 @@ describe("Role-specific visit rate lookup on invoice report", () => {
     await approveEntry(ptEntry.id);
     await approveEntry(ptaEntry.id);
 
-    const invoice = await api(`/reports/invoice?clientId=${ST_LUKES}&start=${START}&end=${END}`);
+    const invoice = await asAdmin(() =>
+      api(`/reports/invoice?clientId=${ST_LUKES}&start=${START}&end=${END}`),
+    );
     expect(invoice.status).toBe(200);
     const { lines, missingRateCount } = invoice.body;
 
@@ -176,26 +207,35 @@ describe("Role-specific visit rate lookup on invoice report", () => {
   it("POST /client-rates with discipline stores key correctly and resolves on invoice", async () => {
     // Add "non-visit-PTA" rate via the API using the new discipline field.
     // PTA has no backfilled rates for any new visit type, so this is guaranteed to be new.
-    const addRes = await api("/client-rates", {
-      method: "POST",
-      body: JSON.stringify({
-        clientId: ST_LUKES,
-        rateType: "non-visit",
-        discipline: "PTA",
-        rate: 75,
-        effectiveDate: "2026-05-01",
+    const addRes = await asAdmin(() =>
+      api("/client-rates", {
+        method: "POST",
+        body: JSON.stringify({
+          clientId: ST_LUKES,
+          rateType: "non-visit",
+          discipline: "PTA",
+          rate: 75,
+          effectiveDate: "2026-05-01",
+        }),
       }),
-    });
+    );
     expect(addRes.status).toBe(201);
     // The stored visitType should be the combined key.
     expect(addRes.body.visitType).toBe("non-visit-PTA");
     createdRateVisitTypes.push("non-visit-PTA");
 
     // Submit and approve a Non-visit entry for Lee Ormsby (PTA).
-    const nvEntry = await submitEntry({ employeeId: PTA_EMPLOYEE, date: "2026-05-10", visitType: "non-visit" });
+    // Use a weekday: St. Luke's now carries a +10% weekend/holiday multiplier
+    // (weekendMultiplier = holidayMultiplier = 1.1), and the server derives the
+    // weekend flag from the date. 2026-05-10 was a Sunday, which would scale the
+    // billed rate to 82.5; this case is about the discipline-key *base* rate
+    // resolving correctly, so bill it on a weekday (Mon 2026-05-11) at 75.
+    const nvEntry = await submitEntry({ employeeId: PTA_EMPLOYEE, date: "2026-05-11", visitType: "non-visit" });
     await approveEntry(nvEntry.id);
 
-    const invoice = await api(`/reports/invoice?clientId=${ST_LUKES}&start=${START}&end=${END}`);
+    const invoice = await asAdmin(() =>
+      api(`/reports/invoice?clientId=${ST_LUKES}&start=${START}&end=${END}`),
+    );
     expect(invoice.status).toBe(200);
     const { lines } = invoice.body;
 
@@ -211,14 +251,14 @@ describe("Role-specific visit rate lookup on invoice report", () => {
   it("future effective-dated update to a discipline-specific rate splits invoice lines", async () => {
     // The backfill seeds "recert-PT" = $235 for St. Luke's.
     // Raise it mid-month to $250 so entries split across the rate change.
-    const ratesRes = await api("/client-rates");
+    const ratesRes = await asAdmin(() => api("/client-rates"));
     const recertPtRate = ratesRes.body.find(
       (r: any) => r.clientId === ST_LUKES && r.visitType === "recert-PT",
     );
     expect(recertPtRate).toBeTruthy();
 
     // $250 effective May 15: entries before → $235, entries after → $250.
-    await patch(`/client-rates/${recertPtRate.id}`, { rate: 250, effectiveDate: "2026-05-15" });
+    await asAdmin(() => patch(`/client-rates/${recertPtRate.id}`, { rate: 250, effectiveDate: "2026-05-15" }));
 
     // Two Recert entries for Dale Gibbs (PT): one before and one after the change.
     const earlyEntry = await submitEntry({ employeeId: PT_EMPLOYEE, date: "2026-05-08", visitType: "recert" });
@@ -226,7 +266,9 @@ describe("Role-specific visit rate lookup on invoice report", () => {
     await approveEntry(earlyEntry.id);
     await approveEntry(lateEntry.id);
 
-    const invoice = await api(`/reports/invoice?clientId=${ST_LUKES}&start=${START}&end=${END}`);
+    const invoice = await asAdmin(() =>
+      api(`/reports/invoice?clientId=${ST_LUKES}&start=${START}&end=${END}`),
+    );
     expect(invoice.status).toBe(200);
     const { lines } = invoice.body;
 
@@ -247,15 +289,17 @@ describe("Role-specific visit rate lookup on invoice report", () => {
   it("generic fallback: plain visit-type rate is used when no discipline-specific key exists", async () => {
     // Add a plain "training" rate (no discipline) for St. Luke's.
     // PTA has no "training-PTA" key → should fall back to plain "training".
-    const addRes = await api("/client-rates", {
-      method: "POST",
-      body: JSON.stringify({
-        clientId: ST_LUKES,
-        rateType: "training",
-        rate: 50,
-        effectiveDate: "2026-05-01",
+    const addRes = await asAdmin(() =>
+      api("/client-rates", {
+        method: "POST",
+        body: JSON.stringify({
+          clientId: ST_LUKES,
+          rateType: "training",
+          rate: 50,
+          effectiveDate: "2026-05-01",
+        }),
       }),
-    });
+    );
     // If "training" already exists (e.g. from a prior test run), accept 409.
     expect([201, 409]).toContain(addRes.status);
     if (addRes.status === 201) {
@@ -267,7 +311,9 @@ describe("Role-specific visit rate lookup on invoice report", () => {
     const trainEntry = await submitEntry({ employeeId: PTA_EMPLOYEE, date: "2026-05-14", visitType: "training" });
     await approveEntry(trainEntry.id);
 
-    const invoice = await api(`/reports/invoice?clientId=${ST_LUKES}&start=${START}&end=${END}`);
+    const invoice = await asAdmin(() =>
+      api(`/reports/invoice?clientId=${ST_LUKES}&start=${START}&end=${END}`),
+    );
     expect(invoice.status).toBe(200);
     const { lines } = invoice.body;
 
