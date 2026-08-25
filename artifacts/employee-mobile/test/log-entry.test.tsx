@@ -34,7 +34,7 @@ vi.mock('react-native-keyboard-controller', async () => {
   return { KeyboardAwareScrollView: ScrollView };
 });
 
-import LogEntryScreen from './log-entry';
+import LogEntryScreen from '../app/log-entry';
 
 const EMPLOYEE = { id: 'emp-1', name: 'Sarah Martinez', role: 'RN', active: true };
 

@@ -40,7 +40,7 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
   },
 }));
 
-import HomeScreen from './index';
+import HomeScreen from '../app/index';
 
 const EMPLOYEE = { id: 'emp-1', name: 'Sarah Martinez', role: 'RN', active: true };
 
@@ -136,6 +136,7 @@ describe('HomeScreen — adjusted heads-up banner', () => {
   it('shows no banner when nothing was adjusted', async () => {
     entries = [{ ...BASE, id: 'te-plain' }];
     renderHome();
+
     await waitFor(() => expect(screen.getByTestId('entry-te-plain')).toBeTruthy());
     expect(screen.queryByTestId('banner-adjusted')).toBeNull();
   });
