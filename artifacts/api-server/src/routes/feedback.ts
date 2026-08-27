@@ -1,14 +1,18 @@
 import { Router, json, type IRouter } from "express";
 import { desc } from "drizzle-orm";
 import { db, feedbackTable } from "@workspace/db";
-import { requireAdmin, requireSignedIn } from "../lib/employee-auth";
+import { requireAdmin } from "../lib/employee-auth";
 
 const router: IRouter = Router();
 
 // Reading the submitted feedback is Molly's admin view (requireAdmin below).
-// Submitting is open to any signed-in user (requireSignedIn below) so
-// employees and Molly can send feedback — the list stays bounded, POST bodies
-// are small, and submissions are throttled per client to limit abuse.
+// Submitting is deliberately open to anyone using the app — the feedback
+// button is rendered on every page, including signed-out ones (the role
+// switcher and sign-in screens), and it is the client's primary channel for
+// reporting problems. Requiring a session made that button fail with "Please
+// sign in first" exactly when someone hit a sign-in problem worth reporting.
+// The list stays bounded, POST bodies are small (16kb), and submissions are
+// throttled per client IP to limit abuse.
 
 /** Most recent submissions returned by GET /feedback. */
 const LIST_LIMIT = 200;
@@ -63,7 +67,7 @@ router.get("/feedback", requireAdmin, async (_req, res) => {
   return res.json(rows.map(serialize));
 });
 
-router.post("/feedback", requireSignedIn, json({ limit: "16kb" }), async (req, res) => {
+router.post("/feedback", json({ limit: "16kb" }), async (req, res) => {
   if (throttled(req.ip ?? "unknown")) {
     return res
       .status(429)

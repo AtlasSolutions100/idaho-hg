@@ -69,7 +69,12 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
   // Active visit types come from the admin-managed catalog, so a type Molly
   // adds shows up here with no code change. labelFor resolves display names
   // (with a fallback for keys that predate the catalog).
-  const { visitTypes, labelFor, isLoading: visitTypesLoading } = useVisitTypes();
+  const {
+    visitTypes,
+    labelFor,
+    isLoading: visitTypesLoading,
+    isError: visitTypesError,
+  } = useVisitTypes();
   const { data: clients, isLoading: clientsLoading } = useListClients();
   const createEntry = useCreateTimeEntry();
   const updateEntry = useUpdateTimeEntry();
@@ -300,6 +305,14 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
                     <div className="flex items-center justify-center gap-2 px-3 py-6 text-sm text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Loading visit types…
+                    </div>
+                  ) : visitTypesError ? (
+                    // Distinct from "none configured": a failed request used to
+                    // render the empty-state below, which read as "Molly hasn't
+                    // set any up" and hid the real problem.
+                    <div className="px-3 py-6 text-center text-sm text-destructive">
+                      Couldn’t load the visit types. Check your connection and
+                      refresh — if this keeps happening, send feedback.
                     </div>
                   ) : visitTypes.length === 0 ? (
                     <div className="px-3 py-6 text-center text-sm text-muted-foreground">

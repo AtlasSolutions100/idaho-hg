@@ -7,6 +7,10 @@ import {
 import { ensureVisitTypesSeeded } from "./lib/visit-types";
 import { ensureRosterSeeded } from "./routes/roster";
 import { ensureSeeded } from "./routes/rates";
+import {
+  ensureClerkUserForEmail,
+  getConfiguredAdminEmail,
+} from "./lib/employee-auth";
 
 const rawPort = process.env["PORT"];
 
@@ -47,6 +51,30 @@ try {
 } catch (err) {
   logger.error({ err }, "Failed to seed the database on startup");
   process.exit(1);
+}
+
+// Make sure the admin (Molly) has a Clerk account, exactly like employees get
+// via ensureClerkUserForEmail when they're added to the roster. Without this
+// the admin email has no Clerk user, so signing in fails with "we couldn't
+// find your account" and there is no in-app way to create one. Creating the
+// account grants nothing on its own — signing in still requires the one-time
+// code emailed to that address. Best-effort: a Clerk outage must not stop the
+// server from booting.
+try {
+  const adminEmail = getConfiguredAdminEmail();
+  if (adminEmail) {
+    await ensureClerkUserForEmail(adminEmail);
+    logger.info({ adminEmail }, "Admin sign-in account is ready");
+  } else {
+    logger.warn(
+      "ADMIN_EMAIL is not set — nobody can sign in as admin until it is configured",
+    );
+  }
+} catch (err) {
+  logger.error(
+    { err },
+    "Could not prepare the admin Clerk account; admin sign-in may fail until this succeeds",
+  );
 }
 
 app.listen(port, (err) => {

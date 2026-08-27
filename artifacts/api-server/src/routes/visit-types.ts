@@ -57,7 +57,12 @@ function currentPayRates(rows: VisitPayRateRow[]): VisitPayRateRow[] {
 // employee log-hours form can populate its checklist; writes are admin-only.
 // ---------------------------------------------------------------------------
 
-router.get("/visit-types", requireSignedIn, async (_req, res, next) => {
+// Public, like GET /clients: the catalog is just non-sensitive labels
+// ("Start of Care", "SOC") that the employee log-hours form needs to render.
+// Gating it behind a session meant any session hiccup showed employees an
+// empty visit-type list ("No visit types are set up yet") with no way to tell
+// an auth failure from a genuinely empty catalog. Writes stay admin-only.
+router.get("/visit-types", async (_req, res, next) => {
   try {
     const rows = await listVisitTypeRows();
     res.json(rows.map(serializeVisitType));
