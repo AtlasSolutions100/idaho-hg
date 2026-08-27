@@ -48,4 +48,4 @@ channel = "stable-25_05"
 QBO_ENV = "sandbox"
 
 [userenv.shared]
-ADMIN_EMAIL = "nate@radiantaisoftware.com"
+ADMIN_EMAIL = "molly@idhealthcarestaffing.com"
