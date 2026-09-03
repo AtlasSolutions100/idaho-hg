@@ -227,3 +227,78 @@ export async function revokeClerkSessionsForEmail(email: string): Promise<void> 
     console.error(`Failed to revoke Clerk sessions for ${email}:`, err);
   }
 }
+
+/**
+ * Who is making a request to an endpoint that both Molly and employees use.
+ *
+ * Deliberately has no "anonymous" arm. Endpoints that touch time entries
+ * handle four session states and used to let a fifth — no session at all —
+ * fall through to full access, because the web demo posted hours without
+ * signing in. That made every employee's hours, mileage and per diem readable
+ * by anyone with the link, and let anyone file hours under someone else's
+ * name. Resolving the caller through this type means the anonymous case can't
+ * be forgotten: there is nothing for it to return.
+ */
+export type Caller =
+  | { kind: "admin" }
+  | { kind: "employee"; employee: EmployeeRow; email: string };
+
+export type CallerResult =
+  | { ok: true; caller: Caller }
+  | { ok: false; status: 401 | 403; body: { code?: string; message: string } };
+
+/**
+ * Molly's verified admin session, or a roster-linked employee's. Anything
+ * else — anonymous, an email that isn't on the roster, a claim still waiting
+ * on Molly, or an employee whose sign-in she turned off — comes back as a
+ * ready-to-send rejection with the same wording and codes the apps already
+ * branch on.
+ */
+export async function resolveCaller(req: Request): Promise<CallerResult> {
+  const admin = await verifyAdminRequest(req);
+  if (admin.ok) return { ok: true, caller: { kind: "admin" } };
+
+  const session = await resolveSessionEmployee(req);
+  switch (session.kind) {
+    case "employee":
+      return {
+        ok: true,
+        caller: { kind: "employee", employee: session.employee, email: session.email },
+      };
+    case "none":
+      return {
+        ok: false,
+        status: 401,
+        body: { message: "Please sign in first." },
+      };
+    case "disabled":
+      return {
+        ok: false,
+        status: 403,
+        body: {
+          code: "SIGN_IN_DISABLED",
+          message:
+            "Your sign-in has been turned off. Ask Molly if you think this is a mistake.",
+        },
+      };
+    case "pending":
+      return {
+        ok: false,
+        status: 403,
+        body: {
+          code: "LINK_REQUEST_PENDING",
+          message: "Molly still needs to confirm it's you. Check back in a bit.",
+        },
+      };
+    case "unknown":
+      return {
+        ok: false,
+        status: 403,
+        body: {
+          code: "NOT_LINKED",
+          message:
+            "This email isn't linked to a team profile yet. Pick your name to get set up.",
+        },
+      };
+  }
+}

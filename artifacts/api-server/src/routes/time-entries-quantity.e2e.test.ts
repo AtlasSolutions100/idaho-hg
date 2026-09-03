@@ -70,14 +70,15 @@ const post = (path: string, body?: unknown) =>
 const patch = (path: string, body: unknown) =>
   api(path, { method: "PATCH", body: JSON.stringify(body) });
 
-/** Reports and rate writes are admin-only; entry creation stays anonymous. */
+// These fixtures run against the seeded roster (Adrian Eddins RN), whose row
+// has no sign-in email and must not be rewritten by a test. Logging hours now
+// needs a session, so Molly files them — the one caller who may name another
+// employee. asAdmin is kept for readability at the admin-only call sites.
+mockSession.email = ADMIN_EMAIL;
+
 const asAdmin = async <T>(fn: () => Promise<T>): Promise<T> => {
   mockSession.email = ADMIN_EMAIL;
-  try {
-    return await fn();
-  } finally {
-    mockSession.email = null;
-  }
+  return fn();
 };
 
 /** Create an entry and approve it so it reaches the reports. */

@@ -111,12 +111,16 @@ const post = (path: string, body?: unknown) =>
 const patch = (path: string, body: unknown) =>
   api(path, { method: "PATCH", body: JSON.stringify(body) });
 
+// Logging hours needs a session: the suite runs as the fixture nurse, and
+// admin-only calls flip to Molly and back to her.
+mockSession.email = EMP_EMAIL;
+
 const asAdmin = async <T>(fn: () => Promise<T>): Promise<T> => {
   mockSession.email = ADMIN_EMAIL;
   try {
     return await fn();
   } finally {
-    mockSession.email = null;
+    mockSession.email = EMP_EMAIL;
   }
 };
 
@@ -173,9 +177,13 @@ describe("Other one-off entries end-to-end", () => {
     expect(created.status).toBe(201);
     const id = created.body.id;
 
-    // Anonymous: refused.
+    // Refused without a session, and refused for the nurse whose entry it is.
+    mockSession.email = null;
     const anon = await post(`/time-entries/${id}/price`, { customPayAmount: 100 });
     expect(anon.status).toBe(401);
+    mockSession.email = EMP_EMAIL;
+    const byOwner = await post(`/time-entries/${id}/price`, { customPayAmount: 100 });
+    expect(byOwner.status).toBe(403);
 
     // Admin prices it (pay only — no client billing).
     const priced = await asAdmin(() =>
@@ -228,7 +236,7 @@ describe("Other one-off entries end-to-end", () => {
         note: "still a one-off",
       });
     } finally {
-      mockSession.email = null;
+      mockSession.email = EMP_EMAIL;
     }
     expect(toVisit.status).toBe(400);
     expect(toVisit.body.message).toMatch(/visit type/i);
@@ -262,7 +270,7 @@ describe("Other one-off entries end-to-end", () => {
       expect(empEdit.body.customPayAmount).toBeUndefined();
       expect(empEdit.body.customBillAmount).toBeUndefined();
     } finally {
-      mockSession.email = null;
+      mockSession.email = EMP_EMAIL;
     }
   });
 

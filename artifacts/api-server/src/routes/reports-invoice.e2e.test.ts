@@ -76,12 +76,16 @@ async function patch(path: string, body: unknown) {
 // Rate/roster/report writes are admin-only now; time-entry creation must stay
 // anonymous (the admin email isn't a roster employee, so creating an entry as
 // admin would be rejected as NOT_LINKED). Wrap only the admin calls.
+// Fixtures are built by POSTing time entries, which now requires a session.
+// Molly's is the one that may file hours for another employee, so this suite
+// runs as her throughout and asAdmin restores to her rather than to nobody.
+mockSession.email = ADMIN_EMAIL;
 const asAdmin = async <T>(fn: () => Promise<T>): Promise<T> => {
   mockSession.email = ADMIN_EMAIL;
   try {
     return await fn();
   } finally {
-    mockSession.email = null;
+    mockSession.email = ADMIN_EMAIL;
   }
 };
 

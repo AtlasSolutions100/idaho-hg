@@ -120,16 +120,18 @@ describe("saving drafts", () => {
   });
 
   it("defaults to submitted when no status is given", async () => {
-    mockState.email = null;
+    mockState.email = EMP_EMAIL;
     const res = await newEntry();
     expect(res.status).toBe(201);
     expect(res.body.status).toBe("submitted");
   });
 
-  it("anonymous requests can't save drafts (single or batch)", async () => {
+  it("anonymous requests can't file anything (single or batch)", async () => {
     mockState.email = null;
-    const single = await newEntry({ status: "draft" });
+    const single = await newEntry();
     expect(single.status).toBe(401);
+    const draft = await newEntry({ status: "draft" });
+    expect(draft.status).toBe(401);
     const batch = await api("POST", "/time-entries/batch", {
       employeeId: EMP_ID,
       clientId: CLIENT_ID,
@@ -138,6 +140,22 @@ describe("saving drafts", () => {
       status: "draft",
     });
     expect(batch.status).toBe(401);
+  });
+
+  it("Molly can file hours for someone, but not a draft in their name", async () => {
+    mockState.email = ADMIN_EMAIL;
+    // Someone forgot to log their day and Molly enters it for them.
+    const forThem = await newEntry({ date: "2027-08-02" });
+    expect(forThem.status).toBe(201);
+    expect(forThem.body.employeeId).toBe(EMP_ID);
+    expect(forThem.body.status).toBe("submitted");
+
+    // A draft is private to its author, so there is nobody for Molly's to
+    // belong to — better a clear refusal than an invisible row.
+    const draft = await newEntry({ date: "2027-08-02", status: "draft" });
+    expect(draft.status).toBe(400);
+    expect(draft.body.message).toContain("Only the employee");
+    mockState.email = EMP_EMAIL;
   });
 });
 
@@ -158,14 +176,13 @@ describe("draft privacy", () => {
     expect(ownList.status).toBe(200);
     expect(ownList.body.some((e: { id: string }) => e.id === draftId)).toBe(true);
 
-    // Anonymous lists must not leak drafts — not even when the caller
-    // supplies the owner's employeeId as a filter.
+    // Anonymous callers get nothing at all — not the draft, and not the
+    // submitted entries either, whatever employeeId they ask for.
     mockState.email = null;
     const anonList = await api("GET", "/time-entries");
-    expect(anonList.body.some((e: { id: string }) => e.id === draftId)).toBe(false);
+    expect(anonList.status).toBe(401);
     const anonScoped = await api("GET", `/time-entries?employeeId=${EMP_ID}`);
-    expect(anonScoped.status).toBe(200);
-    expect(anonScoped.body.some((e: { id: string }) => e.id === draftId)).toBe(false);
+    expect(anonScoped.status).toBe(401);
   });
 
   it("anonymous callers can't edit anything, draft or not", async () => {
@@ -337,7 +354,7 @@ describe("editing entries", () => {
   });
 
   it("a rejected entry can be edited and comes back as submitted", async () => {
-    mockState.email = null;
+    mockState.email = EMP_EMAIL;
     const created = await newEntry({ date: "2027-08-18" });
     const id = created.body.id as string;
     mockState.email = ADMIN_EMAIL; // rejecting is admin-only
@@ -358,7 +375,7 @@ describe("editing entries", () => {
 
 describe("approval locks the entry", () => {
   it("refuses edits once approved, even by the owner", async () => {
-    mockState.email = null;
+    mockState.email = EMP_EMAIL;
     const created = await newEntry({ date: "2027-08-19" });
     const id = created.body.id as string;
     mockState.email = ADMIN_EMAIL; // approving is admin-only
@@ -378,7 +395,7 @@ describe("approval locks the entry", () => {
   });
 
   it("refuses admin edits once approved too", async () => {
-    mockState.email = null;
+    mockState.email = EMP_EMAIL;
     const created = await newEntry({ date: "2027-08-20" });
     const id = created.body.id as string;
     mockState.email = ADMIN_EMAIL; // approving is admin-only
@@ -398,7 +415,7 @@ describe("approval locks the entry", () => {
 
 describe("admin fixes an entry before approving it", () => {
   it("the admin edits a submitted entry, it stays submitted, and the audit trail records what changed", async () => {
-    mockState.email = null;
+    mockState.email = EMP_EMAIL;
     const created = await newEntry({ date: "2027-08-24", mileage: 12, note: "typo" });
     const id = created.body.id as string;
     const originalSubmittedAt = created.body.submittedAt as string;
@@ -427,7 +444,7 @@ describe("admin fixes an entry before approving it", () => {
   });
 
   it("an admin edit that changes nothing leaves no audit trail", async () => {
-    mockState.email = null;
+    mockState.email = EMP_EMAIL;
     const created = await newEntry({ date: "2027-08-25" });
     const id = created.body.id as string;
 
@@ -445,7 +462,7 @@ describe("admin fixes an entry before approving it", () => {
   });
 
   it("admin edits re-run the create-time rules", async () => {
-    mockState.email = null;
+    mockState.email = EMP_EMAIL;
     const created = await newEntry({ date: "2027-08-26" });
     const id = created.body.id as string;
 
@@ -487,7 +504,7 @@ describe("admin fixes an entry before approving it", () => {
   });
 
   it("a rejected entry the admin fixes stays rejected (she can still approve it after)", async () => {
-    mockState.email = null;
+    mockState.email = EMP_EMAIL;
     const created = await newEntry({ date: "2027-08-28" });
     const id = created.body.id as string;
     mockState.email = ADMIN_EMAIL; // rejecting is admin-only

@@ -42,6 +42,9 @@ let server: Server;
 let baseUrl: string;
 
 const EMP_ID = "e2e-batch-emp";
+// Batching visits requires a session, so the fixture nurse has a sign-in email
+// and the whole suite runs as her.
+const EMP_EMAIL = "batch-e2e-nurse@example.com";
 const CLIENT_ID = "e2e-batch-client";
 const NO_MILEAGE_CLIENT_ID = "e2e-batch-client-nomileage";
 
@@ -52,9 +55,18 @@ async function cleanup() {
   await db.delete(employeesTable).where(eq(employeesTable.id, EMP_ID));
 }
 
+// Logging hours needs a session, so the suite runs as the fixture nurse;
+// the admin-only assertions flip to Molly and back.
+mockState.email = EMP_EMAIL;
+
 beforeAll(async () => {
   await cleanup();
-  await db.insert(employeesTable).values({ id: EMP_ID, name: "Batch E2E Nurse", role: "RN" });
+  await db.insert(employeesTable).values({
+    id: EMP_ID,
+    name: "Batch E2E Nurse",
+    role: "RN",
+    email: EMP_EMAIL,
+  });
   await db.insert(clientsTable).values([
     { id: CLIENT_ID, name: "Batch E2E Clinic", billsByVisitType: true },
     {

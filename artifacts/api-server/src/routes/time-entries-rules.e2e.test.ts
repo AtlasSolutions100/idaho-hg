@@ -44,6 +44,9 @@ let server: Server;
 let baseUrl: string;
 
 const EMP_ID = "e2e-rules-employee";
+// Logging hours requires a session, so the fixture nurse has a sign-in email
+// and the suite runs as her; the admin-only assertions flip to Molly.
+const EMP_EMAIL = "rules-e2e-nurse@example.com";
 const CLIENT_ID = "e2e-rules-client"; // mileage on contract
 const NO_MILEAGE_CLIENT_ID = "e2e-rules-client-nomileage";
 
@@ -54,9 +57,18 @@ async function cleanup() {
   await db.delete(employeesTable).where(eq(employeesTable.id, EMP_ID));
 }
 
+// Logging hours needs a session, so the suite runs as the fixture nurse;
+// the admin-only assertions flip to Molly and back.
+mockState.email = EMP_EMAIL;
+
 beforeAll(async () => {
   await cleanup();
-  await db.insert(employeesTable).values({ id: EMP_ID, name: "Rules E2E Nurse", role: "RN" });
+  await db.insert(employeesTable).values({
+    id: EMP_ID,
+    name: "Rules E2E Nurse",
+    role: "RN",
+    email: EMP_EMAIL,
+  });
   await db.insert(clientsTable).values([
     { id: CLIENT_ID, name: "Rules E2E Clinic" },
     { id: NO_MILEAGE_CLIENT_ID, name: "Rules E2E No-Mileage Clinic", mileageOnContract: false },
@@ -229,7 +241,7 @@ describe("client mileage setting", () => {
       body: JSON.stringify({ mileageOnContract: false }),
     });
     expect(patch2.status).toBe(403);
-    mockState.email = null;
+    mockState.email = EMP_EMAIL;
   });
 
   it("can be toggled by the admin and is reported in the client list", async () => {
@@ -243,9 +255,8 @@ describe("client mileage setting", () => {
     const patched = (await patch.json()) as { mileageOnContract: boolean };
     expect(patched.mileageOnContract).toBe(false);
 
-    // Entry submission happens without the admin session (an admin session
-    // is not a roster employee and would be rejected outright).
-    mockState.email = null;
+    // Entries are submitted by the nurse, not by Molly.
+    mockState.email = EMP_EMAIL;
     const rejected = await createEntry({
       date: "2027-07-07",
       timeIn: "08:00",
@@ -262,7 +273,7 @@ describe("client mileage setting", () => {
       body: JSON.stringify({ mileageOnContract: true }),
     });
     expect(restore.status).toBe(200);
-    mockState.email = null;
+    mockState.email = EMP_EMAIL;
   });
 });
 
@@ -309,8 +320,8 @@ describe("visit types only for visit-billing clients", () => {
     const patched = (await patch.json()) as { billsByVisitType: boolean };
     expect(patched.billsByVisitType).toBe(true);
 
-    // Entry submission happens without the admin session.
-    mockState.email = null;
+    // Entries are submitted by the nurse, not by Molly.
+    mockState.email = EMP_EMAIL;
     const accepted = await createEntry({ date: "2027-07-09", visitType: "skilled-nursing" });
     expect(accepted.status).toBe(201);
     expect(accepted.body.visitType).toBe("skilled-nursing");
@@ -324,7 +335,7 @@ describe("visit types only for visit-billing clients", () => {
     });
     expect(restore.status).toBe(200);
     expect(((await restore.json()) as { billsByVisitType: boolean }).billsByVisitType).toBe(false);
-    mockState.email = null;
+    mockState.email = EMP_EMAIL;
   });
 
   it("hourly time-in/out entries still work for a simple client", async () => {

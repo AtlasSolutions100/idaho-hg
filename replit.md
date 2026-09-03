@@ -16,31 +16,62 @@ Time-entry and payroll-approval app for Molly Hodge's healthcare staffing compan
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
+- pnpm workspaces, Node.js 24+, TypeScript 5.9
 - API: Express 5
 - DB: PostgreSQL + Drizzle ORM
+- Auth: Clerk (`@clerk/express` on the server, `@clerk/react` in the web app)
 - Validation: Zod (`zod/v4`), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec)
 - Build: esbuild (CJS bundle)
 
 ## Where things live
 
-- `artifacts/staffing-app/` — the web app (served at `/`); pages in `src/pages/`, mock data + types in `src/lib/data.ts`, theme in `src/index.css`
-- `lib/api-spec/openapi.yaml` — API contract (health + time-entry endpoints: list, create, approve, reject, approve-all)
-- `lib/db/src/schema/` — DB schema (`time_entries` table)
-- `artifacts/api-server/src/routes/time-entries.ts` — time-entry route handlers (Zod-validated)
+- `artifacts/staffing-app/` — the web app (served at `/`); pages in `src/pages/`, theme in `src/index.css`
+- `artifacts/employee-mobile/` — the Expo/React Native employee app
+- `lib/api-spec/openapi.yaml` — the API contract; everything under `lib/api-zod/` and `lib/api-client-react/` is generated from it, never hand-edited
+- `lib/db/src/schema/` — DB schema, one file per area (roster, rates, time-entries, visit-types, disciplines, onboarding, qbo, …)
+- `artifacts/api-server/src/routes/` — route handlers, Zod-validated
+- `artifacts/api-server/src/lib/employee-auth.ts` — every authorization decision in the app
+
+## Authorization — read this before touching a route
+
+Everything is real data now: real people, real hours, real pay. There is no
+anonymous access to anything that is not a plain label.
+
+- `requireAdmin` — Molly only. Compares the Clerk-verified session email to the
+  `ADMIN_EMAIL` environment variable, and fails closed when it isn't set. Admin
+  identity is deliberately NOT a roster column: roster emails are editable
+  through the API, so a row-based flag would let anyone promote themselves.
+- `requireEmployee` — a signed-in email that maps to an active roster profile.
+- `requireSignedIn` — any Clerk session; used where the caller may not be linked
+  to a profile yet (the mobile claim-your-name flow, `GET /clients`).
+- `resolveCaller` — for the endpoints Molly and employees share (time entries).
+  It returns Molly, or the employee, or a ready-made 401/403 — it has no
+  "anonymous" arm, so that case cannot be forgotten. Employees are always pinned
+  to their own `employeeId`, whatever the request body says; only Molly may file
+  or read hours across the roster. Drafts are private to their author.
+- Public on purpose, and only these: `GET /visit-types`, `GET /disciplines`
+  (label catalogues the sign-in and claim screens need), `POST /feedback`, and
+  `GET /api/qbo/callback` (Intuit redirects a browser there with no app session;
+  it is secured by the signed `state` cookie instead).
+
+If you add an endpoint that touches a person, a rate, or an hour, gate it. The
+regression net is `artifacts/api-server/src/routes/time-entries-access.e2e.test.ts`.
 
 ## Architecture decisions
 
-- No real auth yet: employee/client rosters are hardcoded in `time-entries.ts` routes; the app acts as employee "1" (Sarah Martinez). Phase 3+ replaces with real accounts.
 - Time-entry names (employee/client) are denormalized onto rows at submit time so the approval table needs no joins.
-- Clients/employees/rates in the UI still come from `src/lib/data.ts` mock data; only time entries are database-backed.
+- Rates are append-only and effective-dated: a correction is a new row with an effective date, never an edit of an old one, so already-paid periods keep the numbers they were paid at.
+- `quantity` on a time entry means visits for a per-visit type and 15-minute blocks for an increment-billed one (Hospital at Home, Drive Time). It defaults to 1, so every pre-existing row prices exactly as before.
+- Visit types carry an optional `disciplines` list; an employee only sees the types for their own discipline, and an empty list means "everyone".
+- One-time data fixes go through `applied_backfills` so they run once and never stomp a later admin edit.
 
 ## Product
 
-Phase 2 (done): working time entry → approval loop. Employees submit real entries (persisted in Postgres), admins approve/reject individually or Approve All; both sides read the same data via the generated API client.
-
-Phase 1 (done): clickable visual shell, no backend. Role switcher at `/`; employee side (`/employee`, mobile-first Log Hours flow + entries list); admin side (`/admin` dashboard, Approve Payroll, Client Rates, Employee Rates, Reports placeholders — Pezwise payroll / invoices / reconciliation — and Onboarding checklist). All data is hardcoded placeholder content.
+Live with Molly and being used for real payroll. Employees log hours (web or
+mobile, signed in with a one-time email code); Molly approves, sets rates, and
+produces payroll, invoices, and reconciliation reports, with QuickBooks Online
+invoice sending.
 
 ## QuickBooks callback address (one-time Intuit setup)
 
@@ -55,13 +86,19 @@ Phase 1 (done): clickable visual shell, no backend. Role switcher at `/`; employ
 - Rate screens must look editable by Molly herself (she manages rates later)
 - Onboarding is a task checklist only — never store sensitive personal documents
 
-## User preferences
-
-_Populate as you build — explicit user instructions worth remembering across sessions._
-
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Run `pnpm --filter @workspace/db run push` before deploying code that adds a
+  table or column. Startup seeding writes to the new shape and the server exits
+  on a seeding failure, which takes the app down rather than degrading.
+- Editing `openapi.yaml` means re-running codegen and then `tsc --build` at the
+  repo root before typechecking any artifact — the artifacts consume the built
+  lib outputs, not the sources.
+- A `"200"` response in the spec needs its `content:` block. Drop it and Orval
+  generates the response type as `never`, which shows up as dozens of
+  "Property 'x' does not exist on type 'never'" errors far from the cause.
+- `ADMIN_EMAIL` must be Molly's exact sign-in email. If it is unset or wrong,
+  every admin screen fails closed and she can see nothing.
 
 ## Pointers
 

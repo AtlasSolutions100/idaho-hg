@@ -12,7 +12,11 @@ import {
   timeEntriesTable,
 } from "@workspace/db";
 
-const mockState: { email: string | null } = { email: null };
+// The counts back a warning in Molly's client settings dialog and are
+// admin-only, so this suite runs as Molly by default.
+const ADMIN_EMAIL = "admin-hourlycount-e2e@example.com";
+process.env.ADMIN_EMAIL = ADMIN_EMAIL;
+const mockState: { email: string | null } = { email: ADMIN_EMAIL };
 
 vi.mock("@clerk/express", () => ({
   clerkMiddleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
@@ -111,6 +115,18 @@ describe("GET /clients/:id/hourly-entry-count", () => {
     const res = await fetch(`${baseUrl}/api/clients/${EMPTY_CLIENT_ID}/hourly-entry-count`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ count: 0 });
+  });
+
+  it("is refused without Molly's session", async () => {
+    mockState.email = null;
+    const anon = await fetch(`${baseUrl}/api/clients/${CLIENT_ID}/hourly-entry-count`);
+    expect(anon.status).toBe(401);
+
+    mockState.email = "someone-else-hourly-entry-count@example.com";
+    const other = await fetch(`${baseUrl}/api/clients/${CLIENT_ID}/hourly-entry-count`);
+    expect(other.status).toBe(403);
+
+    mockState.email = ADMIN_EMAIL;
   });
 
   it("returns zero for an unknown client rather than failing", async () => {

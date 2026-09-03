@@ -85,7 +85,10 @@ async function status() {
   };
 }
 
-router.get("/demo-data", async (_req, res, next) => {
+// Admin-only, like the load/remove actions below: the counts are read only by
+// Molly's practice-data card, and they disclose how much real data is in the
+// system.
+router.get("/demo-data", requireAdmin, async (_req, res, next) => {
   try {
     res.json(await status());
   } catch (err) {

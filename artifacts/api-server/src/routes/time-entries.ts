@@ -16,7 +16,12 @@ import {
   PriceTimeEntryBody,
   UpdateTimeEntryBody,
 } from "@workspace/api-zod";
-import { resolveSessionEmployee, verifyAdminRequest } from "../lib/employee-auth";
+import {
+  requireAdmin,
+  resolveCaller,
+  resolveSessionEmployee,
+  verifyAdminRequest,
+} from "../lib/employee-auth";
 import { getVisitTypeMap } from "../lib/visit-types";
 import {
   hoursBetween,
@@ -197,37 +202,20 @@ export function validateEndDate(
 router.get("/time-entries", async (req, res, next) => {
   try {
     const query = ListTimeEntriesQueryParams.parse(req.query);
-    // Signed-in employees (mobile app) only ever see their own entries,
-    // regardless of what filter the client sent.
+    // Everyone's hours, mileage and per diem live behind this endpoint, so a
+    // session is required: no session is a 401, not an unfiltered read.
     // Molly (the verified admin sign-in) sees everything — her email isn't a
-    // roster profile, so without this check she'd be turned away as
-    // "not linked" and the payroll page would show nothing.
-    const admin = await verifyAdminRequest(req);
-    const session = admin.ok ? null : await resolveSessionEmployee(req);
-    if (session == null) {
-      // admin — no per-employee scoping
-    } else if (session.kind === "employee") {
-      query.employeeId = session.employee.id;
-    } else if (session.kind === "disabled") {
-      res.status(403).json({
-        code: "SIGN_IN_DISABLED",
-        message:
-          "Your sign-in has been turned off. Ask Molly if you think this is a mistake.",
-      });
+    // roster profile, so without the admin arm she'd be turned away as
+    // "not linked" and the payroll page would show nothing. An employee only
+    // ever sees their own entries, whatever filter the client sent.
+    const resolved = await resolveCaller(req);
+    if (!resolved.ok) {
+      res.status(resolved.status).json(resolved.body);
       return;
-    } else if (session.kind === "pending") {
-      res.status(403).json({
-        code: "LINK_REQUEST_PENDING",
-        message: "Molly still needs to confirm it's you. Check back in a bit.",
-      });
-      return;
-    } else if (session.kind === "unknown") {
-      res.status(403).json({
-        code: "NOT_LINKED",
-        message:
-          "This email isn't linked to a team profile yet. Pick your name to get set up.",
-      });
-      return;
+    }
+    const caller = resolved.caller;
+    if (caller.kind === "employee") {
+      query.employeeId = caller.employee.id;
     }
     let rows = await db
       .select()
@@ -240,7 +228,7 @@ router.get("/time-entries", async (req, res, next) => {
     // roster-linked employee ever receives drafts — and their list is already
     // pinned to their own id above. Molly (admin), anonymous requests, and
     // caller-supplied employeeId filters never see anyone's drafts.
-    if (session?.kind !== "employee") {
+    if (caller.kind !== "employee") {
       rows = rows.filter((r) => r.status !== "draft");
     }
     if (query.status) {
@@ -254,8 +242,10 @@ router.get("/time-entries", async (req, res, next) => {
 
 // How many visit-type entries the client has in the current and previous two
 // calendar months — used to warn Molly before turning off visit-type billing
-// for a client that employees are actively logging visits against.
-router.get("/clients/:id/visit-entry-count", async (req, res, next) => {
+// for a client that employees are actively logging visits against. Admin-only:
+// it is read from her client settings dialog and nowhere else, and a count of
+// a client’s visits is business volume nobody outside should be able to poll.
+router.get("/clients/:id/visit-entry-count", requireAdmin, async (req, res, next) => {
   try {
     const clientId = String(req.params.id);
     const now = new Date();
@@ -280,7 +270,7 @@ router.get("/clients/:id/visit-entry-count", async (req, res, next) => {
 // How many plain hourly (no visit type) entries the client has in the current
 // and previous two calendar months — used to warn Molly before turning ON
 // visit-type billing for a client whose employees log plain time in/out.
-router.get("/clients/:id/hourly-entry-count", async (req, res, next) => {
+router.get("/clients/:id/hourly-entry-count", requireAdmin, async (req, res, next) => {
   try {
     const clientId = String(req.params.id);
     const now = new Date();
@@ -311,38 +301,24 @@ router.post("/time-entries", async (req, res, next) => {
     }
     const body = parsed.data;
     await ensureRosterSeeded();
-    // When the request carries a signed-in session (mobile app), the entry is
-    // always recorded against that employee — the client can't pick another.
-    const session = await resolveSessionEmployee(req);
-    // Drafts are private to their author, which only means something for a
-    // signed-in employee — anonymous requests can't save drafts (they could
-    // never see or edit them again anyway).
-    if (body.status === "draft" && session.kind !== "employee") {
-      res.status(401).json({ message: "Please sign in to save drafts." });
+    // Filing hours under someone else's name is a payroll problem, so the
+    // entry is always recorded against the signed-in employee — the client
+    // can't pick another. Molly may name any employee, because she enters
+    // hours for people who forgot; nobody else gets to.
+    const resolved = await resolveCaller(req);
+    if (!resolved.ok) {
+      res.status(resolved.status).json(resolved.body);
       return;
     }
-    if (session.kind === "employee") {
-      body.employeeId = session.employee.id;
-    } else if (session.kind === "disabled") {
-      res.status(403).json({
-        code: "SIGN_IN_DISABLED",
-        message:
-          "Your sign-in has been turned off. Ask Molly if you think this is a mistake.",
-      });
+    const caller = resolved.caller;
+    // Drafts are private to their author, which only means something for a
+    // signed-in employee — Molly can't see or finish someone's draft.
+    if (body.status === "draft" && caller.kind !== "employee") {
+      res.status(400).json({ message: "Only the employee can save their own draft." });
       return;
-    } else if (session.kind === "pending") {
-      res.status(403).json({
-        code: "LINK_REQUEST_PENDING",
-        message: "Molly still needs to confirm it's you. Check back in a bit.",
-      });
-      return;
-    } else if (session.kind === "unknown") {
-      res.status(403).json({
-        code: "NOT_LINKED",
-        message:
-          "This email isn't linked to a team profile yet. Pick your name to get set up.",
-      });
-      return;
+    }
+    if (caller.kind === "employee") {
+      body.employeeId = caller.employee.id;
     }
     const [employee] = await db
       .select()
@@ -533,24 +509,19 @@ router.post("/time-entries/batch", async (req, res, next) => {
     }
     const body = parsed.data;
     await ensureRosterSeeded();
-    const session = await resolveSessionEmployee(req);
-    // Same draft rule as the single-entry route: drafts require a signed-in
-    // employee, or nobody could ever see or finish them.
-    if (body.status === "draft" && session.kind !== "employee") {
-      res.status(401).json({ message: "Please sign in to save drafts." });
+    // Same gate as the single-entry route.
+    const resolved = await resolveCaller(req);
+    if (!resolved.ok) {
+      res.status(resolved.status).json(resolved.body);
       return;
     }
-    if (session.kind === "employee") {
-      body.employeeId = session.employee.id;
-    } else if (session.kind === "disabled") {
-      res.status(403).json({ code: "SIGN_IN_DISABLED", message: "Your sign-in has been turned off. Ask Molly if you think this is a mistake." });
+    const caller = resolved.caller;
+    if (body.status === "draft" && caller.kind !== "employee") {
+      res.status(400).json({ message: "Only the employee can save their own draft." });
       return;
-    } else if (session.kind === "pending") {
-      res.status(403).json({ code: "LINK_REQUEST_PENDING", message: "Molly still needs to confirm it's you. Check back in a bit." });
-      return;
-    } else if (session.kind === "unknown") {
-      res.status(403).json({ code: "NOT_LINKED", message: "This email isn't linked to a team profile yet. Pick your name to get set up." });
-      return;
+    }
+    if (caller.kind === "employee") {
+      body.employeeId = caller.employee.id;
     }
     const [employee] = await db
       .select()

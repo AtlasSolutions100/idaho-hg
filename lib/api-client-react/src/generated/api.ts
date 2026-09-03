@@ -232,7 +232,7 @@ export const getListTimeEntriesQueryKey = (params?: ListTimeEntriesParams,) => {
     }
 
 
-export const getListTimeEntriesQueryOptions = <TData = Awaited<ReturnType<typeof listTimeEntries>>, TError = ErrorType<unknown>>(params?: ListTimeEntriesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTimeEntries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListTimeEntriesQueryOptions = <TData = Awaited<ReturnType<typeof listTimeEntries>>, TError = ErrorType<ApiError>>(params?: ListTimeEntriesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTimeEntries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -251,14 +251,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListTimeEntriesQueryResult = NonNullable<Awaited<ReturnType<typeof listTimeEntries>>>
-export type ListTimeEntriesQueryError = ErrorType<unknown>
+export type ListTimeEntriesQueryError = ErrorType<ApiError>
 
 
 /**
  * @summary List time entries
  */
 
-export function useListTimeEntries<TData = Awaited<ReturnType<typeof listTimeEntries>>, TError = ErrorType<unknown>>(
+export function useListTimeEntries<TData = Awaited<ReturnType<typeof listTimeEntries>>, TError = ErrorType<ApiError>>(
  params?: ListTimeEntriesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTimeEntries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -2216,7 +2216,7 @@ export const getListClientsQueryKey = () => {
     }
 
 
-export const getListClientsQueryOptions = <TData = Awaited<ReturnType<typeof listClients>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listClients>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListClientsQueryOptions = <TData = Awaited<ReturnType<typeof listClients>>, TError = ErrorType<ApiError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listClients>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -2235,14 +2235,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListClientsQueryResult = NonNullable<Awaited<ReturnType<typeof listClients>>>
-export type ListClientsQueryError = ErrorType<unknown>
+export type ListClientsQueryError = ErrorType<ApiError>
 
 
 /**
  * @summary List active clients
  */
 
-export function useListClients<TData = Awaited<ReturnType<typeof listClients>>, TError = ErrorType<unknown>>(
+export function useListClients<TData = Awaited<ReturnType<typeof listClients>>, TError = ErrorType<ApiError>>(
   options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listClients>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -2365,7 +2365,7 @@ export const getGetClientVisitEntryCountQueryKey = (id: string,) => {
     }
 
 
-export const getGetClientVisitEntryCountQueryOptions = <TData = Awaited<ReturnType<typeof getClientVisitEntryCount>>, TError = ErrorType<unknown>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClientVisitEntryCount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetClientVisitEntryCountQueryOptions = <TData = Awaited<ReturnType<typeof getClientVisitEntryCount>>, TError = ErrorType<ApiError>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClientVisitEntryCount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -2384,14 +2384,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetClientVisitEntryCountQueryResult = NonNullable<Awaited<ReturnType<typeof getClientVisitEntryCount>>>
-export type GetClientVisitEntryCountQueryError = ErrorType<unknown>
+export type GetClientVisitEntryCountQueryError = ErrorType<ApiError>
 
 
 /**
  * @summary Count a client's visit-type time entries in recent months
  */
 
-export function useGetClientVisitEntryCount<TData = Awaited<ReturnType<typeof getClientVisitEntryCount>>, TError = ErrorType<unknown>>(
+export function useGetClientVisitEntryCount<TData = Awaited<ReturnType<typeof getClientVisitEntryCount>>, TError = ErrorType<ApiError>>(
  id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClientVisitEntryCount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -2443,7 +2443,7 @@ export const getGetClientHourlyEntryCountQueryKey = (id: string,) => {
     }
 
 
-export const getGetClientHourlyEntryCountQueryOptions = <TData = Awaited<ReturnType<typeof getClientHourlyEntryCount>>, TError = ErrorType<unknown>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClientHourlyEntryCount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetClientHourlyEntryCountQueryOptions = <TData = Awaited<ReturnType<typeof getClientHourlyEntryCount>>, TError = ErrorType<ApiError>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClientHourlyEntryCount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -2462,14 +2462,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetClientHourlyEntryCountQueryResult = NonNullable<Awaited<ReturnType<typeof getClientHourlyEntryCount>>>
-export type GetClientHourlyEntryCountQueryError = ErrorType<unknown>
+export type GetClientHourlyEntryCountQueryError = ErrorType<ApiError>
 
 
 /**
  * @summary Count a client's plain hourly time entries in recent months
  */
 
-export function useGetClientHourlyEntryCount<TData = Awaited<ReturnType<typeof getClientHourlyEntryCount>>, TError = ErrorType<unknown>>(
+export function useGetClientHourlyEntryCount<TData = Awaited<ReturnType<typeof getClientHourlyEntryCount>>, TError = ErrorType<ApiError>>(
  id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClientHourlyEntryCount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -3757,7 +3757,7 @@ export const getGetDemoDataStatusQueryKey = () => {
     }
 
 
-export const getGetDemoDataStatusQueryOptions = <TData = Awaited<ReturnType<typeof getDemoDataStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDemoDataStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetDemoDataStatusQueryOptions = <TData = Awaited<ReturnType<typeof getDemoDataStatus>>, TError = ErrorType<ApiError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDemoDataStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -3776,14 +3776,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetDemoDataStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getDemoDataStatus>>>
-export type GetDemoDataStatusQueryError = ErrorType<unknown>
+export type GetDemoDataStatusQueryError = ErrorType<ApiError>
 
 
 /**
  * @summary Report whether demo data is loaded and how much exists
  */
 
-export function useGetDemoDataStatus<TData = Awaited<ReturnType<typeof getDemoDataStatus>>, TError = ErrorType<unknown>>(
+export function useGetDemoDataStatus<TData = Awaited<ReturnType<typeof getDemoDataStatus>>, TError = ErrorType<ApiError>>(
   options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDemoDataStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {

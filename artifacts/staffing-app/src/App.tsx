@@ -115,9 +115,12 @@ function SignUpPage() {
   );
 }
 
-// Admin pages need Molly signed in — the server only accepts approve/deny,
-// email, and sign-in-access changes from the configured admin's session.
-function AdminGate({ children }: { children: React.ReactNode }) {
+// Everything past the welcome screen needs a session. The server no longer
+// serves or accepts anyone's hours without one — time entries carry names,
+// pay, mileage and per diem — so an unauthenticated page would only be able to
+// render errors. Sign-in is the gate; the server decides what each session is
+// actually allowed to see.
+function SignedInGate({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Show when="signed-in">{children}</Show>
@@ -127,6 +130,10 @@ function AdminGate({ children }: { children: React.ReactNode }) {
     </>
   );
 }
+
+// Admin pages need Molly signed in — the server only accepts approve/deny,
+// email, and sign-in-access changes from the configured admin's session.
+const AdminGate = SignedInGate;
 
 // Keeps the webview up-to-date when the signed-in user changes.
 function ClerkQueryClientCacheInvalidator() {
@@ -152,7 +159,11 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
-      <Route path="/employee" component={EmployeeDashboard} />
+      <Route path="/employee">
+        <SignedInGate>
+          <EmployeeDashboard />
+        </SignedInGate>
+      </Route>
       <Route path="/sign-in/*?" component={SignInPage} />
       <Route path="/sign-up/*?" component={SignUpPage} />
       <Route path="/admin">

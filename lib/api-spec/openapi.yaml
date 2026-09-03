@@ -63,13 +63,27 @@ paths:
             $ref: "#/components/schemas/EntryStatus"
       responses:
         "200":
-          description: List of time entries
+          description: >
+            Time entries. An employee receives only their own (including their
+            drafts); the admin receives everyone's, without drafts.
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: "#/components/schemas/TimeEntry"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Signed in, but not a working profile (or not the admin)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
     post:
       operationId: createTimeEntry
       tags: [time-entries]
@@ -89,6 +103,18 @@ paths:
                 $ref: "#/components/schemas/TimeEntry"
         "400":
           description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Signed in, but not a working profile (or not the admin)
           content:
             application/json:
               schema:
@@ -252,6 +278,18 @@ paths:
                   $ref: "#/components/schemas/TimeEntry"
         "400":
           description: Validation error (nothing was written)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Signed in, but not a working profile (or not the admin)
           content:
             application/json:
               schema:
@@ -794,6 +832,12 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Client"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
     post:
       operationId: createClient
       tags: [roster]
@@ -839,6 +883,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/VisitEntryCount"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Signed in, but not the admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /clients/{id}/hourly-entry-count:
     get:
       operationId: getClientHourlyEntryCount
@@ -862,6 +918,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HourlyEntryCount"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Signed in, but not the admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /clients/{id}:
     patch:
       operationId: updateClientBilling
@@ -1362,6 +1430,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DemoDataStatus"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Signed in, but not the admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
     post:
       operationId: loadDemoData
       tags: [demo]

@@ -33,12 +33,16 @@ vi.mock("@clerk/express", () => ({
 }));
 const ADMIN_EMAIL = "admin-hourly-rates-e2e@example.com";
 process.env.ADMIN_EMAIL = ADMIN_EMAIL;
+// Fixtures are built by POSTing time entries, which now requires a session.
+// Molly's is the one that may file hours for another employee, so this suite
+// runs as her throughout and asAdmin restores to her rather than to nobody.
+mockState.email = ADMIN_EMAIL;
 const asAdmin = async <T>(fn: () => Promise<T>): Promise<T> => {
   mockState.email = ADMIN_EMAIL;
   try {
     return await fn();
   } finally {
-    mockState.email = null;
+    mockState.email = ADMIN_EMAIL;
   }
 };
 const { default: app } = await import("../app");

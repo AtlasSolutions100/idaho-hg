@@ -281,7 +281,12 @@ function isUniqueEmailViolation(err: unknown): boolean {
   return false;
 }
 
-router.get("/clients", async (_req, res, next) => {
+// Signed-in only: the client list names who Idaho Healthcare Staffing works
+// with, which is commercial information, and the only screens that need it
+// (log hours, admin settings) are behind a sign-in anyway. requireSignedIn
+// rather than requireEmployee so the mobile claim-your-name flow, which
+// runs before a profile is linked, still renders.
+router.get("/clients", requireSignedIn, async (_req, res, next) => {
   try {
     await ensureRosterSeeded();
     const rows = await db
