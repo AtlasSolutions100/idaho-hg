@@ -79,7 +79,9 @@ export function daySummary(
     if (e.isHoliday) isHoliday = true;
     if (e.visitType) {
       const label = labelFor(e.visitType);
-      visitCounts.set(label, (visitCounts.get(label) ?? 0) + 1);
+      // An entry can cover more than one of the same visit ("2 evals"), so the
+      // day's tally counts visits performed rather than rows submitted.
+      visitCounts.set(label, (visitCounts.get(label) ?? 0) + (e.quantity ?? 1));
     }
     if (e.mileage) mileage += e.mileage;
     if (e.perDiemType) perDiemType = e.perDiemType;
@@ -89,7 +91,7 @@ export function daySummary(
   return {
     siblings,
     visitCounts: [...visitCounts.entries()],
-    totalVisits: siblings.filter((e) => e.visitType).length,
+    totalVisits: siblings.reduce((sum, e) => sum + (e.visitType ? (e.quantity ?? 1) : 0), 0),
     mileage,
     perDiemType,
     perDiemCount,
@@ -400,7 +402,9 @@ export function ApprovePayrollTable() {
                       <div className="truncate">{entry.clientName}</div>
                     </TableCell>
                     <TableCell className="font-mono text-sm whitespace-nowrap">
-                      {format(new Date(entry.date), 'MMM d, yyyy')}
+                      {entry.endDate && entry.endDate !== entry.date
+                        ? `${format(new Date(entry.date), 'MMM d')} – ${format(new Date(entry.endDate), 'MMM d, yyyy')}`
+                        : format(new Date(entry.date), 'MMM d, yyyy')}
                     </TableCell>
                     <TableCell>
                       {entry.isOther ? (
@@ -417,7 +421,12 @@ export function ApprovePayrollTable() {
                           )}
                         </div>
                       ) : entry.visitType ? (
-                        <span className="text-sm">{labelFor(entry.visitType)}</span>
+                        <span className="text-sm">
+                          {labelFor(entry.visitType)}
+                          {(entry.quantity ?? 1) > 1 && (
+                            <span className="text-muted-foreground"> ×{entry.quantity}</span>
+                          )}
+                        </span>
                       ) : (
                         <span className="text-sm text-muted-foreground">Hourly</span>
                       )}

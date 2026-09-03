@@ -15,7 +15,11 @@ export type ReconciliationEntryInput = {
   employeeName: string;
   employeeRole: string;
   visitType: string | null;
+  /** How many of the visit type (or billable blocks); 1 when absent. */
+  quantity?: number | null;
   hours: number | null;
+  /** Last day covered when the entry spans a range (mileage over a period). */
+  endDate?: string | null;
   mileage: number | null;
   perDiem: number | null;
   isWeekend: boolean;
@@ -37,6 +41,9 @@ export type ReconciliationLine = {
   entryId: string;
   date: string;
   visitType?: string;
+  /** Only present when more than one of the visit type is covered. */
+  quantity?: number;
+  endDate?: string;
   hours?: number;
   mileage?: number;
   perDiem?: number;
@@ -116,7 +123,11 @@ export function buildReconciliationReport(
     group.lines.push({
       entryId: String(entry.id),
       date: entry.date,
+      ...(entry.endDate ? { endDate: entry.endDate } : {}),
       ...(entry.visitType ? { visitType: entry.visitType } : {}),
+      ...(entry.visitType && entry.quantity != null && entry.quantity !== 1
+        ? { quantity: entry.quantity }
+        : {}),
       ...(entry.hours != null ? { hours: entry.hours } : {}),
       ...(entry.mileage != null ? { mileage: entry.mileage } : {}),
       ...(entry.perDiem != null ? { perDiem: entry.perDiem } : {}),
@@ -130,10 +141,14 @@ export function buildReconciliationReport(
       amount: round2(entry.amount ?? 0),
     });
     if (entry.visitType) {
-      group.visitMap.set(entry.visitType, (group.visitMap.get(entry.visitType) ?? 0) + 1);
-      reportVisitMap.set(entry.visitType, (reportVisitMap.get(entry.visitType) ?? 0) + 1);
-      group.totalVisits += 1;
-      totalVisits += 1;
+      // Count how many the entry covers, not how many rows there are — two
+      // evals logged as one entry are two visits on the invoice, so they have
+      // to be two here too or the reconciliation would not reconcile.
+      const count = entry.quantity != null && entry.quantity > 0 ? entry.quantity : 1;
+      group.visitMap.set(entry.visitType, (group.visitMap.get(entry.visitType) ?? 0) + count);
+      reportVisitMap.set(entry.visitType, (reportVisitMap.get(entry.visitType) ?? 0) + count);
+      group.totalVisits += count;
+      totalVisits += count;
     }
     // Accumulate in full precision; rounding happens once at the end so
     // fractional hours/miles can't drift the totals.

@@ -137,7 +137,8 @@ export default function VisitPayRatesPage() {
             <div>
               <h1 className="text-xl font-semibold">Visit Pay Rates</h1>
               <p className="text-sm text-muted-foreground">
-                What each discipline is paid per visit type (St. Luke’s)
+                What each discipline is paid per visit type (St. Luke’s). Types
+                marked “per N min” are paid per block, not per visit.
               </p>
             </div>
           </div>
@@ -204,7 +205,18 @@ export default function VisitPayRatesPage() {
                   <tr key={vt.key} className="border-b last:border-0 hover:bg-muted/20">
                     <td className="px-4 py-2 sticky left-0 bg-background">
                       <div className="font-medium">{vt.label}</div>
-                      <div className="text-xs text-muted-foreground">{vt.abbreviation}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {vt.abbreviation}
+                        {/* Saying the unit next to the number is the whole
+                            point for a type billed in blocks: "$84" means
+                            something very different per 15 minutes than it
+                            does per visit. */}
+                        {vt.billingUnit === 'increment' && (
+                          <span className="ml-2 font-medium text-foreground">
+                            per {vt.incrementMinutes} min
+                          </span>
+                        )}
+                      </div>
                     </td>
                     {disciplines.map((d) => {
                       const key = cellKey(d, vt.key);
@@ -221,7 +233,11 @@ export default function VisitPayRatesPage() {
                               inputMode="decimal"
                               value={value}
                               placeholder="—"
-                              aria-label={`${d} pay for ${vt.label}`}
+                              aria-label={
+                                vt.billingUnit === 'increment'
+                                  ? `${d} pay for ${vt.label}, per ${vt.incrementMinutes} minutes`
+                                  : `${d} pay per ${vt.label} visit`
+                              }
                               data-testid={`rate-${d}-${vt.key}`}
                               onChange={(e) =>
                                 setDrafts((prev) => ({ ...prev, [key]: e.target.value }))

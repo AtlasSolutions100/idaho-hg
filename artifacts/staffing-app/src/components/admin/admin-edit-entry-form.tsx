@@ -43,13 +43,18 @@ export function AdminEditEntryForm({
   const [hours, setHours] = useState(entry.hours != null ? String(entry.hours) : '');
   const [mileage, setMileage] = useState(entry.mileage != null ? String(entry.mileage) : '');
   const [visitType, setVisitType] = useState<string>(entry.visitType ?? NONE);
+  // How many of the visit type — Molly's correction path for an employee
+  // who logged two evals as one, or the wrong number of 15-minute blocks.
+  const [quantity, setQuantity] = useState(String(entry.quantity ?? 1));
   const [perDiemType, setPerDiemType] = useState<string>(entry.perDiemType ?? NONE);
   const [note, setNote] = useState(entry.note ?? '');
 
   // Visit-type options come from the admin-managed catalog. The entry's current
   // type may have been retired since it was logged — keep it selectable so the
   // dropdown shows the real label and Molly doesn't have to change it.
-  const { visitTypes, labelFor } = useVisitTypes();
+  const { visitTypes, labelFor, typeFor } = useVisitTypes();
+  const selectedType = typeFor(visitType === NONE ? null : visitType);
+  const isIncrement = selectedType?.billingUnit === 'increment';
   const visitTypeOptions =
     entry.visitType && !visitTypes.some((t) => t.key === entry.visitType)
       ? [{ key: entry.visitType, label: labelFor(entry.visitType) }, ...visitTypes]
@@ -79,12 +84,24 @@ export function AdminEditEntryForm({
       onError('Hours must be a positive number.');
       return;
     }
+    const quantityNum = Number(quantity);
+    if (visitType !== NONE && (!Number.isInteger(quantityNum) || quantityNum < 1)) {
+      onError(
+        isIncrement
+          ? `Enter a whole number of ${selectedType?.incrementMinutes ?? 15}-minute blocks.`
+          : 'Enter a whole number of visits.',
+      );
+      return;
+    }
     updateMutation.mutate({
       id: entry.id,
       data: {
         clientId: entry.clientId,
         date: entry.date,
-        ...(visitType !== NONE ? { visitType: visitType as VisitType } : {}),
+        ...(entry.endDate ? { endDate: entry.endDate } : {}),
+        ...(visitType !== NONE
+          ? { visitType: visitType as VisitType, quantity: quantityNum }
+          : {}),
         ...(timeIn.trim() ? { timeIn: timeIn.trim() } : {}),
         ...(timeOut.trim() ? { timeOut: timeOut.trim() } : {}),
         // Clock times take precedence server-side; only send hours when no times.
@@ -120,6 +137,22 @@ export function AdminEditEntryForm({
                 ))}
               </SelectContent>
             </Select>
+            <div className="space-y-1.5 pt-2">
+              <Label htmlFor={`edit-quantity-${entry.id}`}>
+                {isIncrement
+                  ? `How many ${selectedType?.incrementMinutes ?? 15}-minute blocks`
+                  : 'How many visits'}
+              </Label>
+              <Input
+                id={`edit-quantity-${entry.id}`}
+                type="number"
+                min="1"
+                step="1"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                data-testid={`input-quantity-${entry.id}`}
+              />
+            </div>
           </div>
         ) : (
           <>

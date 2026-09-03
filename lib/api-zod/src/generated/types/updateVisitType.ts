@@ -5,10 +5,19 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { BillingUnit } from './billingUnit';
 
 export interface UpdateVisitType {
   label?: string;
   abbreviation?: string;
   active?: boolean;
   sortOrder?: number;
+  /** Replaces the list outright; an empty array means all disciplines. */
+  disciplines?: string[];
+  billingUnit?: BillingUnit;
+  /**
+     * @minimum 1
+     * @maximum 480
+     */
+  incrementMinutes?: number;
 }

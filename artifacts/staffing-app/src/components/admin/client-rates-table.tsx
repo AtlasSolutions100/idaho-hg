@@ -102,7 +102,22 @@ function serverErrorMessage(error: unknown): string | null {
 export function ClientRatesTable() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { visitTypes } = useVisitTypes();
+  const { visitTypes, typeFor } = useVisitTypes();
+  /**
+   * "Rate ($ per visit)" is wrong for a type billed in blocks — the number
+   * being typed is a per-block rate, and getting that confused is a 4x
+   * billing error on a half-hour visit. Name the unit on the input.
+   */
+  const rateUnitLabel = (visitTypeKey: string | null | undefined, hourly = false) => {
+    if (hourly) return 'Rate ($ per hour)';
+    // Client rate rows can be discipline-specific ("hospital-at-home-RN"), so
+    // fall back to the key without its trailing discipline segment.
+    const base = visitTypeKey?.replace(/-[A-Z][A-Z0-9/]*$/, '');
+    const type = typeFor(visitTypeKey) ?? typeFor(base);
+    return type?.billingUnit === 'increment'
+      ? `Rate ($ per ${type.incrementMinutes} min)`
+      : 'Rate ($ per visit)';
+  };
   const { data: rates, isLoading, isError } = useListClientRates();
   // Per-client employee PAY rates (hourly pay that differs by client). The list
   // returns the current row per client+discipline.
@@ -1077,7 +1092,7 @@ export function ClientRatesTable() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="new-client-rate">Rate ($ per visit)</Label>
+              <Label htmlFor="new-client-rate">{rateUnitLabel(newVisitType)}</Label>
               <Input
                 id="new-client-rate"
                 type="number"
@@ -1373,7 +1388,10 @@ export function ClientRatesTable() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="client-rate">
-                {editing && isHourlyRateType(editing.visitType) ? 'Rate ($ per hour)' : 'Rate ($ per visit)'}
+                {rateUnitLabel(
+                  editing?.visitType,
+                  !!editing && isHourlyRateType(editing.visitType),
+                )}
               </Label>
               <Input
                 id="client-rate"
@@ -1526,7 +1544,7 @@ export function ClientRatesTable() {
               </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="visit-rate-value">Rate ($ per visit)</Label>
+              <Label htmlFor="visit-rate-value">{rateUnitLabel(visitRateType)}</Label>
               <Input
                 id="visit-rate-value"
                 type="number"

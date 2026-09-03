@@ -590,7 +590,10 @@ function EntryCard({
             {entry.clientName}
           </Text>
           <Text style={[styles.cardDate, { color: c.mutedForeground }]}>
-            {formatDate(entry.date)}
+            {/* A mileage entry can cover a pay period, not just a day. */}
+            {entry.endDate && entry.endDate !== entry.date
+              ? `${formatDate(entry.date)} – ${formatDate(entry.endDate)}`
+              : formatDate(entry.date)}
           </Text>
         </View>
         {recentlyAdjusted && (
@@ -630,7 +633,12 @@ function EntryCard({
 
       <View style={styles.cardDetails}>
         {entry.visitType && (
-          <Detail icon="activity" text={visitTypeLabels[entry.visitType] ?? entry.visitType} />
+          <Detail
+            icon="activity"
+            text={`${visitTypeLabels[entry.visitType] ?? entry.visitType}${
+              (entry.quantity ?? 1) > 1 ? ` ×${entry.quantity}` : ''
+            }`}
+          />
         )}
         {entry.hours != null && entry.hours > 0 && (
           <Detail

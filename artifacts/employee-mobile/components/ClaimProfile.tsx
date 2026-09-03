@@ -7,17 +7,25 @@ import {
   getListClaimableEmployeesQueryKey,
   useCreateLinkRequest,
   useListClaimableEmployees,
+  useListDisciplines,
 } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
 
 /**
  * Shown when a signed-in email isn't linked to a roster profile yet.
- * The person picks their name; Molly approves the link from her admin page.
+ * The person picks their name and confirms their discipline; Molly approves
+ * both from her admin page.
+ *
+ * The discipline is confirmed here rather than assumed from the roster because
+ * it decides which visit types they'll be offered and what they're paid — and
+ * the person themselves is the one who knows it. It is only a claim until
+ * Molly approves: approving applies it, denying discards it.
  */
 export function ClaimProfile({ onSignOut }: { onSignOut: () => void }) {
   const c = useColors();
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [discipline, setDiscipline] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const {
@@ -28,6 +36,10 @@ export function ClaimProfile({ onSignOut }: { onSignOut: () => void }) {
   } = useListClaimableEmployees({
     query: { queryKey: getListClaimableEmployeesQueryKey() },
   });
+
+  const { data: disciplines } = useListDisciplines();
+  const activeDisciplines = (disciplines ?? []).filter((d) => d.active);
+  const selectedEmployee = (claimable ?? []).find((e) => e.id === selectedId);
 
   const claimMutation = useCreateLinkRequest({
     mutation: {
@@ -56,7 +68,20 @@ export function ClaimProfile({ onSignOut }: { onSignOut: () => void }) {
   const submit = () => {
     if (!selectedId) return;
     setSubmitError(null);
-    claimMutation.mutate({ data: { employeeId: selectedId } });
+    claimMutation.mutate({
+      data: {
+        employeeId: selectedId,
+        ...(discipline ? { discipline } : {}),
+      },
+    });
+  };
+
+  // Picking a name pre-selects whatever discipline the roster already has, so
+  // the common case is confirm-and-go rather than another decision.
+  const pickEmployee = (id: string) => {
+    setSelectedId(id);
+    const emp = (claimable ?? []).find((e) => e.id === id);
+    setDiscipline(emp?.role || null);
   };
 
   return (
@@ -109,7 +134,7 @@ export function ClaimProfile({ onSignOut }: { onSignOut: () => void }) {
             const selected = item.id === selectedId;
             return (
               <Pressable
-                onPress={() => setSelectedId(item.id)}
+                onPress={() => pickEmployee(item.id)}
                 style={[
                   styles.row,
                   {
@@ -130,6 +155,43 @@ export function ClaimProfile({ onSignOut }: { onSignOut: () => void }) {
           }}
         />
       )}
+
+      {selectedEmployee && activeDisciplines.length > 0 ? (
+        <View style={styles.disciplineBlock}>
+          <Text style={[styles.disciplineLabel, { color: c.foreground }]}>
+            And your profession?
+          </Text>
+          <View style={styles.disciplineWrap}>
+            {activeDisciplines.map((d) => {
+              const on = discipline === d.key;
+              return (
+                <Pressable
+                  key={d.key}
+                  onPress={() => setDiscipline(d.key)}
+                  style={[
+                    styles.disciplineChip,
+                    {
+                      backgroundColor: on ? c.primary : c.card,
+                      borderColor: on ? c.primary : c.input,
+                    },
+                  ]}
+                  testID={`claim-discipline-${d.key}`}
+                  aria-pressed={on}
+                >
+                  <Text
+                    style={[
+                      styles.disciplineChipText,
+                      { color: on ? c.primaryForeground : c.foreground },
+                    ]}
+                  >
+                    {d.key}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
 
       {submitError ? (
         <Text style={[styles.error, { color: c.destructive }]}>{submitError}</Text>
@@ -189,6 +251,16 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 12,
   },
+  disciplineBlock: { gap: 8, marginTop: 4, marginBottom: 4 },
+  disciplineLabel: { fontFamily: 'Inter_600SemiBold', fontSize: 14 },
+  disciplineWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  disciplineChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  disciplineChipText: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
   rowName: { fontFamily: 'Inter_600SemiBold', fontSize: 16 },
   rowRole: { fontFamily: 'Inter_400Regular', fontSize: 13, marginTop: 1 },
   error: {

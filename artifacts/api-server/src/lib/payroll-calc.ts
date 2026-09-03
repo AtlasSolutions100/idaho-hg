@@ -15,6 +15,13 @@ export type PayrollRate = {
 
 export type PayrollEntryInput = {
   visitType: string | null;
+  /**
+   * How many of the visit type this entry covers — 2 for two evals on the
+   * same day, or the number of billable blocks for a type billed in
+   * increments. Absent/undefined means 1, so entries written before the
+   * column existed pay exactly what they always did.
+   */
+  quantity?: number | null;
   hours: number | null;
   mileage: number | null;
   perDiem: number | null;
@@ -40,6 +47,15 @@ export type PayrollAmounts = {
  * only the HIGHER of the two multipliers applies (they do not stack).
  * Normal entries use multiplier 1.
  */
+/**
+ * How many units an entry covers, defaulting to 1. Entries created before
+ * quantity existed carry no value and must keep pricing at exactly one unit.
+ */
+export function quantityOf(entry: Pick<PayrollEntryInput, "quantity">): number {
+  const q = entry.quantity;
+  return q != null && q > 0 ? q : 1;
+}
+
 export function resolveMultiplier(
   entry: Pick<PayrollEntryInput, "isWeekend" | "isHoliday">,
   rate: PayrollRate,
@@ -103,8 +119,11 @@ export function computePayrollAmounts(
     // Per-visit-type pay (visit_pay_rates) when set; otherwise fall back to the
     // employee's flat visitRate so existing behavior is preserved until Molly
     // fills in the discipline × visit-type pay matrix.
+    //
+    // The rate is per visit — or, for a type billed in increments, per block —
+    // so it is multiplied by how many the entry covers.
     const perVisitPay = opts.visitPayRate ?? rate.visitRate;
-    basePay = perVisitPay * multiplier;
+    basePay = perVisitPay * quantityOf(entry) * multiplier;
   } else if (entry.hours != null) {
     // Per-client hourly pay (client_pay_rates) when set; else the employee's
     // flat hourlyRate.
@@ -130,7 +149,7 @@ export type InvoiceAmount = {
  * bill 0 but are flagged.
  */
 export function computeInvoiceAmount(
-  entry: Pick<PayrollEntryInput, "visitType">,
+  entry: Pick<PayrollEntryInput, "visitType" | "quantity">,
   rate: { rate: number } | undefined,
 ): InvoiceAmount {
   if (!entry.visitType) {
@@ -139,5 +158,5 @@ export function computeInvoiceAmount(
   if (!rate) {
     return { amount: 0, billable: true, missingRate: true };
   }
-  return { amount: round2(rate.rate), billable: true, missingRate: false };
+  return { amount: round2(rate.rate * quantityOf(entry)), billable: true, missingRate: false };
 }

@@ -19,7 +19,9 @@ import {
   getVisitTypeKeySet,
   slugifyVisitTypeKey,
   serializeVisitType,
+  serializeDisciplinesColumn,
 } from "../lib/visit-types";
+import { getDisciplineKeySet } from "../lib/disciplines";
 
 const router: IRouter = Router();
 
@@ -50,6 +52,42 @@ function currentPayRates(rows: VisitPayRateRow[]): VisitPayRateRow[] {
     if (isNewer) latest.set(key, row);
   }
   return [...latest.values()];
+}
+
+/**
+ * Validate a discipline list against the catalog and return the stored column
+ * value. An unknown key is rejected rather than stored: a typo would silently
+ * hide the visit type from everyone, since nobody's discipline would match.
+ */
+async function validateDisciplines(
+  list: string[] | undefined,
+): Promise<{ value: string | null } | { error: string }> {
+  if (list == null) return { value: null };
+  const valid = await getDisciplineKeySet();
+  for (const d of list) {
+    if (!valid.has(d.trim())) {
+      return { error: `Unknown discipline "${d}". Add it on the Disciplines list first.` };
+    }
+  }
+  return { value: serializeDisciplinesColumn(list) };
+}
+
+/** Validate the billing unit pair; "visit" types keep a harmless default. */
+function validateUnit(
+  billingUnit: string | undefined,
+  incrementMinutes: number | undefined,
+):
+  | { billingUnit: "visit" | "increment"; incrementMinutes: number }
+  | { error: string } {
+  const unit = billingUnit ?? "visit";
+  if (unit !== "visit" && unit !== "increment") {
+    return { error: 'Billing unit must be "visit" or "increment".' };
+  }
+  const minutes = incrementMinutes != null ? Math.round(incrementMinutes) : 15;
+  if (unit === "increment" && !(minutes >= 1 && minutes <= 480)) {
+    return { error: "Block length must be between 1 and 480 minutes." };
+  }
+  return { billingUnit: unit, incrementMinutes: minutes };
 }
 
 // ---------------------------------------------------------------------------
@@ -93,13 +131,31 @@ router.post("/visit-types", requireAdmin, async (req, res, next) => {
       res.status(409).json({ message: `A visit type "${key}" already exists.` });
       return;
     }
+    const disciplines = await validateDisciplines(parsed.data.disciplines);
+    if ("error" in disciplines) {
+      res.status(400).json({ message: disciplines.error });
+      return;
+    }
+    const unit = validateUnit(parsed.data.billingUnit, parsed.data.incrementMinutes);
+    if ("error" in unit) {
+      res.status(400).json({ message: unit.error });
+      return;
+    }
     const all = await db.select().from(visitTypesTable);
     const maxSort = all.reduce((m, r) => Math.max(m, r.sortOrder), 0);
     const sortOrder =
       parsed.data.sortOrder != null ? Math.round(parsed.data.sortOrder) : maxSort + 10;
     const [row] = await db
       .insert(visitTypesTable)
-      .values({ key, label: label.trim(), abbreviation: abbreviation.trim(), sortOrder })
+      .values({
+        key,
+        label: label.trim(),
+        abbreviation: abbreviation.trim(),
+        sortOrder,
+        disciplines: disciplines.value,
+        billingUnit: unit.billingUnit,
+        incrementMinutes: unit.incrementMinutes,
+      })
       .returning();
     res.status(201).json(serializeVisitType(row!));
   } catch (err) {
@@ -128,6 +184,28 @@ router.patch("/visit-types/:key", requireAdmin, async (req, res, next) => {
     if (parsed.data.abbreviation != null) update.abbreviation = parsed.data.abbreviation.trim();
     if (parsed.data.active != null) update.active = parsed.data.active;
     if (parsed.data.sortOrder != null) update.sortOrder = Math.round(parsed.data.sortOrder);
+    if (parsed.data.disciplines != null) {
+      // Sent as an array, replacing the list outright; [] reopens the type to
+      // every discipline.
+      const disciplines = await validateDisciplines(parsed.data.disciplines);
+      if ("error" in disciplines) {
+        res.status(400).json({ message: disciplines.error });
+        return;
+      }
+      update.disciplines = disciplines.value;
+    }
+    if (parsed.data.billingUnit != null || parsed.data.incrementMinutes != null) {
+      const unit = validateUnit(
+        parsed.data.billingUnit ?? (existing.billingUnit as "visit" | "increment"),
+        parsed.data.incrementMinutes ?? existing.incrementMinutes,
+      );
+      if ("error" in unit) {
+        res.status(400).json({ message: unit.error });
+        return;
+      }
+      update.billingUnit = unit.billingUnit;
+      update.incrementMinutes = unit.incrementMinutes;
+    }
     const [row] = await db
       .update(visitTypesTable)
       .set(update)

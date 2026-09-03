@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useListVisitTypes,
+  useListDisciplines,
   useCreateVisitType,
   useUpdateVisitType,
   getListVisitTypesQueryKey,
@@ -70,7 +71,15 @@ export function VisitTypesTable() {
   const [editAbbreviation, setEditAbbreviation] = useState('');
   const [editSortOrder, setEditSortOrder] = useState('');
   const [editActive, setEditActive] = useState(true);
+  // Which disciplines may log this type. Empty = every discipline.
+  const [editDisciplines, setEditDisciplines] = useState<string[]>([]);
+  // Per visit, or per block of N minutes (Hospital at Home, drive time).
+  const [editIsIncrement, setEditIsIncrement] = useState(false);
+  const [editIncrementMinutes, setEditIncrementMinutes] = useState('15');
   const [editError, setEditError] = useState<string | null>(null);
+
+  const { data: disciplines } = useListDisciplines();
+  const activeDisciplines = (disciplines ?? []).filter((d) => d.active);
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: getListVisitTypesQueryKey() });
@@ -147,8 +156,16 @@ export function VisitTypesTable() {
     setEditAbbreviation(item.abbreviation);
     setEditSortOrder(String(item.sortOrder));
     setEditActive(item.active);
+    setEditDisciplines(item.disciplines ?? []);
+    setEditIsIncrement(item.billingUnit === 'increment');
+    setEditIncrementMinutes(String(item.incrementMinutes ?? 15));
     setEditError(null);
   };
+
+  const toggleEditDiscipline = (key: string) =>
+    setEditDisciplines((prev) =>
+      prev.includes(key) ? prev.filter((d) => d !== key) : [...prev, key],
+    );
 
   const handleSaveEdit = () => {
     if (!editing) return;
@@ -173,9 +190,24 @@ export function VisitTypesTable() {
       setEditError('Enter a whole number (0 or more) for sort order.');
       return;
     }
+    const incrementMinutes = Number(editIncrementMinutes);
+    if (editIsIncrement && (!Number.isInteger(incrementMinutes) || incrementMinutes < 1 || incrementMinutes > 480)) {
+      setEditError('Block length must be a whole number of minutes between 1 and 480.');
+      return;
+    }
     updateMutation.mutate({
       key: editing.key,
-      data: { label, abbreviation, sortOrder, active: editActive },
+      data: {
+        label,
+        abbreviation,
+        sortOrder,
+        active: editActive,
+        // Sent as an array every time: an empty one reopens the type to all
+        // disciplines, which is the only way to undo a narrowing.
+        disciplines: editDisciplines,
+        billingUnit: editIsIncrement ? 'increment' : 'visit',
+        ...(editIsIncrement ? { incrementMinutes } : {}),
+      },
     });
   };
 
@@ -225,6 +257,8 @@ export function VisitTypesTable() {
                 <TableRow>
                   <TableHead>Label</TableHead>
                   <TableHead>Abbreviation</TableHead>
+                  <TableHead>Who can log it</TableHead>
+                  <TableHead>Billed</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Sort Order</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -242,6 +276,28 @@ export function VisitTypesTable() {
                       <div className="text-xs text-muted-foreground font-mono">{item.key}</div>
                     </TableCell>
                     <TableCell className="font-mono text-sm">{item.abbreviation}</TableCell>
+                    <TableCell className="text-sm">
+                      {item.disciplines && item.disciplines.length > 0 ? (
+                        <span className="flex flex-wrap gap-1" data-testid={`disciplines-${item.key}`}>
+                          {item.disciplines.map((d) => (
+                            <Badge key={d} variant="secondary" className="font-mono text-xs">
+                              {d}
+                            </Badge>
+                          ))}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground" data-testid={`disciplines-${item.key}`}>
+                          Everyone
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm" data-testid={`billing-unit-${item.key}`}>
+                      {item.billingUnit === 'increment' ? (
+                        <span>per {item.incrementMinutes} min</span>
+                      ) : (
+                        <span className="text-muted-foreground">per visit</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Badge
                         variant="outline"
@@ -396,6 +452,77 @@ export function VisitTypesTable() {
                 Lower numbers appear first in the employee picker.
               </p>
             </div>
+            <div className="space-y-2 rounded-md border p-3">
+              <Label>Who can log it</Label>
+              <p className="text-xs text-muted-foreground">
+                Pick the disciplines this visit is for. Leave all unpicked and
+                everyone sees it. An RN shouldn't be offered a PT visit — it's
+                the same visit for a different profession, at a different rate.
+              </p>
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {activeDisciplines.map((d) => {
+                  const on = editDisciplines.includes(d.key);
+                  return (
+                    <Button
+                      key={d.key}
+                      type="button"
+                      size="sm"
+                      variant={on ? 'default' : 'outline'}
+                      className="font-mono"
+                      onClick={() => toggleEditDiscipline(d.key)}
+                      data-testid={`toggle-discipline-${d.key}`}
+                      aria-pressed={on}
+                    >
+                      {d.key}
+                    </Button>
+                  );
+                })}
+              </div>
+              {editDisciplines.length === 0 && (
+                <p className="text-xs text-muted-foreground pt-1">
+                  Currently visible to every discipline.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-3 rounded-md border p-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="edit-visit-type-increment">Billed in time blocks</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Off = one flat rate per visit. On = the rate is per block,
+                    and employees enter how long they were there.
+                  </p>
+                </div>
+                <Switch
+                  id="edit-visit-type-increment"
+                  checked={editIsIncrement}
+                  onCheckedChange={setEditIsIncrement}
+                  data-testid="switch-edit-visit-type-increment"
+                />
+              </div>
+              {editIsIncrement && (
+                <div className="space-y-2">
+                  <Label htmlFor="edit-visit-type-increment-minutes">Minutes per block</Label>
+                  <Input
+                    id="edit-visit-type-increment-minutes"
+                    type="number"
+                    min="1"
+                    max="480"
+                    step="1"
+                    value={editIncrementMinutes}
+                    onChange={(e) => setEditIncrementMinutes(e.target.value)}
+                    data-testid="input-edit-visit-type-increment-minutes"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    The rates on the Client Rates and Visit Pay Rates pages are
+                    then <strong>per block</strong>, not per visit — check them
+                    after switching this on.
+                  </p>
+                </div>
+              )}
+            </div>
+
             <div className="flex items-center justify-between rounded-md border p-3">
               <div className="space-y-0.5">
                 <Label htmlFor="edit-visit-type-active">Active</Label>

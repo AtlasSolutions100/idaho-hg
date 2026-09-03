@@ -63,6 +63,10 @@ export const employeeLinkRequestsTable = pgTable("employee_link_requests", {
   // requests for the same name — the second claimant gets a clear conflict.
   employeeId: text("employee_id").notNull().unique(),
   email: text("email").notNull().unique(),
+  // The discipline the claimant picked for themselves. Kept on the request
+  // (rather than written straight to the profile) so Molly sees what they
+  // claim — and any disagreement with the roster — before she approves.
+  claimedDiscipline: text("claimed_discipline"),
   requestedAt: timestamp("requested_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

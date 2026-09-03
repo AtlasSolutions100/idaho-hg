@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { BillingUnit } from './billingUnit';
 
 export interface CreateVisitType {
   /** Stable slug (lowercase). Generated from the label when omitted. */
@@ -12,4 +13,11 @@ export interface CreateVisitType {
   label: string;
   abbreviation: string;
   sortOrder?: number;
+  disciplines?: string[];
+  billingUnit?: BillingUnit;
+  /**
+     * @minimum 1
+     * @maximum 480
+     */
+  incrementMinutes?: number;
 }

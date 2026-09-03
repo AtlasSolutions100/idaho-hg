@@ -5,12 +5,14 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { BatchVisitLine } from './batchVisitLine';
 import type { CreateEntryStatus } from './createEntryStatus';
 import type { PerDiemType } from './perDiemType';
 import type { VisitType } from './visitType';
 
 /**
- * Submit multiple visit types for the same client/date in a single atomic request. The server inserts one time entry per visit type inside one transaction; mileage and per diem are recorded on the first entry only.
+ * Submit several visits for the same client/date in a single atomic request. The server inserts one time entry per line inside one transaction; mileage and per diem are recorded on the first entry only.
+ * Send `visits` to give each line its own quantity. `visitTypes` is the older shape — a plain list of keys, each counted once — and is still accepted so existing app versions keep working. Send one or the other, not both.
  */
 export interface BatchCreateTimeEntry {
   employeeId: string;
@@ -20,7 +22,13 @@ export interface BatchCreateTimeEntry {
      * @minItems 1
      * @maxItems 20
      */
-  visitTypes: VisitType[];
+  visits?: BatchVisitLine[];
+  /**
+     * Legacy shape — one entry per key, quantity 1. Prefer `visits`.
+     * @minItems 1
+     * @maxItems 20
+     */
+  visitTypes?: VisitType[];
   /** @minimum 0 */
   mileage?: number;
   perDiemType?: PerDiemType;

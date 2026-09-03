@@ -11,6 +11,7 @@ import {
 import { CreateLinkRequestBody } from "@workspace/api-zod";
 import { ensureRosterSeeded } from "./roster";
 import { requireAdmin } from "../lib/employee-auth";
+import { getDisciplineKeySet } from "../lib/disciplines";
 
 // Molly's list/approve/deny endpoints use requireAdmin — the same fail-closed
 // guard as the sign-in-access toggle: a Clerk session whose verified email
@@ -30,6 +31,9 @@ async function serializeRequest(row: EmployeeLinkRequestRow) {
     employeeRole: employee?.role ?? "",
     email: row.email,
     requestedAt: row.requestedAt.toISOString(),
+    // Molly sees this next to the profile's own discipline on the approval
+    // card, so a disagreement is visible before she approves.
+    ...(row.claimedDiscipline ? { claimedDiscipline: row.claimedDiscipline } : {}),
   };
 }
 
@@ -145,10 +149,22 @@ router.post("/link-requests", async (req, res, next) => {
       });
       return;
     }
+    // The discipline they picked for themselves. Recorded on the request, not
+    // written to the profile: Molly approves the person and their profession
+    // in one step, so a wrong pick can't silently re-rate anyone.
+    let claimedDiscipline: string | null = null;
+    if (parsed.data.discipline) {
+      const picked = parsed.data.discipline.trim();
+      if (!(await getDisciplineKeySet()).has(picked)) {
+        res.status(400).json({ message: `"${picked}" isn't one of the listed disciplines.` });
+        return;
+      }
+      claimedDiscipline = picked;
+    }
     try {
       const [row] = await db
         .insert(employeeLinkRequestsTable)
-        .values({ id: randomUUID(), employeeId: employee.id, email })
+        .values({ id: randomUUID(), employeeId: employee.id, email, claimedDiscipline })
         .returning();
       res.status(201).json(await serializeRequest(row));
     } catch (err) {
@@ -286,9 +302,15 @@ router.post(
         }
         // Conditional on email still being NULL — belt-and-braces against
         // any writer that didn't take the row lock.
+        // Approving accepts both the identity and the discipline they stated.
+        // Molly saw both on the card; if the discipline is wrong she denies,
+        // or fixes it afterwards on the employee.
         const [updated] = await tx
           .update(employeesTable)
-          .set({ email: request.email })
+          .set({
+            email: request.email,
+            ...(request.claimedDiscipline ? { role: request.claimedDiscipline } : {}),
+          })
           .where(and(eq(employeesTable.id, employee.id), isNull(employeesTable.email)))
           .returning();
         if (!updated) {

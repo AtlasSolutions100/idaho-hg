@@ -8,7 +8,6 @@ import {
   getListTimeEntriesQueryKey,
   type PerDiemType,
   type TimeEntry,
-  type VisitType,
 } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,11 +18,17 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useVisitTypes } from '@/lib/use-visit-types';
+import { VisitPicker, type VisitLine } from '@/components/employee/visit-picker';
 import { useToast } from '@/hooks/use-toast';
-import { Check, Loader2, Plus, X } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
 
 interface LogHoursFormProps {
   employeeId?: string;
+  /**
+   * The signed-in employee's discipline. Narrows the visit-type list to what
+   * their profession actually performs. Undefined (signed-out demo) shows all.
+   */
+  discipline?: string | null;
   /** When set, the form edits this existing entry instead of creating one. */
   entry?: TimeEntry;
   /** Drafts require a signed-in employee — the server refuses anonymous drafts. */
@@ -43,22 +48,28 @@ export function calculateHours(timeIn: string, timeOut: string): number | null {
   return Math.round((minutes / 60) * 100) / 100;
 }
 
-export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSubmit, onCancel }: LogHoursFormProps) {
+export function LogHoursForm({ employeeId = '1', discipline, entry, allowDraft = false, onSubmit, onCancel }: LogHoursFormProps) {
   const isEditing = !!entry;
   const [entryType, setEntryType] = useState<'visit' | 'hourly' | 'other'>(
     entry ? (entry.isOther ? 'other' : entry.visitType ? 'visit' : 'hourly') : 'visit',
   );
   const [clientId, setClientId] = useState(entry?.clientId ?? '');
-  // Multi-visit: track a set of selected visit types. When editing, an entry
-  // holds exactly one visit type, so the checklist acts single-select.
-  const [selectedVisitTypes, setSelectedVisitTypes] = useState<Set<VisitType>>(
-    new Set(entry?.visitType ? [entry.visitType] : []),
+  // The visits chosen for this day, each with how many. Editing an existing
+  // entry works on exactly one line (an entry holds one visit type).
+  const [visitLines, setVisitLines] = useState<VisitLine[]>(
+    entry?.visitType
+      ? [{ visitType: entry.visitType, quantity: entry.quantity ?? 1 }]
+      : [],
   );
   const [timeIn, setTimeIn] = useState(entry?.timeIn ?? '');
   const [timeOut, setTimeOut] = useState(entry?.timeOut ?? '');
   const [date, setDate] = useState(entry?.date ?? new Date().toISOString().split('T')[0]);
   const [hasMileage, setHasMileage] = useState(!!entry?.mileage);
   const [mileage, setMileage] = useState(entry?.mileage ? String(entry.mileage) : '');
+  // St. Luke's employees pull a mileage report off the client's device for a
+  // whole pay period, so mileage can cover a range instead of a single day.
+  const [mileageIsRange, setMileageIsRange] = useState(!!entry?.endDate);
+  const [mileageEndDate, setMileageEndDate] = useState(entry?.endDate ?? '');
   const [perDiemType, setPerDiemType] = useState<PerDiemType | ''>(entry?.perDiemType ?? '');
   const [note, setNote] = useState(entry?.note ?? '');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -72,9 +83,11 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
   const {
     visitTypes,
     labelFor,
+    typeFor,
+    activeCountBeforeFilter,
     isLoading: visitTypesLoading,
     isError: visitTypesError,
-  } = useVisitTypes();
+  } = useVisitTypes(discipline);
   const { data: clients, isLoading: clientsLoading } = useListClients();
   const createEntry = useCreateTimeEntry();
   const updateEntry = useUpdateTimeEntry();
@@ -94,22 +107,22 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
   const calculatedHours = useMemo(() => calculateHours(timeIn, timeOut), [timeIn, timeOut]);
   const overnight = calculatedHours != null && timeIn >= timeOut;
 
-  const toggleVisitType = (vt: VisitType) => {
-    setSelectedVisitTypes((prev) => {
-      const next = new Set(prev);
-      if (next.has(vt)) {
-        next.delete(vt);
-      } else {
-        if (isEditing) next.clear(); // one visit type per entry when editing
-        next.add(vt);
-      }
-      return next;
-    });
-  };
+  // Types exist, but none of them are for this discipline — worth saying so
+  // explicitly rather than showing the same "none set up" as an empty catalog.
+  const hiddenByDiscipline =
+    !visitTypesLoading && !visitTypesError && visitTypes.length === 0 && activeCountBeforeFilter > 0;
+  // Total visits chosen, counting a line of 2 evals as 2.
+  const totalVisits = visitLines.reduce((sum, l) => sum + l.quantity, 0);
+  // A mileage-only entry (no visit, no clock times) is the only shape the
+  // server lets span a date range.
+  const mileageOnly =
+    effectiveEntryType === 'hourly' && !timeIn && !timeOut && hasMileage && !!mileage;
 
   const save = async (action: 'draft' | 'submit') => {
-    if (effectiveEntryType === 'visit' && selectedVisitTypes.size === 0) return;
-    if (effectiveEntryType !== 'visit' && (!timeIn || !timeOut)) return;
+    if (effectiveEntryType === 'visit' && visitLines.length === 0) return;
+    // A mileage-only entry has no clock times by design — everything else
+    // outside the visit tab still needs them.
+    if (effectiveEntryType !== 'visit' && !mileageOnly && (!timeIn || !timeOut)) return;
     if (isOther && !note.trim()) return;
 
     setSavingAction(action);
@@ -123,11 +136,14 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
           data: {
             clientId,
             date: date!,
-            ...(effectiveEntryType === 'visit' && selectedVisitTypes.size > 0
-              ? { visitType: [...selectedVisitTypes][0] }
+            ...(effectiveEntryType === 'visit' && visitLines[0]
+              ? { visitType: visitLines[0].visitType, quantity: visitLines[0].quantity }
               : {}),
             ...(effectiveEntryType !== 'visit' && timeIn && timeOut ? { timeIn, timeOut } : {}),
             ...(mileageAllowed && hasMileage && mileage ? { mileage: parseFloat(mileage) } : {}),
+            ...(mileageAllowed && mileageOnly && mileageIsRange && mileageEndDate
+              ? { endDate: mileageEndDate }
+              : {}),
             ...(!isOther && perDiemType ? { perDiemType } : {}),
             ...(note.trim() ? { note: note.trim() } : {}),
             status: action === 'draft' ? 'draft' : 'submitted',
@@ -141,7 +157,7 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
             employeeId,
             clientId,
             date,
-            visitTypes: [...selectedVisitTypes],
+            visits: visitLines,
             ...(mileageAllowed && hasMileage && mileage ? { mileage: parseFloat(mileage) } : {}),
             ...(perDiemType ? { perDiemType } : {}),
             ...(note.trim() ? { note: note.trim() } : {}),
@@ -156,6 +172,9 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
             date,
             ...(timeIn && timeOut ? { timeIn, timeOut } : {}),
             ...(mileageAllowed && hasMileage && mileage ? { mileage: parseFloat(mileage) } : {}),
+            ...(mileageAllowed && mileageOnly && mileageIsRange && mileageEndDate
+              ? { endDate: mileageEndDate }
+              : {}),
             ...(!isOther && perDiemType ? { perDiemType } : {}),
             ...(note.trim() ? { note: note.trim() } : {}),
             ...(isOther ? { isOther: true } : {}),
@@ -186,8 +205,10 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
     !!clientId &&
     !!date &&
     (effectiveEntryType === 'visit'
-      ? selectedVisitTypes.size > 0
-      : !!(timeIn && timeOut)) &&
+      ? visitLines.length > 0
+      : mileageOnly || !!(timeIn && timeOut)) &&
+    // A range needs its end date before it can be sent.
+    (!mileageIsRange || !mileageOnly || !!mileageEndDate) &&
     (!isOther || !!note.trim()) &&
     !isSubmitting;
 
@@ -216,7 +237,7 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
                 setClientId(e.target.value);
                 // Visit selections belong to the previous client — never
                 // carry them over when switching.
-                setSelectedVisitTypes(new Set());
+                setVisitLines([]);
               }}
               required
               data-testid="select-client"
@@ -270,91 +291,28 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
             <TabsContent value="visit" className="space-y-4 mt-4">
               <div className="space-y-2">
                 <Label>
-                  Visit Type(s) *{' '}
+                  Visits *{' '}
                   <span className="text-xs text-muted-foreground font-normal">
-                    — select all that apply for this day
+                    — tap each visit you did; tap again for a second one
                   </span>
                 </Label>
-
-                {/* Selected visit types as removable badges */}
-                {selectedVisitTypes.size > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mb-2" data-testid="selected-visit-types">
-                    {[...selectedVisitTypes].map((vt) => (
-                      <Badge
-                        key={vt}
-                        variant="default"
-                        className="gap-1 cursor-pointer hover:bg-primary/80"
-                        onClick={() => toggleVisitType(vt)}
-                        data-testid={`badge-visit-${vt}`}
-                      >
-                        {labelFor(vt)}
-                        <X className="h-3 w-3" />
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-
-                {/* Scrollable checklist of all active visit types, from the
-                    admin-managed catalog. Renders a spinner while the catalog
-                    loads rather than an empty (or crashing) list. */}
-                <div
-                  className="rounded-md border border-input max-h-64 overflow-y-auto divide-y divide-border"
-                  data-testid="visit-type-list"
-                >
-                  {visitTypesLoading ? (
-                    <div className="flex items-center justify-center gap-2 px-3 py-6 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading visit types…
-                    </div>
-                  ) : visitTypesError ? (
-                    // Distinct from "none configured": a failed request used to
-                    // render the empty-state below, which read as "Molly hasn't
-                    // set any up" and hid the real problem.
-                    <div className="px-3 py-6 text-center text-sm text-destructive">
-                      Couldn’t load the visit types. Check your connection and
-                      refresh — if this keeps happening, send feedback.
-                    </div>
-                  ) : visitTypes.length === 0 ? (
-                    <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-                      No visit types are set up yet.
-                    </div>
-                  ) : (
-                    visitTypes.map((item) => {
-                      const vt = item.key;
-                      const checked = selectedVisitTypes.has(vt);
-                      return (
-                        <button
-                          key={vt}
-                          type="button"
-                          className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-muted ${
-                            checked ? 'bg-primary/10 font-medium' : ''
-                          }`}
-                          onClick={() => toggleVisitType(vt)}
-                          data-testid={`select-visit-type-${vt}`}
-                          aria-pressed={checked}
-                        >
-                          <span
-                            className={`flex-shrink-0 h-4 w-4 rounded border flex items-center justify-center ${
-                              checked
-                                ? 'bg-primary border-primary text-primary-foreground'
-                                : 'border-input'
-                            }`}
-                          >
-                            {checked && <Check className="h-3 w-3" />}
-                          </span>
-                          {labelFor(vt)}
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-
-                {selectedVisitTypes.size > 1 && (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Plus className="h-3 w-3" />
-                    {selectedVisitTypes.size} visits will be submitted — mileage and per diem attach to the first one
+                {discipline && !hiddenByDiscipline && (
+                  <p className="text-xs text-muted-foreground" data-testid="text-discipline-scope">
+                    Showing the visit types for {discipline}.
                   </p>
                 )}
+                <VisitPicker
+                  visitTypes={visitTypes}
+                  lines={visitLines}
+                  onChange={setVisitLines}
+                  labelFor={labelFor}
+                  typeFor={typeFor}
+                  isLoading={visitTypesLoading}
+                  isError={visitTypesError}
+                  hiddenByDiscipline={hiddenByDiscipline}
+                  discipline={discipline}
+                  singleLine={isEditing}
+                />
               </div>
             </TabsContent>
 
@@ -434,6 +392,7 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
               ) : (
                 <p className="text-xs text-muted-foreground">
                   Clocked in and out more than once today? Submit each stretch as its own entry — they add up.
+                  Just reporting mileage? Leave the times empty and fill in the miles below.
                 </p>
               )}
             </TabsContent>
@@ -455,22 +414,65 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
                 />
               </div>
               {hasMileage && (
-                <div className="relative">
-                  <Input
-                    id="mileage"
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    value={mileage}
-                    onChange={(e) => setMileage(e.target.value)}
-                    placeholder="0"
-                    aria-label="Miles (round trip)"
-                    data-testid="input-mileage"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                    miles
-                  </span>
-                </div>
+                <>
+                  <div className="relative">
+                    <Input
+                      id="mileage"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={mileage}
+                      onChange={(e) => setMileage(e.target.value)}
+                      placeholder="0"
+                      aria-label={mileageIsRange ? 'Total miles for the period' : 'Miles (round trip)'}
+                      data-testid="input-mileage"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                      miles
+                    </span>
+                  </div>
+
+                  {/* A mileage total pulled from the client's device covers a
+                      period, not a day. Only offered when the entry is mileage
+                      on its own — the server won't spread a visit or a shift
+                      across a range. */}
+                  {mileageOnly && (
+                    <div className="space-y-3 rounded-md border bg-muted/30 p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="mileage-range">These miles cover a date range</Label>
+                          <p className="text-xs text-muted-foreground">
+                            For a mileage report you ran for a whole pay period
+                          </p>
+                        </div>
+                        <Switch
+                          id="mileage-range"
+                          checked={mileageIsRange}
+                          onCheckedChange={setMileageIsRange}
+                          data-testid="switch-mileage-range"
+                        />
+                      </div>
+                      {mileageIsRange && (
+                        <div className="space-y-2">
+                          <Label htmlFor="mileage-end-date">Through *</Label>
+                          <Input
+                            id="mileage-end-date"
+                            type="date"
+                            value={mileageEndDate}
+                            min={date}
+                            onChange={(e) => setMileageEndDate(e.target.value)}
+                            data-testid="input-mileage-end-date"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            {mileageEndDate
+                              ? `One entry covering ${date} through ${mileageEndDate}.`
+                              : 'Pick the last day the report covers.'}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           ) : (
@@ -561,8 +563,8 @@ export function LogHoursForm({ employeeId = '1', entry, allowDraft = false, onSu
             )}
             {isSubmitting && savingAction === 'submit'
               ? 'Submitting...'
-              : !isEditing && effectiveEntryType === 'visit' && selectedVisitTypes.size > 1
-                ? `Submit ${selectedVisitTypes.size} Visits`
+              : !isEditing && effectiveEntryType === 'visit' && totalVisits > 1
+                ? `Submit ${totalVisits} Visits`
                 : isEditing && entry?.status !== 'draft'
                   ? 'Save & Resubmit'
                   : 'Submit Hours'}

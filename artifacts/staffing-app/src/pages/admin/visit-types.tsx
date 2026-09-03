@@ -1,6 +1,7 @@
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { VisitTypesTable } from '@/components/admin/visit-types-table';
+import { DisciplinesTable } from '@/components/admin/disciplines-table';
 import { ChevronLeft } from 'lucide-react';
 
 export default function VisitTypesPage() {
@@ -16,16 +17,22 @@ export default function VisitTypesPage() {
               </Button>
             </Link>
             <div>
-              <h1 className="text-xl font-semibold">Visit Types</h1>
+              <h1 className="text-xl font-semibold">Visit Types &amp; Disciplines</h1>
               <p className="text-sm text-muted-foreground">
-                The visit types employees can log for St. Luke’s
+                What employees can log, and which profession each one is for
               </p>
             </div>
           </div>
         </div>
       </div>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" data-testid="visit-types-content">
+      <div
+        className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8"
+        data-testid="visit-types-content"
+      >
         <VisitTypesTable />
+        {/* Disciplines sit under the visit types because narrowing a visit type
+            to a discipline is the common reason to come looking for this list. */}
+        <DisciplinesTable />
       </div>
     </div>
   );

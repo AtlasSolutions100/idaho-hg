@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import {
   db,
   clientsTable,
@@ -9,6 +9,7 @@ import {
   appliedBackfillsTable,
   clientRatesTable,
   employeeRatesTable,
+  timeEntriesTable,
   type ClientRow,
   type EmployeeRow,
 } from "@workspace/db";
@@ -17,6 +18,7 @@ import {
   CreateEmployeeBody,
   UpdateClientBillingBody,
   UpdateEmployeeContactBody,
+  UpdateEmployeeDisciplineBody,
   UpdateEmployeeEmailBody,
   UpdateEmployeeSignInAccessBody,
 } from "@workspace/api-zod";
@@ -32,6 +34,7 @@ import {
   hasDemoEmployeeData,
   purgeDemoEmployeeData,
 } from "../lib/demo-cleanup";
+import { getDisciplineKeySet } from "../lib/disciplines";
 
 const router: IRouter = Router();
 
@@ -445,7 +448,16 @@ router.post("/employees", requireAdmin, async (req, res, next) => {
     const name = body.name.trim();
     const role = body.role.trim();
     if (!name || !role) {
-      res.status(400).json({ message: "Employee name and role are required" });
+      res.status(400).json({ message: "Employee name and discipline are required" });
+      return;
+    }
+    // The discipline has to come from the catalog: it is the lookup key for
+    // this employee's pay and billing rates, so a free-typed variant ("Rn",
+    // "PT ") would resolve no rate and quietly pay them nothing.
+    if (!(await getDisciplineKeySet()).has(role)) {
+      res.status(400).json({
+        message: `"${role}" isn't in the discipline list. Pick one, or add it on the Disciplines list first.`,
+      });
       return;
     }
     const existing = await db.select().from(employeesTable);
@@ -591,6 +603,82 @@ router.patch("/employees/:id/contact", requireAdmin, async (req, res, next) => {
   try {
     await ensureRosterSeeded();
     await applyContactUpdate(String(req.params.id), req.body, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Admin-only: the discipline is the key that resolves this employee's pay
+// (visit_pay_rates.discipline) and billing ("hourly-{DISCIPLINE}") rates, so
+// it is picked from the catalog rather than typed — a typo would silently
+// resolve no rate at all.
+//
+// Entries already approved keep the discipline they were priced under: they
+// have been paid and invoiced, and rewriting them would change history. Entries
+// still waiting (draft, submitted, rejected) have not been priced yet, so they
+// are re-stamped and will price under the corrected discipline — which is the
+// point of fixing it. The count comes back so Molly can see what moved.
+router.patch("/employees/:id/discipline", requireAdmin, async (req, res, next) => {
+  try {
+    await ensureRosterSeeded();
+    const parsed = UpdateEmployeeDisciplineBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: parsed.error.issues[0]?.message ?? "Invalid discipline" });
+      return;
+    }
+    const discipline = parsed.data.discipline.trim();
+    if (!discipline) {
+      res.status(400).json({ message: "Pick a discipline." });
+      return;
+    }
+    if (!(await getDisciplineKeySet()).has(discipline)) {
+      res.status(400).json({
+        message: `"${discipline}" isn't in the discipline list. Add it there first.`,
+      });
+      return;
+    }
+    const id = String(req.params.id);
+    const result = await db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select()
+        .from(employeesTable)
+        .where(eq(employeesTable.id, id))
+        .for("update");
+      if (!locked) return null;
+      if (locked.role === discipline) {
+        return { employee: locked, restampedEntryCount: 0 };
+      }
+      const [updated] = await tx
+        .update(employeesTable)
+        .set({ role: discipline })
+        .where(eq(employeesTable.id, id))
+        .returning();
+      const restamped = await tx
+        .update(timeEntriesTable)
+        .set({ employeeRole: discipline })
+        .where(
+          and(
+            eq(timeEntriesTable.employeeId, id),
+            ne(timeEntriesTable.status, "approved"),
+          ),
+        )
+        .returning({ id: timeEntriesTable.id });
+      // The employee's own rate history is display-only for the role, but
+      // leaving it stale would show the wrong discipline on the rates page.
+      await tx
+        .update(employeeRatesTable)
+        .set({ employeeRole: discipline })
+        .where(eq(employeeRatesTable.employeeId, id));
+      return { employee: updated!, restampedEntryCount: restamped.length };
+    });
+    if (!result) {
+      res.status(404).json({ message: "Employee not found" });
+      return;
+    }
+    res.json({
+      employee: serializeEmployee(result.employee, { includeContact: true }),
+      restampedEntryCount: result.restampedEntryCount,
+    });
   } catch (err) {
     next(err);
   }

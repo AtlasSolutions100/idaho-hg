@@ -21,6 +21,23 @@ export const visitTypesTable = pgTable("visit_types", {
   active: boolean("active").notNull().default(true),
   // Lower sorts first in dropdowns; ties fall back to label.
   sortOrder: integer("sort_order").notNull().default(0),
+  // Which disciplines may log this visit type, as a comma-separated list of
+  // discipline keys ("RN,LPN"). NULL/empty means every discipline — the
+  // default, so a type Molly adds is visible to everyone until she narrows it.
+  //
+  // This is what stops an RN's visit-type list from being padded with
+  // "Physical Therapy (PTV)", "Occupational Therapy" and "Speech Therapy":
+  // those are the same visit for a different profession, at a different rate.
+  disciplines: text("disciplines"),
+  // How this type is counted and priced:
+  //   "visit"     — one flat rate per visit (the default, and how every
+  //                 existing type is priced).
+  //   "increment" — priced per `incrementMinutes` block, so the rate is a
+  //                 per-block rate and the entry carries how many blocks.
+  //                 St. Luke's bills Hospital at Home and drive time this way.
+  billingUnit: text("billing_unit").notNull().default("visit"),
+  // Minutes per billable block for "increment" types. Ignored for "visit".
+  incrementMinutes: integer("increment_minutes").notNull().default(15),
 });
 
 export const insertVisitTypeSchema = createInsertSchema(visitTypesTable);

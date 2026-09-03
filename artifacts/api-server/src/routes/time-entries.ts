@@ -17,7 +17,7 @@ import {
   UpdateTimeEntryBody,
 } from "@workspace/api-zod";
 import { resolveSessionEmployee, verifyAdminRequest } from "../lib/employee-auth";
-import { getVisitTypeKeySet } from "../lib/visit-types";
+import { getVisitTypeMap } from "../lib/visit-types";
 import {
   hoursBetween,
   isHolidayDate,
@@ -36,7 +36,9 @@ function serialize(row: TimeEntryRow) {
     clientId: row.clientId,
     clientName: row.clientName,
     date: row.date,
+    ...(row.endDate ? { endDate: row.endDate } : {}),
     ...(row.visitType ? { visitType: row.visitType } : {}),
+    quantity: row.quantity,
     ...(row.timeIn ? { timeIn: row.timeIn } : {}),
     ...(row.timeOut ? { timeOut: row.timeOut } : {}),
     ...(row.hours != null ? { hours: row.hours } : {}),
@@ -66,7 +68,9 @@ export function summarizeAdminChanges(
   next: {
     clientName: string;
     date: string;
+    endDate: string | null;
     visitType: string | null;
+    quantity: number;
     timeIn: string | null;
     timeOut: string | null;
     hours: number | null;
@@ -90,7 +94,9 @@ export function summarizeAdminChanges(
   };
   compare("Client", existing.clientName, next.clientName);
   compare("Date", existing.date, next.date);
+  compare("Through", existing.endDate, next.endDate);
   compare("Visit type", existing.visitType, next.visitType);
+  compare("How many", existing.quantity, next.quantity);
   // Clock times move together — report them as one change.
   if (existing.timeIn !== next.timeIn || existing.timeOut !== next.timeOut) {
     const before =
@@ -111,6 +117,81 @@ export function summarizeAdminChanges(
     changes.push(`Note: ${existing.note ? `"${existing.note}"` : "none"} → ${next.note ? `"${next.note}"` : "none"}`);
   }
   return changes.length > 0 ? changes.join("; ") : null;
+}
+
+/**
+ * Validate how many of a visit type an entry covers.
+ *
+ * Quantity carries two related things Molly asked for: the same visit more
+ * than once in a day (two evals and a discharge), and, for a type billed in
+ * blocks rather than per visit, how many blocks (a half hour of a 15-minute
+ * type is 2). Both are counts, so both are whole numbers — there is no half
+ * an eval and no third of a 15-minute block.
+ */
+export function validateQuantity(
+  raw: number | undefined,
+  visitType: string | null,
+  visitTypeRow: { label: string; billingUnit: string; incrementMinutes: number } | undefined,
+): { quantity: number } | { error: string } {
+  if (raw == null) return { quantity: 1 };
+  if (!visitType) {
+    // Hourly, mileage and Other entries are measured by their own fields
+    // (hours, miles, a flat amount). A quantity here would not be applied to
+    // anything, so accepting it silently would be a lie.
+    return raw === 1
+      ? { quantity: 1 }
+      : { error: "How many only applies to visit entries." };
+  }
+  if (!Number.isInteger(raw) || raw < 1 || raw > 100) {
+    const unit =
+      visitTypeRow?.billingUnit === "increment"
+        ? `${visitTypeRow.incrementMinutes}-minute blocks`
+        : "visits";
+    return { error: `Enter a whole number of ${unit} (1 to 100).` };
+  }
+  return { quantity: raw };
+}
+
+/**
+ * Validate the optional end of a date range.
+ *
+ * Only a mileage-only entry may span days: St. Luke's employees pull a
+ * mileage report off the client's device for a whole pay period and enter one
+ * total, so the entry covers date..endDate. Everything else happens on a
+ * single day — a visit, a shift, a per-diem day — and spreading one across a
+ * range would make it impossible to say which day it was worked.
+ */
+export function validateEndDate(
+  endDate: string | undefined,
+  shape: {
+    date: string;
+    visitType: string | null;
+    hours: number | null;
+    perDiem: number | null;
+    mileage: number | null;
+    isOther: boolean;
+  },
+): { endDate: string | null } | { error: string } {
+  if (endDate == null || endDate === "") return { endDate: null };
+  const mileageOnly =
+    !shape.visitType &&
+    shape.hours == null &&
+    !shape.isOther &&
+    (shape.perDiem ?? 0) === 0 &&
+    (shape.mileage ?? 0) > 0;
+  if (!mileageOnly) {
+    return {
+      error:
+        "Only a mileage entry can cover a date range. Log visits and shifts on the day they happened.",
+    };
+  }
+  if (!isValidDateString(endDate)) {
+    return { error: "That end date doesn't exist — please check it" };
+  }
+  if (endDate < shape.date) {
+    return { error: "The end of the range can't be before the start." };
+  }
+  return { endDate };
 }
 
 router.get("/time-entries", async (req, res, next) => {
@@ -323,8 +404,12 @@ router.post("/time-entries", async (req, res, next) => {
         return;
       }
     }
-    if (!body.visitType && hours == null) {
-      res.status(400).json({ message: "Provide a visit type or your time in and out" });
+    // A mileage-only entry is a valid shape on its own: St. Luke's employees
+    // report mileage for a whole period from the client's device, with no
+    // visit and no shift attached to it.
+    const mileageOnly = !body.visitType && hours == null && (body.mileage ?? 0) > 0 && !isOther;
+    if (!body.visitType && hours == null && !mileageOnly) {
+      res.status(400).json({ message: "Provide a visit type, your time in and out, or mileage" });
       return;
     }
     // Visit types only apply to clients that bill by visit type (St. Luke's).
@@ -335,8 +420,18 @@ router.post("/time-entries", async (req, res, next) => {
       return;
     }
     // Visit type must exist in the admin-managed catalog (the enum is now open).
-    if (body.visitType && !(await getVisitTypeKeySet()).has(body.visitType)) {
+    const visitTypeMap = await getVisitTypeMap();
+    if (body.visitType && !visitTypeMap.has(body.visitType)) {
       res.status(400).json({ message: `Unknown visit type "${body.visitType}".` });
+      return;
+    }
+    const qty = validateQuantity(
+      body.quantity,
+      body.visitType ?? null,
+      body.visitType ? visitTypeMap.get(body.visitType) : undefined,
+    );
+    if ("error" in qty) {
+      res.status(400).json({ message: qty.error });
       return;
     }
     // Mileage is only billable when the client's contract includes it.
@@ -352,6 +447,18 @@ router.post("/time-entries", async (req, res, next) => {
     // older app versions.
     const perDiemType = body.perDiemType ?? null;
     const perDiem = perDiemType ? 1 : (body.perDiem ?? null);
+    const range = validateEndDate(body.endDate, {
+      date: body.date,
+      visitType: body.visitType ?? null,
+      hours,
+      perDiem,
+      mileage: body.mileage ?? null,
+      isOther,
+    });
+    if ("error" in range) {
+      res.status(400).json({ message: range.error });
+      return;
+    }
     // Weekend/holiday are the server's call now — anything the client sent
     // is ignored.
     const isWeekend = isWeekendDate(body.date);
@@ -382,7 +489,9 @@ router.post("/time-entries", async (req, res, next) => {
           clientId: body.clientId,
           clientName: client.name,
           date: body.date,
+          endDate: range.endDate,
           visitType: body.visitType ?? null,
+          quantity: qty.quantity,
           timeIn: hasTimes ? (body.timeIn ?? null) : null,
           timeOut: hasTimes ? (body.timeOut ?? null) : null,
           hours,
@@ -474,13 +583,34 @@ router.post("/time-entries/batch", async (req, res, next) => {
       });
       return;
     }
+    // Two accepted shapes: `visits` (each line with its own quantity) and the
+    // older `visitTypes` (a plain list of keys, one each). Normalize to one
+    // list so everything below has a single thing to work with.
+    if (body.visits && body.visitTypes) {
+      res.status(400).json({ message: "Send either visits or visitTypes, not both." });
+      return;
+    }
+    const lines: Array<{ visitType: string; quantity?: number }> =
+      body.visits ?? (body.visitTypes ?? []).map((vt) => ({ visitType: vt }));
+    if (lines.length === 0) {
+      res.status(400).json({ message: "Pick at least one visit." });
+      return;
+    }
     // All visit types must exist in the admin-managed catalog (open enum).
-    const validVisitKeys = await getVisitTypeKeySet();
-    for (const vt of body.visitTypes) {
-      if (!validVisitKeys.has(vt)) {
-        res.status(400).json({ message: `Unknown visit type "${vt}".` });
+    const visitTypeMap = await getVisitTypeMap();
+    const resolvedLines: Array<{ visitType: string; quantity: number }> = [];
+    for (const line of lines) {
+      const row = visitTypeMap.get(line.visitType);
+      if (!row) {
+        res.status(400).json({ message: `Unknown visit type "${line.visitType}".` });
         return;
       }
+      const qty = validateQuantity(line.quantity, line.visitType, row);
+      if ("error" in qty) {
+        res.status(400).json({ message: `${row.label}: ${qty.error}` });
+        return;
+      }
+      resolvedLines.push({ visitType: line.visitType, quantity: qty.quantity });
     }
     const isWeekend = isWeekendDate(body.date);
     const isHoliday = isHolidayDate(body.date);
@@ -498,8 +628,8 @@ router.post("/time-entries/batch", async (req, res, next) => {
         if (!emp || !cli) return null;
       }
       const inserted: TimeEntryRow[] = [];
-      for (let i = 0; i < body.visitTypes.length; i++) {
-        const vt = body.visitTypes[i]!;
+      for (let i = 0; i < resolvedLines.length; i++) {
+        const line = resolvedLines[i]!;
         // Mileage and per diem on first entry only — never double-billed.
         const [row] = await tx
           .insert(timeEntriesTable)
@@ -510,7 +640,8 @@ router.post("/time-entries/batch", async (req, res, next) => {
             clientId: body.clientId,
             clientName: client.name,
             date: body.date,
-            visitType: vt,
+            visitType: line.visitType,
+            quantity: line.quantity,
             mileage: i === 0 ? (body.mileage ?? null) : null,
             perDiem: i === 0 ? perDiem : null,
             perDiemType: i === 0 ? perDiemType : null,
@@ -662,8 +793,9 @@ router.patch("/time-entries/:id", async (req, res, next) => {
         return;
       }
     }
-    if (!body.visitType && hours == null) {
-      res.status(400).json({ message: "Provide a visit type or your time in and out" });
+    const mileageOnly = !body.visitType && hours == null && (body.mileage ?? 0) > 0 && !isOther;
+    if (!body.visitType && hours == null && !mileageOnly) {
+      res.status(400).json({ message: "Provide a visit type, your time in and out, or mileage" });
       return;
     }
     if (body.visitType && !client.billsByVisitType) {
@@ -678,8 +810,36 @@ router.patch("/time-entries/:id", async (req, res, next) => {
       });
       return;
     }
+    // An edit re-runs every create-time rule, including the catalog check:
+    // a type Molly retired can't be introduced by editing an old entry.
+    const visitTypeMap = await getVisitTypeMap();
+    if (body.visitType && !visitTypeMap.has(body.visitType)) {
+      res.status(400).json({ message: `Unknown visit type "${body.visitType}".` });
+      return;
+    }
+    const qty = validateQuantity(
+      body.quantity,
+      body.visitType ?? null,
+      body.visitType ? visitTypeMap.get(body.visitType) : undefined,
+    );
+    if ("error" in qty) {
+      res.status(400).json({ message: qty.error });
+      return;
+    }
     const perDiemType = body.perDiemType ?? null;
     const perDiem = perDiemType ? 1 : (body.perDiem ?? null);
+    const range = validateEndDate(body.endDate, {
+      date: body.date,
+      visitType: body.visitType ?? null,
+      hours,
+      perDiem,
+      mileage: body.mileage ?? null,
+      isOther,
+    });
+    if ("error" in range) {
+      res.status(400).json({ message: range.error });
+      return;
+    }
     // Submitting (a draft, or resubmitting after a rejection/edit) stamps a
     // fresh submittedAt so Molly sees when it actually reached her. Admin
     // corrections never restamp it — the employee's submission time stands.
@@ -690,7 +850,9 @@ router.patch("/time-entries/:id", async (req, res, next) => {
       ? summarizeAdminChanges(existing, {
           clientName: client.name,
           date: body.date,
+          endDate: range.endDate,
           visitType: body.visitType ?? null,
+          quantity: qty.quantity,
           timeIn: hasTimes ? (body.timeIn ?? null) : null,
           timeOut: hasTimes ? (body.timeOut ?? null) : null,
           hours,
@@ -706,7 +868,9 @@ router.patch("/time-entries/:id", async (req, res, next) => {
         clientId: body.clientId,
         clientName: client.name,
         date: body.date,
+        endDate: range.endDate,
         visitType: body.visitType ?? null,
+        quantity: qty.quantity,
         timeIn: hasTimes ? (body.timeIn ?? null) : null,
         timeOut: hasTimes ? (body.timeOut ?? null) : null,
         hours,

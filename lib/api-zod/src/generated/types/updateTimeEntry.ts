@@ -15,7 +15,15 @@ import type { VisitType } from './visitType';
 export interface UpdateTimeEntry {
   clientId: string;
   date: string;
+  /** Last day covered for a mileage-only entry spanning a range; must be >= date */
+  endDate?: string;
   visitType?: VisitType;
+  /**
+     * How many of this visit type (or billable blocks). Defaults to 1.
+     * @minimum 1
+     * @maximum 100
+     */
+  quantity?: number;
   /**
      * Clock-in time "HH:MM" (24-hour). Provide with timeOut instead of hours.
      * @pattern ^([01][0-9]|2[0-3]):[0-5][0-9]$

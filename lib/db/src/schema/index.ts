@@ -2,6 +2,7 @@
 export * from "./time-entries";
 export * from "./rates";
 export * from "./visit-types";
+export * from "./disciplines";
 export * from "./onboarding";
 export * from "./roster";
 export * from "./workflow-status";

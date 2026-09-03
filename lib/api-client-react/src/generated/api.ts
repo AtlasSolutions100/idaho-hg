@@ -32,11 +32,13 @@ import type {
   ClientRate,
   CreateClientPayRate,
   CreateClientRate,
+  CreateDiscipline,
   CreateLinkRequest,
   CreateTimeEntry,
   CreateVisitPayRate,
   CreateVisitType,
   DemoDataStatus,
+  DisciplineItem,
   Employee,
   EmployeeInput,
   EmployeeRate,
@@ -66,7 +68,10 @@ import type {
   UpdateBusinessSettings,
   UpdateClientBilling,
   UpdateClientRate,
+  UpdateDiscipline,
   UpdateEmployeeContact,
+  UpdateEmployeeDiscipline,
+  UpdateEmployeeDisciplineResult,
   UpdateEmployeeEmail,
   UpdateEmployeeRate,
   UpdateEmployeeSignInAccess,
@@ -1289,6 +1294,227 @@ export const useUpdateClientPayRate = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getUpdateClientPayRateMutationOptions(options));
+    }
+
+export const getListDisciplinesUrl = () => {
+
+
+
+
+  return `/api/disciplines`
+}
+
+/**
+ * Public, like /clients and /visit-types: the catalog is just profession labels, and someone claiming a roster profile has to pick their discipline before they have a linked session.
+ * @summary List employee disciplines (admin-managed catalog)
+ */
+export const listDisciplines = async ( options?: Parameters<typeof customFetch>[1]): Promise<DisciplineItem[]> => {
+
+  return customFetch<DisciplineItem[]>(getListDisciplinesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDisciplinesQueryKey = () => {
+    return [
+    `/api/disciplines`
+    ] as const;
+    }
+
+
+export const getListDisciplinesQueryOptions = <TData = Awaited<ReturnType<typeof listDisciplines>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDisciplines>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDisciplinesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDisciplines>>> = ({ signal }) => listDisciplines({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDisciplines>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListDisciplinesQueryResult = NonNullable<Awaited<ReturnType<typeof listDisciplines>>>
+export type ListDisciplinesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List employee disciplines (admin-managed catalog)
+ */
+
+export function useListDisciplines<TData = Awaited<ReturnType<typeof listDisciplines>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDisciplines>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListDisciplinesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateDisciplineUrl = () => {
+
+
+
+
+  return `/api/disciplines`
+}
+
+/**
+ * @summary Add a new discipline
+ */
+export const createDiscipline = async (createDiscipline: CreateDiscipline, options?: Parameters<typeof customFetch>[1]): Promise<DisciplineItem> => {
+
+  return customFetch<DisciplineItem>(getCreateDisciplineUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createDiscipline)
+  }
+);}
+
+
+
+
+
+export const getCreateDisciplineMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDiscipline>>, TError,{data: BodyType<CreateDiscipline>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createDiscipline>>, TError,{data: BodyType<CreateDiscipline>}, TContext> => {
+
+const mutationKey = ['createDiscipline'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createDiscipline>>, {data: BodyType<CreateDiscipline>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createDiscipline(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateDisciplineMutationResult = NonNullable<Awaited<ReturnType<typeof createDiscipline>>>
+    export type CreateDisciplineMutationBody = BodyType<CreateDiscipline>
+    export type CreateDisciplineMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Add a new discipline
+ */
+export const useCreateDiscipline = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDiscipline>>, TError,{data: BodyType<CreateDiscipline>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createDiscipline>>,
+        TError,
+        {data: BodyType<CreateDiscipline>},
+        TContext
+      > => {
+      return useMutation(getCreateDisciplineMutationOptions(options));
+    }
+
+export const getUpdateDisciplineUrl = (key: string,) => {
+
+
+
+
+  return `/api/disciplines/${key}`
+}
+
+/**
+ * @summary Update a discipline (label, active, sort order)
+ */
+export const updateDiscipline = async (key: string,
+    updateDiscipline: UpdateDiscipline, options?: Parameters<typeof customFetch>[1]): Promise<DisciplineItem> => {
+
+  return customFetch<DisciplineItem>(getUpdateDisciplineUrl(key),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateDiscipline)
+  }
+);}
+
+
+
+
+
+export const getUpdateDisciplineMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDiscipline>>, TError,{key: string;data: BodyType<UpdateDiscipline>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateDiscipline>>, TError,{key: string;data: BodyType<UpdateDiscipline>}, TContext> => {
+
+const mutationKey = ['updateDiscipline'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateDiscipline>>, {key: string;data: BodyType<UpdateDiscipline>}> = (props) => {
+          const {key,data} = props ?? {};
+
+          return  updateDiscipline(key,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateDisciplineMutationResult = NonNullable<Awaited<ReturnType<typeof updateDiscipline>>>
+    export type UpdateDisciplineMutationBody = BodyType<UpdateDiscipline>
+    export type UpdateDisciplineMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update a discipline (label, active, sort order)
+ */
+export const useUpdateDiscipline = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDiscipline>>, TError,{key: string;data: BodyType<UpdateDiscipline>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateDiscipline>>,
+        TError,
+        {key: string;data: BodyType<UpdateDiscipline>},
+        TContext
+      > => {
+      return useMutation(getUpdateDisciplineMutationOptions(options));
     }
 
 export const getListVisitTypesUrl = () => {
@@ -3136,6 +3362,79 @@ export const useDenyLinkRequest = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getDenyLinkRequestMutationOptions(options));
+    }
+
+export const getUpdateEmployeeDisciplineUrl = (id: string,) => {
+
+
+
+
+  return `/api/employees/${id}/discipline`
+}
+
+/**
+ * The discipline is the key that resolves this employee's pay and billing rates, so it can only be set to a key from the /disciplines catalog. Approved entries keep the discipline they were priced under; entries still waiting (draft, submitted, rejected) are re-stamped so they price under the corrected discipline, and the count is returned.
+ * @summary Change an employee's discipline / profession
+ */
+export const updateEmployeeDiscipline = async (id: string,
+    updateEmployeeDiscipline: UpdateEmployeeDiscipline, options?: Parameters<typeof customFetch>[1]): Promise<UpdateEmployeeDisciplineResult> => {
+
+  return customFetch<UpdateEmployeeDisciplineResult>(getUpdateEmployeeDisciplineUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateEmployeeDiscipline)
+  }
+);}
+
+
+
+
+
+export const getUpdateEmployeeDisciplineMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEmployeeDiscipline>>, TError,{id: string;data: BodyType<UpdateEmployeeDiscipline>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateEmployeeDiscipline>>, TError,{id: string;data: BodyType<UpdateEmployeeDiscipline>}, TContext> => {
+
+const mutationKey = ['updateEmployeeDiscipline'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateEmployeeDiscipline>>, {id: string;data: BodyType<UpdateEmployeeDiscipline>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateEmployeeDiscipline(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateEmployeeDisciplineMutationResult = NonNullable<Awaited<ReturnType<typeof updateEmployeeDiscipline>>>
+    export type UpdateEmployeeDisciplineMutationBody = BodyType<UpdateEmployeeDiscipline>
+    export type UpdateEmployeeDisciplineMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Change an employee's discipline / profession
+ */
+export const useUpdateEmployeeDiscipline = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEmployeeDiscipline>>, TError,{id: string;data: BodyType<UpdateEmployeeDiscipline>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateEmployeeDiscipline>>,
+        TError,
+        {id: string;data: BodyType<UpdateEmployeeDiscipline>},
+        TContext
+      > => {
+      return useMutation(getUpdateEmployeeDisciplineMutationOptions(options));
     }
 
 export const getUpdateEmployeeContactUrl = (id: string,) => {

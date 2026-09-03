@@ -92,7 +92,8 @@ export function LinkRequestsCard() {
         </CardTitle>
         <CardDescription>
           These people signed in to the app and picked their name from your
-          team. Approve to link their email — you won't need to type it in.
+          team. Approve to link their email and the discipline they picked —
+          you won't need to type either in.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -106,6 +107,18 @@ export function LinkRequestsCard() {
               <div className="font-medium">
                 {request.employeeName}
                 <span className="ml-2 text-xs text-muted-foreground">{request.employeeRole}</span>
+                {/* What they said their profession is. Shown next to the
+                    profile's own so a disagreement is visible before Molly
+                    approves — approving accepts their answer. */}
+                {request.claimedDiscipline &&
+                  request.claimedDiscipline !== request.employeeRole && (
+                    <span
+                      className="ml-2 text-xs text-amber-700 dark:text-amber-500"
+                      data-testid={`claimed-discipline-${request.id}`}
+                    >
+                      says they're {request.claimedDiscipline}
+                    </span>
+                  )}
               </div>
               <div className="text-sm text-muted-foreground">{request.email}</div>
             </div>

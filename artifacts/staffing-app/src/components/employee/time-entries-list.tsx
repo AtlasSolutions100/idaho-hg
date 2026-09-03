@@ -182,7 +182,10 @@ function TimeEntryCard({
             <CardTitle className="text-base font-medium">{entry.clientName}</CardTitle>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Calendar className="h-3.5 w-3.5" />
-              {format(new Date(entry.date), 'MMM d, yyyy')}
+              {/* A mileage entry can cover a pay period, not just a day. */}
+              {entry.endDate && entry.endDate !== entry.date
+                ? `${format(new Date(entry.date), 'MMM d')} – ${format(new Date(entry.endDate), 'MMM d, yyyy')}`
+                : format(new Date(entry.date), 'MMM d, yyyy')}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -232,7 +235,15 @@ function TimeEntryCard({
           {entry.visitType && (
             <div className="space-y-1">
               <div className="text-muted-foreground">Visit Type</div>
-              <div className="font-medium font-mono">{labelFor(entry.visitType)}</div>
+              <div className="font-medium font-mono">
+                {labelFor(entry.visitType)}
+                {(entry.quantity ?? 1) > 1 && (
+                  <span className="text-muted-foreground font-normal">
+                    {' '}
+                    ×{entry.quantity}
+                  </span>
+                )}
+              </div>
             </div>
           )}
           {entry.hours ? (

@@ -5,6 +5,7 @@ import {
   purgeDemoEmployeeData,
 } from "./lib/demo-cleanup";
 import { ensureVisitTypesSeeded } from "./lib/visit-types";
+import { ensureDisciplinesSeeded } from "./lib/disciplines";
 import { ensureRosterSeeded } from "./routes/roster";
 import { ensureSeeded } from "./routes/rates";
 import {
@@ -43,10 +44,14 @@ try {
 // Seed the database up front (all idempotent) so the app is fully usable on a
 // fresh boot without waiting for a lazy first admin request: the roster
 // (clients + employees), their rates (client + employee pay rates), and the
-// admin-managed visit-type catalog used by the entry form + write-validation.
+// admin-managed discipline and visit-type catalogs used by the entry form,
+// the employee editor, and write-validation.
 try {
   await ensureRosterSeeded();
   await ensureSeeded();
+  // Disciplines before visit types: the visit-type catalog narrows types to
+  // discipline keys, so those keys have to exist first.
+  await ensureDisciplinesSeeded();
   await ensureVisitTypesSeeded();
 } catch (err) {
   logger.error({ err }, "Failed to seed the database on startup");

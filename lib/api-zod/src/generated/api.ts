@@ -34,7 +34,9 @@ export const ListTimeEntriesResponseItem = zod.object({
   "clientId": zod.string(),
   "clientName": zod.string(),
   "date": zod.string(),
+  "endDate": zod.string().optional().describe('Last day covered when the entry spans a date range (mileage entries)'),
   "visitType": zod.string().optional().describe('Visit-type key from the admin-managed visit_types catalog (e.g. \"soc\", \"eval\"). Open string — no fixed enum — so Molly can add new visit types with no code change; the server validates it against the catalog on write.'),
+  "quantity": zod.number().optional().describe('How many of this visit type the entry covers (or how many billable blocks for an \"increment\" type). 1 unless set.'),
   "timeIn": zod.string().optional().describe('Clock-in time \"HH:MM\" (24-hour)'),
   "timeOut": zod.string().optional().describe('Clock-out time \"HH:MM\" (24-hour)'),
   "hours": zod.number().optional(),
@@ -60,6 +62,8 @@ export const ListTimeEntriesResponse = zod.array(ListTimeEntriesResponseItem)
 /**
  * @summary Submit a time entry
  */
+export const createTimeEntryBodyQuantityMax = 100;
+
 export const createTimeEntryBodyTimeInRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
 export const createTimeEntryBodyTimeOutRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
 export const createTimeEntryBodyHoursMin = 0;
@@ -76,7 +80,9 @@ export const CreateTimeEntryBody = zod.object({
   "employeeId": zod.string(),
   "clientId": zod.string(),
   "date": zod.string(),
+  "endDate": zod.string().optional().describe('Last day covered, for an entry that spans a range instead of one day. Only mileage-only entries may use it (St. Luke\'s employees enter one mileage total for a whole pay period). Must be >= date.'),
   "visitType": zod.string().optional().describe('Visit-type key from the admin-managed visit_types catalog (e.g. \"soc\", \"eval\"). Open string — no fixed enum — so Molly can add new visit types with no code change; the server validates it against the catalog on write.'),
+  "quantity": zod.number().min(1).max(createTimeEntryBodyQuantityMax).optional().describe('How many of this visit type the entry covers — 2 for two evals on the same day. For an \"increment\" visit type it is the number of blocks, so a half hour of a 15-minute type is 2. Defaults to 1.'),
   "timeIn": zod.string().regex(createTimeEntryBodyTimeInRegExp).optional().describe('Clock-in time \"HH:MM\" (24-hour). Provide with timeOut instead of hours.'),
   "timeOut": zod.string().regex(createTimeEntryBodyTimeOutRegExp).optional().describe('Clock-out time \"HH:MM\" (24-hour); an earlier time than timeIn means the shift crossed midnight'),
   "hours": zod.number().min(createTimeEntryBodyHoursMin).max(createTimeEntryBodyHoursMax).optional().describe('Legacy direct hours; ignored when timeIn\/timeOut are provided'),
@@ -98,7 +104,9 @@ export const CreateTimeEntryResponse = zod.object({
   "clientId": zod.string(),
   "clientName": zod.string(),
   "date": zod.string(),
+  "endDate": zod.string().optional().describe('Last day covered when the entry spans a date range (mileage entries)'),
   "visitType": zod.string().optional().describe('Visit-type key from the admin-managed visit_types catalog (e.g. \"soc\", \"eval\"). Open string — no fixed enum — so Molly can add new visit types with no code change; the server validates it against the catalog on write.'),
+  "quantity": zod.number().optional().describe('How many of this visit type the entry covers (or how many billable blocks for an \"increment\" type). 1 unless set.'),
   "timeIn": zod.string().optional().describe('Clock-in time \"HH:MM\" (24-hour)'),
   "timeOut": zod.string().optional().describe('Clock-out time \"HH:MM\" (24-hour)'),
   "hours": zod.number().optional(),
@@ -128,6 +136,8 @@ export const UpdateTimeEntryParams = zod.object({
   "id": zod.coerce.string()
 })
 
+export const updateTimeEntryBodyQuantityMax = 100;
+
 export const updateTimeEntryBodyTimeInRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
 export const updateTimeEntryBodyTimeOutRegExp = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
 export const updateTimeEntryBodyHoursMin = 0;
@@ -143,7 +153,9 @@ export const updateTimeEntryBodyPerDiemMax = 1;
 export const UpdateTimeEntryBody = zod.object({
   "clientId": zod.string(),
   "date": zod.string(),
+  "endDate": zod.string().optional().describe('Last day covered for a mileage-only entry spanning a range; must be >= date'),
   "visitType": zod.string().optional().describe('Visit-type key from the admin-managed visit_types catalog (e.g. \"soc\", \"eval\"). Open string — no fixed enum — so Molly can add new visit types with no code change; the server validates it against the catalog on write.'),
+  "quantity": zod.number().min(1).max(updateTimeEntryBodyQuantityMax).optional().describe('How many of this visit type (or billable blocks). Defaults to 1.'),
   "timeIn": zod.string().regex(updateTimeEntryBodyTimeInRegExp).optional().describe('Clock-in time \"HH:MM\" (24-hour). Provide with timeOut instead of hours.'),
   "timeOut": zod.string().regex(updateTimeEntryBodyTimeOutRegExp).optional().describe('Clock-out time \"HH:MM\" (24-hour); an earlier time than timeIn means the shift crossed midnight'),
   "hours": zod.number().min(updateTimeEntryBodyHoursMin).max(updateTimeEntryBodyHoursMax).optional().describe('Legacy direct hours; ignored when timeIn\/timeOut are provided'),
@@ -162,7 +174,9 @@ export const UpdateTimeEntryResponse = zod.object({
   "clientId": zod.string(),
   "clientName": zod.string(),
   "date": zod.string(),
+  "endDate": zod.string().optional().describe('Last day covered when the entry spans a date range (mileage entries)'),
   "visitType": zod.string().optional().describe('Visit-type key from the admin-managed visit_types catalog (e.g. \"soc\", \"eval\"). Open string — no fixed enum — so Molly can add new visit types with no code change; the server validates it against the catalog on write.'),
+  "quantity": zod.number().optional().describe('How many of this visit type the entry covers (or how many billable blocks for an \"increment\" type). 1 unless set.'),
   "timeIn": zod.string().optional().describe('Clock-in time \"HH:MM\" (24-hour)'),
   "timeOut": zod.string().optional().describe('Clock-out time \"HH:MM\" (24-hour)'),
   "hours": zod.number().optional(),
@@ -211,7 +225,9 @@ export const PriceTimeEntryResponse = zod.object({
   "clientId": zod.string(),
   "clientName": zod.string(),
   "date": zod.string(),
+  "endDate": zod.string().optional().describe('Last day covered when the entry spans a date range (mileage entries)'),
   "visitType": zod.string().optional().describe('Visit-type key from the admin-managed visit_types catalog (e.g. \"soc\", \"eval\"). Open string — no fixed enum — so Molly can add new visit types with no code change; the server validates it against the catalog on write.'),
+  "quantity": zod.number().optional().describe('How many of this visit type the entry covers (or how many billable blocks for an \"increment\" type). 1 unless set.'),
   "timeIn": zod.string().optional().describe('Clock-in time \"HH:MM\" (24-hour)'),
   "timeOut": zod.string().optional().describe('Clock-out time \"HH:MM\" (24-hour)'),
   "hours": zod.number().optional(),
@@ -248,7 +264,9 @@ export const ApproveTimeEntryResponse = zod.object({
   "clientId": zod.string(),
   "clientName": zod.string(),
   "date": zod.string(),
+  "endDate": zod.string().optional().describe('Last day covered when the entry spans a date range (mileage entries)'),
   "visitType": zod.string().optional().describe('Visit-type key from the admin-managed visit_types catalog (e.g. \"soc\", \"eval\"). Open string — no fixed enum — so Molly can add new visit types with no code change; the server validates it against the catalog on write.'),
+  "quantity": zod.number().optional().describe('How many of this visit type the entry covers (or how many billable blocks for an \"increment\" type). 1 unless set.'),
   "timeIn": zod.string().optional().describe('Clock-in time \"HH:MM\" (24-hour)'),
   "timeOut": zod.string().optional().describe('Clock-out time \"HH:MM\" (24-hour)'),
   "hours": zod.number().optional(),
@@ -285,7 +303,9 @@ export const RejectTimeEntryResponse = zod.object({
   "clientId": zod.string(),
   "clientName": zod.string(),
   "date": zod.string(),
+  "endDate": zod.string().optional().describe('Last day covered when the entry spans a date range (mileage entries)'),
   "visitType": zod.string().optional().describe('Visit-type key from the admin-managed visit_types catalog (e.g. \"soc\", \"eval\"). Open string — no fixed enum — so Molly can add new visit types with no code change; the server validates it against the catalog on write.'),
+  "quantity": zod.number().optional().describe('How many of this visit type the entry covers (or how many billable blocks for an \"increment\" type). 1 unless set.'),
   "timeIn": zod.string().optional().describe('Clock-in time \"HH:MM\" (24-hour)'),
   "timeOut": zod.string().optional().describe('Clock-out time \"HH:MM\" (24-hour)'),
   "hours": zod.number().optional(),
@@ -311,6 +331,10 @@ export const RejectTimeEntryResponse = zod.object({
  * Inserts one time entry per visit type in a single database transaction. Mileage and per diem are assigned to the first entry only. If any insert fails the entire batch is rolled back — no partial state.
  * @summary Submit multiple visit-type entries for one day atomically
  */
+export const batchCreateTimeEntriesBodyVisitsItemQuantityMax = 100;
+
+export const batchCreateTimeEntriesBodyVisitsMax = 20;
+
 export const batchCreateTimeEntriesBodyVisitTypesMax = 20;
 
 export const batchCreateTimeEntriesBodyMileageMin = 0;
@@ -321,12 +345,16 @@ export const BatchCreateTimeEntriesBody = zod.object({
   "employeeId": zod.string(),
   "clientId": zod.string(),
   "date": zod.string(),
-  "visitTypes": zod.array(zod.string().describe('Visit-type key from the admin-managed visit_types catalog (e.g. \"soc\", \"eval\"). Open string — no fixed enum — so Molly can add new visit types with no code change; the server validates it against the catalog on write.')).min(1).max(batchCreateTimeEntriesBodyVisitTypesMax),
+  "visits": zod.array(zod.object({
+  "visitType": zod.string().describe('Visit-type key from the admin-managed visit_types catalog (e.g. \"soc\", \"eval\"). Open string — no fixed enum — so Molly can add new visit types with no code change; the server validates it against the catalog on write.'),
+  "quantity": zod.number().min(1).max(batchCreateTimeEntriesBodyVisitsItemQuantityMax).optional().describe('How many of this visit. 2 for two evals on the same day; for an \"increment\" visit type, the number of blocks (a half hour of a 15-minute type is 2). Defaults to 1.')
+}).describe('One visit line in a batch — a visit type and how many of it.')).min(1).max(batchCreateTimeEntriesBodyVisitsMax).optional(),
+  "visitTypes": zod.array(zod.string().describe('Visit-type key from the admin-managed visit_types catalog (e.g. \"soc\", \"eval\"). Open string — no fixed enum — so Molly can add new visit types with no code change; the server validates it against the catalog on write.')).min(1).max(batchCreateTimeEntriesBodyVisitTypesMax).optional().describe('Legacy shape — one entry per key, quantity 1. Prefer `visits`.'),
   "mileage": zod.number().min(batchCreateTimeEntriesBodyMileageMin).optional(),
   "perDiemType": zod.enum(['first_last', 'full']).optional().describe('Per-diem option — \"First\/Last day\" or \"Full day\"'),
   "note": zod.string().optional(),
   "status": zod.enum(['draft', 'submitted']).optional().describe('Initial status for a new entry — save as a private draft or submit for approval. Defaults to submitted.')
-}).describe('Submit multiple visit types for the same client\/date in a single atomic request. The server inserts one time entry per visit type inside one transaction; mileage and per diem are recorded on the first entry only.\n')
+}).describe('Submit several visits for the same client\/date in a single atomic request. The server inserts one time entry per line inside one transaction; mileage and per diem are recorded on the first entry only.\nSend `visits` to give each line its own quantity. `visitTypes` is the older shape — a plain list of keys, each counted once — and is still accepted so existing app versions keep working. Send one or the other, not both.\n')
 
 export const BatchCreateTimeEntriesResponseItem = zod.object({
   "id": zod.string(),
@@ -336,7 +364,9 @@ export const BatchCreateTimeEntriesResponseItem = zod.object({
   "clientId": zod.string(),
   "clientName": zod.string(),
   "date": zod.string(),
+  "endDate": zod.string().optional().describe('Last day covered when the entry spans a date range (mileage entries)'),
   "visitType": zod.string().optional().describe('Visit-type key from the admin-managed visit_types catalog (e.g. \"soc\", \"eval\"). Open string — no fixed enum — so Molly can add new visit types with no code change; the server validates it against the catalog on write.'),
+  "quantity": zod.number().optional().describe('How many of this visit type the entry covers (or how many billable blocks for an \"increment\" type). 1 unless set.'),
   "timeIn": zod.string().optional().describe('Clock-in time \"HH:MM\" (24-hour)'),
   "timeOut": zod.string().optional().describe('Clock-out time \"HH:MM\" (24-hour)'),
   "hours": zod.number().optional(),
@@ -520,6 +550,57 @@ export const UpdateClientPayRateResponse = zod.object({
 
 
 /**
+ * Public, like /clients and /visit-types: the catalog is just profession labels, and someone claiming a roster profile has to pick their discipline before they have a linked session.
+ * @summary List employee disciplines (admin-managed catalog)
+ */
+export const ListDisciplinesResponseItem = zod.object({
+  "key": zod.string().describe('The value stored on employees.role and used in rate keys (\"RN\", \"PT\").'),
+  "label": zod.string(),
+  "active": zod.boolean(),
+  "sortOrder": zod.number()
+})
+export const ListDisciplinesResponse = zod.array(ListDisciplinesResponseItem)
+
+
+/**
+ * @summary Add a new discipline
+ */
+export const CreateDisciplineBody = zod.object({
+  "key": zod.string().optional().describe('Rate-key value. Derived from the label when omitted.'),
+  "label": zod.string(),
+  "sortOrder": zod.number().optional()
+})
+
+export const CreateDisciplineResponse = zod.object({
+  "key": zod.string().describe('The value stored on employees.role and used in rate keys (\"RN\", \"PT\").'),
+  "label": zod.string(),
+  "active": zod.boolean(),
+  "sortOrder": zod.number()
+})
+
+
+/**
+ * @summary Update a discipline (label, active, sort order)
+ */
+export const UpdateDisciplineParams = zod.object({
+  "key": zod.coerce.string()
+})
+
+export const UpdateDisciplineBody = zod.object({
+  "label": zod.string().optional(),
+  "active": zod.boolean().optional(),
+  "sortOrder": zod.number().optional()
+})
+
+export const UpdateDisciplineResponse = zod.object({
+  "key": zod.string().describe('The value stored on employees.role and used in rate keys (\"RN\", \"PT\").'),
+  "label": zod.string(),
+  "active": zod.boolean(),
+  "sortOrder": zod.number()
+})
+
+
+/**
  * @summary List visit types (admin-managed catalog)
  */
 export const ListVisitTypesResponseItem = zod.object({
@@ -527,7 +608,10 @@ export const ListVisitTypesResponseItem = zod.object({
   "label": zod.string(),
   "abbreviation": zod.string(),
   "active": zod.boolean(),
-  "sortOrder": zod.number()
+  "sortOrder": zod.number(),
+  "disciplines": zod.array(zod.string()).optional().describe('Discipline keys allowed to log this visit type. Empty\/omitted means every discipline.'),
+  "billingUnit": zod.enum(['visit', 'increment']).describe('How a visit type is counted and priced. \"visit\" is one flat rate per visit (the default). \"increment\" prices per block of `incrementMinutes` — St. Luke\'s bills Hospital at Home and drive time in 15-minute blocks, so its rate is the per-block rate and the entry records how many blocks.'),
+  "incrementMinutes": zod.number().describe('Minutes per billable block when billingUnit is \"increment\".')
 })
 export const ListVisitTypesResponse = zod.array(ListVisitTypesResponseItem)
 
@@ -535,11 +619,18 @@ export const ListVisitTypesResponse = zod.array(ListVisitTypesResponseItem)
 /**
  * @summary Add a new visit type
  */
+export const createVisitTypeBodyIncrementMinutesMax = 480;
+
+
+
 export const CreateVisitTypeBody = zod.object({
   "key": zod.string().optional().describe('Stable slug (lowercase). Generated from the label when omitted.'),
   "label": zod.string(),
   "abbreviation": zod.string(),
-  "sortOrder": zod.number().optional()
+  "sortOrder": zod.number().optional(),
+  "disciplines": zod.array(zod.string()).optional(),
+  "billingUnit": zod.enum(['visit', 'increment']).optional().describe('How a visit type is counted and priced. \"visit\" is one flat rate per visit (the default). \"increment\" prices per block of `incrementMinutes` — St. Luke\'s bills Hospital at Home and drive time in 15-minute blocks, so its rate is the per-block rate and the entry records how many blocks.'),
+  "incrementMinutes": zod.number().min(1).max(createVisitTypeBodyIncrementMinutesMax).optional()
 })
 
 export const CreateVisitTypeResponse = zod.object({
@@ -547,7 +638,10 @@ export const CreateVisitTypeResponse = zod.object({
   "label": zod.string(),
   "abbreviation": zod.string(),
   "active": zod.boolean(),
-  "sortOrder": zod.number()
+  "sortOrder": zod.number(),
+  "disciplines": zod.array(zod.string()).optional().describe('Discipline keys allowed to log this visit type. Empty\/omitted means every discipline.'),
+  "billingUnit": zod.enum(['visit', 'increment']).describe('How a visit type is counted and priced. \"visit\" is one flat rate per visit (the default). \"increment\" prices per block of `incrementMinutes` — St. Luke\'s bills Hospital at Home and drive time in 15-minute blocks, so its rate is the per-block rate and the entry records how many blocks.'),
+  "incrementMinutes": zod.number().describe('Minutes per billable block when billingUnit is \"increment\".')
 })
 
 
@@ -558,11 +652,18 @@ export const UpdateVisitTypeParams = zod.object({
   "key": zod.coerce.string()
 })
 
+export const updateVisitTypeBodyIncrementMinutesMax = 480;
+
+
+
 export const UpdateVisitTypeBody = zod.object({
   "label": zod.string().optional(),
   "abbreviation": zod.string().optional(),
   "active": zod.boolean().optional(),
-  "sortOrder": zod.number().optional()
+  "sortOrder": zod.number().optional(),
+  "disciplines": zod.array(zod.string()).optional().describe('Replaces the list outright; an empty array means all disciplines.'),
+  "billingUnit": zod.enum(['visit', 'increment']).optional().describe('How a visit type is counted and priced. \"visit\" is one flat rate per visit (the default). \"increment\" prices per block of `incrementMinutes` — St. Luke\'s bills Hospital at Home and drive time in 15-minute blocks, so its rate is the per-block rate and the entry records how many blocks.'),
+  "incrementMinutes": zod.number().min(1).max(updateVisitTypeBodyIncrementMinutesMax).optional()
 })
 
 export const UpdateVisitTypeResponse = zod.object({
@@ -570,7 +671,10 @@ export const UpdateVisitTypeResponse = zod.object({
   "label": zod.string(),
   "abbreviation": zod.string(),
   "active": zod.boolean(),
-  "sortOrder": zod.number()
+  "sortOrder": zod.number(),
+  "disciplines": zod.array(zod.string()).optional().describe('Discipline keys allowed to log this visit type. Empty\/omitted means every discipline.'),
+  "billingUnit": zod.enum(['visit', 'increment']).describe('How a visit type is counted and priced. \"visit\" is one flat rate per visit (the default). \"increment\" prices per block of `incrementMinutes` — St. Luke\'s bills Hospital at Home and drive time in 15-minute blocks, so its rate is the per-block rate and the entry records how many blocks.'),
+  "incrementMinutes": zod.number().describe('Minutes per billable block when billingUnit is \"increment\".')
 })
 
 
@@ -973,7 +1077,8 @@ export const ListLinkRequestsResponseItem = zod.object({
   "employeeName": zod.string(),
   "employeeRole": zod.string(),
   "email": zod.string(),
-  "requestedAt": zod.string()
+  "requestedAt": zod.string(),
+  "claimedDiscipline": zod.string().optional().describe('The discipline the claimant selected, when they picked one')
 })
 export const ListLinkRequestsResponse = zod.array(ListLinkRequestsResponseItem)
 
@@ -985,7 +1090,8 @@ export const ListLinkRequestsResponse = zod.array(ListLinkRequestsResponseItem)
 
 
 export const CreateLinkRequestBody = zod.object({
-  "employeeId": zod.string().min(1)
+  "employeeId": zod.string().min(1),
+  "discipline": zod.string().optional().describe('The discipline the person says they are, chosen from \/disciplines when they claim the profile. Recorded on the request so Molly can see it (and any disagreement with the profile) before approving; approving applies it to the profile.')
 })
 
 export const CreateLinkRequestResponse = zod.object({
@@ -994,7 +1100,8 @@ export const CreateLinkRequestResponse = zod.object({
   "employeeName": zod.string(),
   "employeeRole": zod.string(),
   "email": zod.string(),
-  "requestedAt": zod.string()
+  "requestedAt": zod.string(),
+  "claimedDiscipline": zod.string().optional().describe('The discipline the claimant selected, when they picked one')
 })
 
 
@@ -1007,7 +1114,8 @@ export const CancelMyLinkRequestResponse = zod.object({
   "employeeName": zod.string(),
   "employeeRole": zod.string(),
   "email": zod.string(),
-  "requestedAt": zod.string()
+  "requestedAt": zod.string(),
+  "claimedDiscipline": zod.string().optional().describe('The discipline the claimant selected, when they picked one')
 })
 
 
@@ -1045,7 +1153,37 @@ export const DenyLinkRequestResponse = zod.object({
   "employeeName": zod.string(),
   "employeeRole": zod.string(),
   "email": zod.string(),
-  "requestedAt": zod.string()
+  "requestedAt": zod.string(),
+  "claimedDiscipline": zod.string().optional().describe('The discipline the claimant selected, when they picked one')
+})
+
+
+/**
+ * The discipline is the key that resolves this employee's pay and billing rates, so it can only be set to a key from the /disciplines catalog. Approved entries keep the discipline they were priced under; entries still waiting (draft, submitted, rejected) are re-stamped so they price under the corrected discipline, and the count is returned.
+ * @summary Change an employee's discipline / profession
+ */
+export const UpdateEmployeeDisciplineParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const UpdateEmployeeDisciplineBody = zod.object({
+  "discipline": zod.string().describe('A key from the \/disciplines catalog.')
+})
+
+export const UpdateEmployeeDisciplineResponse = zod.object({
+  "employee": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "active": zod.boolean(),
+  "isDemo": zod.boolean(),
+  "email": zod.string().optional(),
+  "signInEnabled": zod.boolean(),
+  "phone": zod.string().optional(),
+  "contactEmail": zod.string().optional(),
+  "address": zod.string().optional()
+}),
+  "restampedEntryCount": zod.number().describe('How many not-yet-approved entries were re-stamped with the new discipline. Approved entries are never touched.')
 })
 
 

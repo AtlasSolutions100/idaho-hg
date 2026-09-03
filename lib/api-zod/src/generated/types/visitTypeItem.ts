@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { BillingUnit } from './billingUnit';
 
 export interface VisitTypeItem {
   key: string;
@@ -12,4 +13,9 @@ export interface VisitTypeItem {
   abbreviation: string;
   active: boolean;
   sortOrder: number;
+  /** Discipline keys allowed to log this visit type. Empty/omitted means every discipline. */
+  disciplines?: string[];
+  billingUnit: BillingUnit;
+  /** Minutes per billable block when billingUnit is "increment". */
+  incrementMinutes: number;
 }

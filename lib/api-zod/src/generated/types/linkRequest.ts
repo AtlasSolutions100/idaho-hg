@@ -13,4 +13,6 @@ export interface LinkRequest {
   employeeRole: string;
   email: string;
   requestedAt: string;
+  /** The discipline the claimant selected, when they picked one */
+  claimedDiscipline?: string;
 }

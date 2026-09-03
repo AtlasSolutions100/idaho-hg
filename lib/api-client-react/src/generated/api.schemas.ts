@@ -573,12 +573,60 @@ export const CreateEntryStatus = {
   submitted: 'submitted',
 } as const;
 
+export interface DisciplineItem {
+  /** The value stored on employees.role and used in rate keys ("RN", "PT"). */
+  key: string;
+  label: string;
+  active: boolean;
+  sortOrder: number;
+}
+
+export interface CreateDiscipline {
+  /** Rate-key value. Derived from the label when omitted. */
+  key?: string;
+  label: string;
+  sortOrder?: number;
+}
+
+export interface UpdateDiscipline {
+  label?: string;
+  active?: boolean;
+  sortOrder?: number;
+}
+
+export interface UpdateEmployeeDiscipline {
+  /** A key from the /disciplines catalog. */
+  discipline: string;
+}
+
+export interface UpdateEmployeeDisciplineResult {
+  employee: Employee;
+  /** How many not-yet-approved entries were re-stamped with the new discipline. Approved entries are never touched. */
+  restampedEntryCount: number;
+}
+
+/**
+ * How a visit type is counted and priced. "visit" is one flat rate per visit (the default). "increment" prices per block of `incrementMinutes` — St. Luke's bills Hospital at Home and drive time in 15-minute blocks, so its rate is the per-block rate and the entry records how many blocks.
+ */
+export type BillingUnit = typeof BillingUnit[keyof typeof BillingUnit];
+
+
+export const BillingUnit = {
+  visit: 'visit',
+  increment: 'increment',
+} as const;
+
 export interface VisitTypeItem {
   key: string;
   label: string;
   abbreviation: string;
   active: boolean;
   sortOrder: number;
+  /** Discipline keys allowed to log this visit type. Empty/omitted means every discipline. */
+  disciplines?: string[];
+  billingUnit: BillingUnit;
+  /** Minutes per billable block when billingUnit is "increment". */
+  incrementMinutes: number;
 }
 
 export interface CreateVisitType {
@@ -587,6 +635,13 @@ export interface CreateVisitType {
   label: string;
   abbreviation: string;
   sortOrder?: number;
+  disciplines?: string[];
+  billingUnit?: BillingUnit;
+  /**
+     * @minimum 1
+     * @maximum 480
+     */
+  incrementMinutes?: number;
 }
 
 export interface UpdateVisitType {
@@ -594,6 +649,14 @@ export interface UpdateVisitType {
   abbreviation?: string;
   active?: boolean;
   sortOrder?: number;
+  /** Replaces the list outright; an empty array means all disciplines. */
+  disciplines?: string[];
+  billingUnit?: BillingUnit;
+  /**
+     * @minimum 1
+     * @maximum 480
+     */
+  incrementMinutes?: number;
 }
 
 /**
@@ -639,7 +702,11 @@ export interface TimeEntry {
   clientId: string;
   clientName: string;
   date: string;
+  /** Last day covered when the entry spans a date range (mileage entries) */
+  endDate?: string;
   visitType?: VisitType;
+  /** How many of this visit type the entry covers (or how many billable blocks for an "increment" type). 1 unless set. */
+  quantity?: number;
   /** Clock-in time "HH:MM" (24-hour) */
   timeIn?: string;
   /** Clock-out time "HH:MM" (24-hour) */
@@ -671,7 +738,15 @@ export interface CreateTimeEntry {
   employeeId: string;
   clientId: string;
   date: string;
+  /** Last day covered, for an entry that spans a range instead of one day. Only mileage-only entries may use it (St. Luke's employees enter one mileage total for a whole pay period). Must be >= date. */
+  endDate?: string;
   visitType?: VisitType;
+  /**
+     * How many of this visit type the entry covers — 2 for two evals on the same day. For an "increment" visit type it is the number of blocks, so a half hour of a 15-minute type is 2. Defaults to 1.
+     * @minimum 1
+     * @maximum 100
+     */
+  quantity?: number;
   /**
      * Clock-in time "HH:MM" (24-hour). Provide with timeOut instead of hours.
      * @pattern ^([01][0-9]|2[0-3]):[0-5][0-9]$
@@ -708,7 +783,21 @@ export interface CreateTimeEntry {
 }
 
 /**
- * Submit multiple visit types for the same client/date in a single atomic request. The server inserts one time entry per visit type inside one transaction; mileage and per diem are recorded on the first entry only.
+ * One visit line in a batch — a visit type and how many of it.
+ */
+export interface BatchVisitLine {
+  visitType: VisitType;
+  /**
+     * How many of this visit. 2 for two evals on the same day; for an "increment" visit type, the number of blocks (a half hour of a 15-minute type is 2). Defaults to 1.
+     * @minimum 1
+     * @maximum 100
+     */
+  quantity?: number;
+}
+
+/**
+ * Submit several visits for the same client/date in a single atomic request. The server inserts one time entry per line inside one transaction; mileage and per diem are recorded on the first entry only.
+ * Send `visits` to give each line its own quantity. `visitTypes` is the older shape — a plain list of keys, each counted once — and is still accepted so existing app versions keep working. Send one or the other, not both.
  */
 export interface BatchCreateTimeEntry {
   employeeId: string;
@@ -718,7 +807,13 @@ export interface BatchCreateTimeEntry {
      * @minItems 1
      * @maxItems 20
      */
-  visitTypes: VisitType[];
+  visits?: BatchVisitLine[];
+  /**
+     * Legacy shape — one entry per key, quantity 1. Prefer `visits`.
+     * @minItems 1
+     * @maxItems 20
+     */
+  visitTypes?: VisitType[];
   /** @minimum 0 */
   mileage?: number;
   perDiemType?: PerDiemType;
@@ -732,7 +827,15 @@ export interface BatchCreateTimeEntry {
 export interface UpdateTimeEntry {
   clientId: string;
   date: string;
+  /** Last day covered for a mileage-only entry spanning a range; must be >= date */
+  endDate?: string;
   visitType?: VisitType;
+  /**
+     * How many of this visit type (or billable blocks). Defaults to 1.
+     * @minimum 1
+     * @maximum 100
+     */
+  quantity?: number;
   /**
      * Clock-in time "HH:MM" (24-hour). Provide with timeOut instead of hours.
      * @pattern ^([01][0-9]|2[0-3]):[0-5][0-9]$
@@ -781,6 +884,8 @@ export interface ClaimableEmployee {
 export interface CreateLinkRequest {
   /** @minLength 1 */
   employeeId: string;
+  /** The discipline the person says they are, chosen from /disciplines when they claim the profile. Recorded on the request so Molly can see it (and any disagreement with the profile) before approving; approving applies it to the profile. */
+  discipline?: string;
 }
 
 export interface LinkRequest {
@@ -790,6 +895,8 @@ export interface LinkRequest {
   employeeRole: string;
   email: string;
   requestedAt: string;
+  /** The discipline the claimant selected, when they picked one */
+  claimedDiscipline?: string;
 }
 
 export type ListTimeEntriesParams = {

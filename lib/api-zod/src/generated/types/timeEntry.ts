@@ -17,7 +17,11 @@ export interface TimeEntry {
   clientId: string;
   clientName: string;
   date: string;
+  /** Last day covered when the entry spans a date range (mileage entries) */
+  endDate?: string;
   visitType?: VisitType;
+  /** How many of this visit type the entry covers (or how many billable blocks for an "increment" type). 1 unless set. */
+  quantity?: number;
   /** Clock-in time "HH:MM" (24-hour) */
   timeIn?: string;
   /** Clock-out time "HH:MM" (24-hour) */

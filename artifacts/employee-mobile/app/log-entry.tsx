@@ -81,6 +81,13 @@ function recentDates(): string[] {
   return out;
 }
 
+/** One chosen visit line: a visit type and how many of it. */
+type VisitLine = {
+  visitType: VisitType;
+  /** Visits, or 15-minute blocks for a type billed in increments. */
+  quantity: number;
+};
+
 export default function LogEntryScreen() {
   const c = useColors();
   const insets = useSafeAreaInsets();
@@ -101,13 +108,18 @@ export default function LogEntryScreen() {
 
   const [entryType, setEntryType] = useState<'visit' | 'hourly' | 'other'>('visit');
   const [clientId, setClientId] = useState('');
-  // Multi-visit: a set of selected visit types
-  const [selectedVisitTypes, setSelectedVisitTypes] = useState<Set<VisitType>>(new Set());
+  // The visits chosen for this day, each with how many. Tapping a type again
+  // adds another of the same, so "two evals and a discharge" is three taps.
+  const [visitLines, setVisitLines] = useState<VisitLine[]>([]);
   const [timeIn, setTimeIn] = useState('');
   const [timeOut, setTimeOut] = useState('');
   const [date, setDate] = useState(toDateString(new Date()));
   const [hasMileage, setHasMileage] = useState(false);
   const [mileage, setMileage] = useState('');
+  // St. Luke's employees pull a mileage report off the client's device for a
+  // whole pay period, so mileage can cover a range rather than a single day.
+  const [mileageIsRange, setMileageIsRange] = useState(false);
+  const [mileageEndDate, setMileageEndDate] = useState('');
   const [perDiemType, setPerDiemType] = useState<PerDiemType | ''>('');
   const [note, setNote] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -122,12 +134,18 @@ export default function LogEntryScreen() {
     setPrefilledId(editingEntry.id);
     setEntryType(editingEntry.isOther ? 'other' : editingEntry.visitType ? 'visit' : 'hourly');
     setClientId(editingEntry.clientId);
-    setSelectedVisitTypes(new Set(editingEntry.visitType ? [editingEntry.visitType] : []));
+    setVisitLines(
+      editingEntry.visitType
+        ? [{ visitType: editingEntry.visitType, quantity: editingEntry.quantity ?? 1 }]
+        : [],
+    );
     setTimeIn(editingEntry.timeIn ?? '');
     setTimeOut(editingEntry.timeOut ?? '');
     setDate(editingEntry.date);
     setHasMileage(!!editingEntry.mileage);
     setMileage(editingEntry.mileage ? String(editingEntry.mileage) : '');
+    setMileageIsRange(!!editingEntry.endDate);
+    setMileageEndDate(editingEntry.endDate ?? '');
     setPerDiemType(editingEntry.perDiemType ?? '');
     setNote(editingEntry.note ?? '');
   }, [editingEntry, prefilledId]);
@@ -154,26 +172,56 @@ export default function LogEntryScreen() {
   const { data: visitTypeCatalog, isLoading: visitTypesLoading } = useListVisitTypes({
     query: { enabled: billsByVisit, queryKey: getListVisitTypesQueryKey() },
   });
-  // Active types only, in the order the admin arranged them.
-  const activeVisitTypes = useMemo(
-    () =>
-      (visitTypeCatalog ?? [])
-        .filter((vt) => vt.active)
-        .sort((a, b) => a.sortOrder - b.sortOrder),
-    [visitTypeCatalog],
-  );
-  // What the picker renders: the active catalog, plus any already-selected type
-  // that's no longer in it (e.g. deactivated after an entry was created) so a
-  // selection never silently vanishes. labels.ts is the display fallback for
-  // those stragglers, falling through to the raw key if it's unknown too.
+  // Active types only, in the order the admin arranged them, narrowed to the
+  // ones this employee's discipline performs. A type with no discipline list
+  // is open to everyone; an RN is not offered "Physical Therapy (PTV)", which
+  // is the same visit for a different profession at a different rate.
+  const discipline = employee?.role;
+  const activeVisitTypes = useMemo(() => {
+    const wanted = discipline?.trim().toUpperCase();
+    return (visitTypeCatalog ?? [])
+      .filter((vt) => vt.active)
+      .filter((vt) => {
+        const list = vt.disciplines ?? [];
+        if (list.length === 0 || !wanted) return true;
+        return list.some((d) => d.trim().toUpperCase() === wanted);
+      })
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+  }, [visitTypeCatalog, discipline]);
+  // Types exist but none are for this discipline — worth saying so rather
+  // than showing the same empty list as "none set up".
+  const hiddenByDiscipline =
+    activeVisitTypes.length === 0 &&
+    (visitTypeCatalog ?? []).some((vt) => vt.active);
+  // What the picker renders: the filtered catalog, plus any already-chosen
+  // type that's no longer in it (retired, or outside this discipline after a
+  // change) so a selection never silently vanishes. labels.ts is the display
+  // fallback for those stragglers, falling through to the raw key.
   const visitTypeOptions = useMemo(() => {
-    const options = activeVisitTypes.map((vt) => ({ key: vt.key, label: vt.label }));
+    const options = activeVisitTypes.map((vt) => ({
+      key: vt.key,
+      label: vt.label,
+      billingUnit: vt.billingUnit,
+      incrementMinutes: vt.incrementMinutes,
+    }));
     const known = new Set(options.map((o) => o.key));
-    for (const key of selectedVisitTypes) {
-      if (!known.has(key)) options.push({ key, label: visitTypeLabels[key] ?? key });
+    for (const line of visitLines) {
+      if (!known.has(line.visitType)) {
+        const fromCatalog = (visitTypeCatalog ?? []).find((vt) => vt.key === line.visitType);
+        options.push({
+          key: line.visitType,
+          label: fromCatalog?.label ?? visitTypeLabels[line.visitType] ?? line.visitType,
+          billingUnit: fromCatalog?.billingUnit ?? 'visit',
+          incrementMinutes: fromCatalog?.incrementMinutes ?? 15,
+        });
+      }
     }
     return options;
-  }, [activeVisitTypes, selectedVisitTypes]);
+  }, [activeVisitTypes, visitLines, visitTypeCatalog]);
+  const visitTypeByKey = useMemo(
+    () => new Map(visitTypeOptions.map((o) => [o.key, o])),
+    [visitTypeOptions],
+  );
   // "Other" one-offs (training, meetings) are available for any client;
   // Visit only for clients that bill by visit type.
   const effectiveEntryType: 'visit' | 'hourly' | 'other' =
@@ -185,6 +233,12 @@ export default function LogEntryScreen() {
   const mileageNumber = mileage ? parseFloat(mileage) : 0;
   const mileageValid =
     !hasMileage || !mileage || (!Number.isNaN(mileageNumber) && mileageNumber >= 0);
+  // A mileage-only entry (no visit, no clock times) is the only shape the
+  // server lets span a date range.
+  const mileageOnly =
+    effectiveEntryType === 'hourly' && !timeIn && !timeOut && hasMileage && mileageNumber > 0;
+  const rangeValid = !mileageIsRange || !mileageOnly || (!!mileageEndDate && mileageEndDate >= date);
+  const totalVisits = visitLines.reduce((sum, l) => sum + l.quantity, 0);
   const canSubmit =
     !!employee &&
     // Edit mode: block saving until the target entry has loaded and is
@@ -192,23 +246,34 @@ export default function LogEntryScreen() {
     (!isEditing || (!!editingEntry && editingEntry.status !== 'approved')) &&
     !!clientId &&
     !!date &&
-    (effectiveEntryType === 'visit' ? selectedVisitTypes.size > 0 : timesValid) &&
+    (effectiveEntryType === 'visit'
+      ? visitLines.length > 0
+      : mileageOnly || timesValid) &&
     (!isOther || !!note.trim()) &&
     mileageValid &&
+    rangeValid &&
     !isSubmitting &&
     !saved;
 
-  const toggleVisitType = (vt: VisitType) => {
-    setSelectedVisitTypes((prev) => {
-      const next = new Set(prev);
-      if (next.has(vt)) {
-        next.delete(vt);
-      } else {
-        if (isEditing) next.clear(); // an existing entry holds one visit type
-        next.add(vt);
-      }
-      return next;
+  // Tapping a chip adds one of that visit; editing an entry replaces the
+  // single line it holds instead.
+  const addVisit = (vt: VisitType) => {
+    setVisitLines((prev) => {
+      if (isEditing) return [{ visitType: vt, quantity: 1 }];
+      const existing = prev.find((l) => l.visitType === vt);
+      if (!existing) return [...prev, { visitType: vt, quantity: 1 }];
+      return prev.map((l) =>
+        l.visitType === vt ? { ...l, quantity: Math.min(l.quantity + 1, 100) } : l,
+      );
     });
+  };
+
+  const setVisitQuantity = (vt: string, quantity: number) => {
+    setVisitLines((prev) =>
+      quantity <= 0
+        ? prev.filter((l) => l.visitType !== vt)
+        : prev.map((l) => (l.visitType === vt ? { ...l, quantity: Math.min(quantity, 100) } : l)),
+    );
   };
 
   if (!employee) return <Redirect href="/sign-in" />;
@@ -229,12 +294,15 @@ export default function LogEntryScreen() {
           data: {
             clientId,
             date,
-            ...(effectiveEntryType === 'visit' && selectedVisitTypes.size > 0
-              ? { visitType: [...selectedVisitTypes][0] }
+            ...(effectiveEntryType === 'visit' && visitLines[0]
+              ? { visitType: visitLines[0].visitType, quantity: visitLines[0].quantity }
               : {}),
             ...(effectiveEntryType !== 'visit' && timesValid ? { timeIn, timeOut } : {}),
             ...(mileageAllowed && hasMileage && mileageNumber > 0
               ? { mileage: mileageNumber }
+              : {}),
+            ...(mileageAllowed && mileageOnly && mileageIsRange && mileageEndDate
+              ? { endDate: mileageEndDate }
               : {}),
             ...(!isOther && perDiemType ? { perDiemType } : {}),
             ...(note.trim() ? { note: note.trim() } : {}),
@@ -249,7 +317,7 @@ export default function LogEntryScreen() {
             employeeId: employee.id,
             clientId,
             date,
-            visitTypes: [...selectedVisitTypes],
+            visits: visitLines,
             ...(mileageAllowed && hasMileage && mileageNumber > 0
               ? { mileage: mileageNumber }
               : {}),
@@ -264,9 +332,12 @@ export default function LogEntryScreen() {
             employeeId: employee.id,
             clientId,
             date,
-            ...(timesValid ? { timeIn, timeOut } : {}),
+            ...(timesValid && !mileageOnly ? { timeIn, timeOut } : {}),
             ...(mileageAllowed && hasMileage && mileageNumber > 0
               ? { mileage: mileageNumber }
+              : {}),
+            ...(mileageAllowed && mileageOnly && mileageIsRange && mileageEndDate
+              ? { endDate: mileageEndDate }
               : {}),
             ...(!isOther && perDiemType ? { perDiemType } : {}),
             ...(note.trim() ? { note: note.trim() } : {}),
@@ -345,8 +416,8 @@ export default function LogEntryScreen() {
       : 'Submitted!'
     : isSubmitting && savingAction === 'submit'
       ? 'Submitting…'
-      : !isEditing && effectiveEntryType === 'visit' && selectedVisitTypes.size > 1
-        ? `Submit ${selectedVisitTypes.size} Visits`
+      : !isEditing && effectiveEntryType === 'visit' && totalVisits > 1
+        ? `Submit ${totalVisits} Visits`
         : isEditing && editingEntry?.status !== 'draft'
           ? 'Save & Resubmit'
           : 'Submit Hours';
@@ -405,7 +476,7 @@ export default function LogEntryScreen() {
                   setClientId(client.id);
                   // Visit selections belong to the previous client — never
                   // carry them over when switching.
-                  setSelectedVisitTypes(new Set());
+                  setVisitLines([]);
                 }}
                 testID={`chip-client-${client.id}`}
               />
@@ -503,30 +574,101 @@ export default function LogEntryScreen() {
 
         {effectiveEntryType === 'visit' ? (
           <>
-            <SectionLabel text="Visit type(s)" required />
+            <SectionLabel text="Visits" required />
             <Text style={[styles.helperText, { color: c.mutedForeground, marginTop: 0, marginBottom: 8 }]}>
-              Tap to select — you can pick more than one for the same day
+              {isEditing
+                ? 'Pick the visit type for this entry'
+                : 'Tap each visit you did — tap again to add a second one'}
             </Text>
+
+            {/* What's been chosen so far, with a count that can be adjusted. */}
+            {visitLines.length > 0 && (
+              <View style={{ marginBottom: 8, gap: 8 }}>
+                {visitLines.map((line) => {
+                  const type = visitTypeByKey.get(line.visitType);
+                  const isIncrement = type?.billingUnit === 'increment';
+                  const perBlock = type?.incrementMinutes ?? 15;
+                  return (
+                    <View
+                      key={line.visitType}
+                      style={[styles.visitLineRow, { backgroundColor: c.card, borderColor: c.border }]}
+                      testID={`visit-line-${line.visitType}`}
+                    >
+                      <Text style={[styles.visitLineLabel, { color: c.foreground }]} numberOfLines={1}>
+                        {type?.label ?? visitTypeLabels[line.visitType] ?? line.visitType}
+                      </Text>
+                      {!isEditing && (
+                        <View style={styles.visitLineStepper}>
+                          <Pressable
+                            onPress={() => setVisitQuantity(line.visitType, line.quantity - 1)}
+                            style={[styles.stepperButton, { borderColor: c.input }]}
+                            testID={`visit-minus-${line.visitType}`}
+                            accessibilityLabel={`One fewer ${type?.label ?? line.visitType}`}
+                          >
+                            <Feather name="minus" size={14} color={c.foreground} />
+                          </Pressable>
+                          <Text
+                            style={[styles.visitLineCount, { color: c.foreground }]}
+                            testID={`visit-quantity-${line.visitType}`}
+                          >
+                            {isIncrement
+                              ? formatDuration(line.quantity, perBlock)
+                              : `${line.quantity} ${line.quantity === 1 ? 'visit' : 'visits'}`}
+                          </Text>
+                          <Pressable
+                            onPress={() => setVisitQuantity(line.visitType, line.quantity + 1)}
+                            style={[styles.stepperButton, { borderColor: c.input }]}
+                            testID={`visit-plus-${line.visitType}`}
+                            accessibilityLabel={`One more ${type?.label ?? line.visitType}`}
+                          >
+                            <Feather name="plus" size={14} color={c.foreground} />
+                          </Pressable>
+                        </View>
+                      )}
+                      <Pressable
+                        onPress={() => setVisitQuantity(line.visitType, 0)}
+                        style={styles.visitLineRemove}
+                        testID={`visit-remove-${line.visitType}`}
+                        accessibilityLabel={`Remove ${type?.label ?? line.visitType}`}
+                      >
+                        <Feather name="x" size={16} color={c.mutedForeground} />
+                      </Pressable>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
             {visitTypesLoading && visitTypeOptions.length === 0 ? (
               <View style={[styles.loadingRow, { backgroundColor: c.muted }]}>
                 <ActivityIndicator color={c.mutedForeground} />
               </View>
+            ) : visitTypeOptions.length === 0 ? (
+              <Text style={[styles.helperText, { color: c.mutedForeground }]} testID="text-no-visit-types">
+                {hiddenByDiscipline
+                  ? `No visit types are set up for ${discipline} yet. Ask Molly to add one.`
+                  : 'No visit types are set up yet.'}
+              </Text>
             ) : (
               <View style={styles.chipWrap}>
                 {visitTypeOptions.map((vt) => (
                   <MultiChip
                     key={vt.key}
-                    label={vt.label}
-                    selected={selectedVisitTypes.has(vt.key)}
-                    onPress={() => toggleVisitType(vt.key)}
+                    label={
+                      vt.billingUnit === 'increment'
+                        ? `${vt.label} (per ${vt.incrementMinutes} min)`
+                        : vt.label
+                    }
+                    selected={visitLines.some((l) => l.visitType === vt.key)}
+                    onPress={() => addVisit(vt.key)}
                     testID={`chip-visit-${vt.key}`}
                   />
                 ))}
               </View>
             )}
-            {selectedVisitTypes.size > 1 && (
+            {totalVisits > 1 && (
               <Text style={[styles.helperText, { color: c.mutedForeground, marginTop: 8 }]}>
-                {selectedVisitTypes.size} visits selected — mileage and per diem attach to the first
+                {totalVisits} visits — mileage and per diem attach to the first
               </Text>
             )}
           </>
@@ -591,7 +733,9 @@ export default function LogEntryScreen() {
             <View style={[styles.switchCard, { backgroundColor: c.card, borderColor: c.border }]}>
               <SwitchRow
                 title="Mileage?"
-                subtitle="Round-trip miles for this day"
+                subtitle={
+                  mileageIsRange ? 'Total miles for the period' : 'Round-trip miles for this day'
+                }
                 value={hasMileage}
                 onValueChange={setHasMileage}
                 testID="switch-mileage"
@@ -614,6 +758,61 @@ export default function LogEntryScreen() {
                 ]}
                 testID="input-mileage"
               />
+            ) : null}
+            {/* A mileage total pulled from the client's device covers a period,
+                not a day. Only offered for a mileage-only entry — the server
+                won't spread a visit or a shift across a range. */}
+            {hasMileage && mileageOnly ? (
+              <>
+                <View style={[styles.switchCard, { backgroundColor: c.card, borderColor: c.border }]}>
+                  <SwitchRow
+                    title="These miles cover a date range"
+                    subtitle="For a mileage report you ran for a whole pay period"
+                    value={mileageIsRange}
+                    onValueChange={setMileageIsRange}
+                    testID="switch-mileage-range"
+                  />
+                </View>
+                {mileageIsRange ? (
+                  <>
+                    <SectionLabel text="Through" required />
+                    <View style={styles.chipWrap}>
+                      {dates
+                        .filter((d) => d >= date)
+                        .map((d) => (
+                          <Chip
+                            key={d}
+                            label={formatPretty(d)}
+                            selected={mileageEndDate === d}
+                            onPress={() => setMileageEndDate(d)}
+                            testID={`chip-mileage-end-${d}`}
+                          />
+                        ))}
+                    </View>
+                    <TextInput
+                      value={mileageEndDate}
+                      onChangeText={setMileageEndDate}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor={c.mutedForeground}
+                      autoCapitalize="none"
+                      style={[
+                        styles.input,
+                        {
+                          backgroundColor: c.card,
+                          borderColor: rangeValid ? c.input : c.destructive,
+                          color: c.foreground,
+                        },
+                      ]}
+                      testID="input-mileage-end-date"
+                    />
+                    <Text style={[styles.helperText, { color: c.mutedForeground }]}>
+                      {mileageEndDate && rangeValid
+                        ? `One entry covering ${formatPretty(date)} through ${formatPretty(mileageEndDate)}.`
+                        : 'Pick or type the last day the report covers.'}
+                    </Text>
+                  </>
+                ) : null}
+              </>
             ) : null}
           </>
         ) : selectedClient ? (
@@ -782,6 +981,16 @@ function Chip({
  * Multi-select chip used for visit types — shows a check indicator when
  * selected so it's clear multiple can be active at once.
  */
+/** Blocks -> "30 min" / "1 hr 15 min", so employees think in time, not units. */
+function formatDuration(blocks: number, minutesPerBlock: number): string {
+  const total = blocks * minutesPerBlock;
+  const hours = Math.floor(total / 60);
+  const minutes = total % 60;
+  if (hours === 0) return `${minutes} min`;
+  if (minutes === 0) return `${hours} hr`;
+  return `${hours} hr ${minutes} min`;
+}
+
 function MultiChip({
   label,
   selected,
@@ -857,6 +1066,27 @@ function SwitchRow({
 }
 
 const styles = StyleSheet.create({
+  visitLineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  visitLineLabel: { flex: 1, fontSize: 14, fontWeight: '500' },
+  visitLineStepper: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  visitLineCount: { minWidth: 74, textAlign: 'center', fontSize: 13 },
+  visitLineRemove: { padding: 4 },
+  stepperButton: {
+    width: 28,
+    height: 28,
+    borderWidth: 1,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   container: { flex: 1 },
   header: {
     flexDirection: 'row',

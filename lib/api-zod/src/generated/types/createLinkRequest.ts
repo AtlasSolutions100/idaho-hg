@@ -9,4 +9,6 @@
 export interface CreateLinkRequest {
   /** @minLength 1 */
   employeeId: string;
+  /** The discipline the person says they are, chosen from /disciplines when they claim the profile. Recorded on the request so Molly can see it (and any disagreement with the profile) before approving; approving applies it to the profile. */
+  discipline?: string;
 }

@@ -22,19 +22,43 @@ export interface UseVisitTypesResult {
   labelFor: (key: string | null | undefined) => string;
   /** key -> short abbreviation, falling back to the label then the key. */
   abbrFor: (key: string | null | undefined) => string;
+  /** The full catalog entry for a key, when it is in the catalog. */
+  typeFor: (key: string | null | undefined) => VisitTypeItem | undefined;
+  /**
+   * How many active types exist before the discipline filter. Lets a caller
+   * tell "your profession has none of these" apart from "none are set up",
+   * which read identically as an empty list.
+   */
+  activeCountBeforeFilter: number;
   isLoading: boolean;
   isError: boolean;
 }
 
-export function useVisitTypes(): UseVisitTypesResult {
+/**
+ * @param discipline The signed-in employee's discipline. When given, the
+ *   picker list is narrowed to the types that discipline can perform — an RN
+ *   is not offered "Physical Therapy (PTV)", which is the same visit for a
+ *   different profession at a different rate. Undefined (the signed-out web
+ *   demo) shows everything rather than an empty list.
+ */
+export function useVisitTypes(discipline?: string | null): UseVisitTypesResult {
   const { data, isLoading, isError } = useListVisitTypes();
 
   return useMemo(() => {
     const all = data ?? [];
     const byKey = new Map(all.map((t) => [t.key, t]));
-    const active = all
+    const activeAll = all
       .filter((t) => t.active)
       .sort((a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label));
+    // A type with no discipline list is open to everyone. Matching is
+    // case-insensitive so a roster value of "rn" still finds "RN".
+    const wanted = discipline?.trim().toUpperCase();
+    const active = activeAll.filter((t) => {
+      const list = t.disciplines ?? [];
+      if (list.length === 0) return true;
+      if (!wanted) return true;
+      return list.some((d) => d.trim().toUpperCase() === wanted);
+    });
 
     const labelFor = (key: string | null | undefined): string => {
       if (!key) return '';
@@ -54,8 +78,10 @@ export function useVisitTypes(): UseVisitTypesResult {
       allVisitTypes: all,
       labelFor,
       abbrFor,
+      typeFor: (key) => (key ? byKey.get(key) : undefined),
+      activeCountBeforeFilter: activeAll.length,
       isLoading,
       isError,
     };
-  }, [data, isLoading, isError]);
+  }, [data, discipline, isLoading, isError]);
 }

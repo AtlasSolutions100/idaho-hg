@@ -82,6 +82,7 @@ export default function EmployeeDashboard() {
         {showForm || editingEntry ? (
           <LogHoursForm
             employeeId={employeeId}
+            discipline={me?.role}
             entry={editingEntry ?? undefined}
             allowDraft={canDraftAndEdit}
             onSubmit={handleSubmit}

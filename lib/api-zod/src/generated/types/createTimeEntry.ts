@@ -13,7 +13,15 @@ export interface CreateTimeEntry {
   employeeId: string;
   clientId: string;
   date: string;
+  /** Last day covered, for an entry that spans a range instead of one day. Only mileage-only entries may use it (St. Luke's employees enter one mileage total for a whole pay period). Must be >= date. */
+  endDate?: string;
   visitType?: VisitType;
+  /**
+     * How many of this visit type the entry covers — 2 for two evals on the same day. For an "increment" visit type it is the number of blocks, so a half hour of a 15-minute type is 2. Defaults to 1.
+     * @minimum 1
+     * @maximum 100
+     */
+  quantity?: number;
   /**
      * Clock-in time "HH:MM" (24-hour). Provide with timeOut instead of hours.
      * @pattern ^([01][0-9]|2[0-3]):[0-5][0-9]$

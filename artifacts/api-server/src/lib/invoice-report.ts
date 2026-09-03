@@ -69,6 +69,8 @@ export async function computeInvoiceReport(
       employeeName: entry.employeeName,
       employeeRole: entry.employeeRole,
       visitType: entry.visitType,
+      quantity: entry.quantity,
+      endDate: entry.endDate,
       hours: entry.hours,
       mileage: entry.mileage,
       perDiem: entry.perDiem,

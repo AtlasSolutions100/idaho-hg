@@ -14,7 +14,7 @@ import {
   resolveDayTypeRate,
   pickDayMultiplier,
 } from "../lib/rate-lookup";
-import { computePayrollAmounts, round2 } from "../lib/payroll-calc";
+import { computePayrollAmounts, quantityOf, round2 } from "../lib/payroll-calc";
 import { computeInvoiceReport } from "../lib/invoice-report";
 import {
   buildReconciliationReport,
@@ -87,7 +87,9 @@ async function resolveEntryBilledAmount(
         client.weekendMultiplier,
         client.holidayMultiplier,
       );
-      amount += rate.rate * mult;
+      // Per visit — or per block for an increment-billed type — so the entry's
+      // count applies, exactly as it does on the invoice line.
+      amount += rate.rate * quantityOf(entry) * mult;
     }
   } else if (entry.hours != null && entry.hours > 0) {
     const resolved = await resolveDayTypeRate(
@@ -212,8 +214,10 @@ router.get("/reports/payroll", requireAdmin, async (req, res, next) => {
       group.lines.push({
         entryId: String(entry.id),
         date: entry.date,
+        ...(entry.endDate ? { endDate: entry.endDate } : {}),
         clientName: entry.clientName,
         ...(entry.visitType ? { visitType: entry.visitType } : {}),
+        ...(entry.visitType && entry.quantity !== 1 ? { quantity: entry.quantity } : {}),
         ...(entry.hours != null ? { hours: entry.hours } : {}),
         // One-off "Other" work: labeled and carrying the employee's
         // description so the export reads like Molly's spreadsheets.
@@ -229,7 +233,7 @@ router.get("/reports/payroll", requireAdmin, async (req, res, next) => {
         total,
         missingRate,
       });
-      if (entry.visitType) group.visitCount += 1;
+      if (entry.visitType) group.visitCount += quantityOf(entry);
       if (entry.hours != null) group.totalHours += entry.hours;
       group.basePay = round2(group.basePay + basePay);
       group.mileagePay = round2(group.mileagePay + mileagePay);
@@ -312,6 +316,8 @@ router.get("/reports/reconciliation", requireAdmin, async (req, res, next) => {
         employeeName: entry.employeeName,
         employeeRole: entry.employeeRole,
         visitType: entry.visitType,
+        quantity: entry.quantity,
+        endDate: entry.endDate,
         hours: entry.hours,
         mileage: entry.mileage,
         perDiem: entry.perDiem,

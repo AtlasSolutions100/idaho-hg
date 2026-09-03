@@ -9,7 +9,9 @@ import {
   useListEmployees,
   useUpdateEmployeeEmail,
   useUpdateEmployeeContact,
+  useUpdateEmployeeDiscipline,
   useUpdateEmployeeSignInAccess,
+  useListDisciplines,
   getListEmployeeRatesQueryKey,
   getListEmployeeRateHistoryQueryKey,
   getListEmployeesQueryKey,
@@ -23,6 +25,13 @@ import { Badge } from '@/components/ui/badge';
 import { isDemoId } from '@/lib/demo';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -64,6 +73,8 @@ export function EmployeeRatesTable() {
   const { data: rates, isLoading, isError } = useListEmployeeRates();
 
   const [editing, setEditing] = useState<EmployeeRate | null>(null);
+  // The discipline shown in the per-employee dialog (see handleSaveContact).
+  const [contactDiscipline, setContactDiscipline] = useState('');
   const [form, setForm] = useState<EditForm>({
     hourlyRate: '',
     visitRate: '',
@@ -241,6 +252,31 @@ export function EmployeeRatesTable() {
     },
   });
 
+  const { data: disciplines } = useListDisciplines();
+  // Retired disciplines stay selectable for someone already on one, so opening
+  // the dialog can't silently reassign them.
+  const disciplineOptions = (disciplines ?? []).filter(
+    (d) => d.active || d.key === contactDiscipline,
+  );
+
+  const disciplineMutation = useUpdateEmployeeDiscipline({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getListEmployeeRatesQueryKey() });
+      },
+      onError: (error) => {
+        const serverMessage =
+          error && typeof error === 'object' && 'data' in error &&
+          error.data && typeof error.data === 'object' && 'message' in error.data &&
+          typeof (error.data as { message?: unknown }).message === 'string'
+            ? (error.data as { message: string }).message
+            : null;
+        setContactError(serverMessage ?? 'Could not change the discipline. Please try again.');
+      },
+    },
+  });
+
   const openContact = (employeeId: string, employeeName: string) => {
     const emp = employeeById.get(employeeId);
     setContactFor({ employeeId, employeeName });
@@ -249,12 +285,36 @@ export function EmployeeRatesTable() {
       contactEmail: emp?.contactEmail ?? '',
       address: emp?.address ?? '',
     });
+    setContactDiscipline(emp?.role ?? '');
     setContactError(null);
   };
 
-  const handleSaveContact = () => {
+  const handleSaveContact = async () => {
     if (!contactFor) return;
     setContactError(null);
+    const currentRole = employeeById.get(contactFor.employeeId)?.role ?? '';
+    // The discipline is a separate endpoint because it does more than store a
+    // string: it re-stamps the employee's not-yet-approved entries so they
+    // price under the corrected discipline. Save it first — if it fails, the
+    // dialog stays open with the error and nothing is half-applied.
+    if (contactDiscipline && contactDiscipline !== currentRole) {
+      try {
+        const result = await disciplineMutation.mutateAsync({
+          id: contactFor.employeeId,
+          data: { discipline: contactDiscipline },
+        });
+        if (result.restampedEntryCount > 0) {
+          toast({
+            title: 'Discipline changed',
+            description: `${result.restampedEntryCount} entr${
+              result.restampedEntryCount === 1 ? 'y' : 'ies'
+            } still waiting for approval will now be priced as ${contactDiscipline}. Approved entries keep the discipline they were paid under.`,
+          });
+        }
+      } catch {
+        return; // onError already set the message
+      }
+    }
     contactMutation.mutate({
       id: contactFor.employeeId,
       data: {
@@ -303,7 +363,11 @@ export function EmployeeRatesTable() {
       return;
     }
     if (!newRole.trim()) {
-      toast({ title: 'Missing role', description: 'Enter the role (e.g. RN, PT).', variant: 'destructive' });
+      toast({
+        title: 'Missing discipline',
+        description: "Pick the employee's discipline — it decides their rates.",
+        variant: 'destructive',
+      });
       return;
     }
     const values: Record<string, number> = {};
@@ -603,14 +667,23 @@ export function EmployeeRatesTable() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="new-employee-role">Role</Label>
-              <Input
-                id="new-employee-role"
-                value={newRole}
-                onChange={(e) => setNewRole(e.target.value)}
-                placeholder="e.g. RN, PT, OT"
-                data-testid="input-new-employee-role"
-              />
+              <Label htmlFor="new-employee-role">Discipline</Label>
+              {/* Picked, not typed: this value is the key that resolves their
+                  pay and billing rates, so a typo would pay them nothing. */}
+              <Select value={newRole} onValueChange={setNewRole}>
+                <SelectTrigger id="new-employee-role" data-testid="input-new-employee-role">
+                  <SelectValue placeholder="Pick a discipline" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(disciplines ?? [])
+                    .filter((d) => d.active)
+                    .map((d) => (
+                      <SelectItem key={d.key} value={d.key}>
+                        {d.label}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2 col-span-2">
               <Label htmlFor="new-employee-email">Sign-in email (optional)</Label>
@@ -702,14 +775,34 @@ export function EmployeeRatesTable() {
       <Dialog open={!!contactFor} onOpenChange={(open) => !open && setContactFor(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Contact Info</DialogTitle>
+            <DialogTitle>Employee Details</DialogTitle>
             <DialogDescription>
               {contactFor
-                ? `How you reach ${contactFor.employeeName} — separate from their app sign-in email. Leave a field blank to clear it.`
+                ? `${contactFor.employeeName}'s discipline and how you reach them — separate from their app sign-in email. Leave a contact field blank to clear it.`
                 : ''}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="contact-discipline">Discipline</Label>
+              <Select value={contactDiscipline} onValueChange={setContactDiscipline}>
+                <SelectTrigger id="contact-discipline" data-testid="select-employee-discipline">
+                  <SelectValue placeholder="Pick a discipline" />
+                </SelectTrigger>
+                <SelectContent>
+                  {disciplineOptions.map((d) => (
+                    <SelectItem key={d.key} value={d.key}>
+                      {d.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Decides which visit types they see and which rates they're paid
+                and billed at. Entries you've already approved keep the
+                discipline they were paid under.
+              </p>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="contact-phone">Phone</Label>
               <Input
@@ -758,7 +851,7 @@ export function EmployeeRatesTable() {
             </Button>
             <Button
               onClick={handleSaveContact}
-              disabled={contactMutation.isPending}
+              disabled={contactMutation.isPending || disciplineMutation.isPending}
               className="gap-2"
               data-testid="button-save-contact-info"
             >

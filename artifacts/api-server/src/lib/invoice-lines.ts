@@ -14,7 +14,7 @@
 // - One aggregated line per employee + type; if the rate changed mid-range
 //   the line splits per rate so amounts stay honest.
 
-import { round2 } from "./payroll-calc";
+import { round2, quantityOf } from "./payroll-calc";
 
 export type InvoiceEntryInput = {
   id: number | string;
@@ -23,7 +23,11 @@ export type InvoiceEntryInput = {
   employeeName: string;
   employeeRole: string;
   visitType: string | null;
+  /** How many of the visit type (or billable blocks); 1 when absent. */
+  quantity?: number | null;
   hours: number | null;
+  /** Last day covered when the entry spans a range (mileage over a period). */
+  endDate?: string | null;
   mileage: number | null;
   perDiem: number | null;
   /** Client's per-visit rate effective on the entry date (visit entries). */
@@ -190,7 +194,10 @@ export function buildInvoiceLines(entries: InvoiceEntryInput[]): InvoiceLinesRes
     }
     bucket.qty = round2(bucket.qty + qty);
     if (entry.date < bucket.firstDate) bucket.firstDate = entry.date;
-    if (entry.date > bucket.lastDate) bucket.lastDate = entry.date;
+    // A mileage entry covering a period ends on its endDate, so the line's
+    // range has to reach that far — "MC mileage 7/12-7/25/26", not 7/12 alone.
+    const last = entry.endDate && entry.endDate > entry.date ? entry.endDate : entry.date;
+    if (last > bucket.lastDate) bucket.lastDate = last;
   };
 
   const sortedEntries = [...entries].sort((a, b) =>
@@ -213,7 +220,10 @@ export function buildInvoiceLines(entries: InvoiceEntryInput[]): InvoiceLinesRes
     }
     let billedSomething = false;
     if (entry.visitType) {
-      add(entry, "visit", entry.visitType, entry.visitRate, 1);
+      // Two evals on one day arrive as a single entry with quantity 2, and an
+      // increment-billed type carries its block count the same way — both are
+      // exactly what the invoice's Qty column means.
+      add(entry, "visit", entry.visitType, entry.visitRate, quantityOf(entry));
       billedSomething = true;
     } else if (entry.hours != null && entry.hours > 0) {
       add(entry, "hourly", null, entry.hourlyRate, entry.hours);
