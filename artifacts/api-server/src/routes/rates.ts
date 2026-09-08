@@ -381,6 +381,14 @@ const seedWeiserWeekendBilling = [
 const clientDayMultipliers: Array<{ clientId: string; weekend: number; holiday: number }> = [
   { clientId: "1", weekend: 1.1, holiday: 1.1 }, // St. Luke's: +10% for both
   { clientId: "2", weekend: 1, holiday: 1.5 }, // Weiser: explicit weekend rows; holidays 1.5x
+  // Idaho Youth Ranch carries the identical footnote to Weiser's on Molly's
+  // master sheet — "time and a half will be paid on: New years, Memorial Day,
+  // Independence Day, labor Day, Thanksgiving, Christmas", which is exactly
+  // the six days work-calendar.ts treats as holidays — but was left at the
+  // default 1, so holiday shifts there paid and billed flat. Matched to
+  // Weiser. Her note says "paid"; the multiplier column drives billing too,
+  // as it already does for Weiser, and that is the open question for her.
+  { clientId: "3", weekend: 1, holiday: 1.5 },
 ];
 
 async function backfillMollyRates() {
