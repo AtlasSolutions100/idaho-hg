@@ -197,7 +197,7 @@ export function VisitPicker({
                 <span className="flex-1">{labelFor(item.key)}</span>
                 {isIncrement && (
                   <span className="text-xs text-muted-foreground">
-                    per {item.incrementMinutes} min
+                    hourly
                   </span>
                 )}
                 {chosen && !singleLine && (

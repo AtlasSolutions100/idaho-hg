@@ -14,7 +14,13 @@ import {
   resolveDayTypeRate,
   pickDayMultiplier,
 } from "../lib/rate-lookup";
-import { computePayrollAmounts, quantityOf, round2 } from "../lib/payroll-calc";
+import {
+  computePayrollAmounts,
+  billableUnits,
+  round2,
+  type VisitTypeUnit,
+} from "../lib/payroll-calc";
+import { visitTypeUnitMap } from "../lib/visit-types";
 import { computeInvoiceReport } from "../lib/invoice-report";
 import {
   buildReconciliationReport,
@@ -63,6 +69,7 @@ async function approvedEntriesInRange(start: string, end: string): Promise<TimeE
 async function resolveEntryBilledAmount(
   entry: TimeEntryRow,
   client: { id: string; weekendMultiplier: number; holidayMultiplier: number },
+  units: Map<string, VisitTypeUnit>,
 ): Promise<number> {
   // "Other" one-offs bill only Molly's flat amount (already on the entry) —
   // no rate, mileage, or per-diem lookups — mirroring the invoice.
@@ -87,9 +94,9 @@ async function resolveEntryBilledAmount(
         client.weekendMultiplier,
         client.holidayMultiplier,
       );
-      // Per visit — or per block for an increment-billed type — so the entry's
-      // count applies, exactly as it does on the invoice line.
-      amount += rate.rate * quantityOf(entry) * mult;
+      // Per visit — or per hour for an increment-billed type — so the entry's
+      // units apply, exactly as they do on the invoice line.
+      amount += rate.rate * billableUnits(entry, units.get(entry.visitType)) * mult;
     }
   } else if (entry.hours != null && entry.hours > 0) {
     const resolved = await resolveDayTypeRate(
@@ -143,6 +150,9 @@ router.get("/reports/payroll", requireAdmin, async (req, res, next) => {
     const clientById = new Map(
       (await db.select().from(clientsTable)).map((c) => [c.id, c]),
     );
+    // How each visit type is priced. Hospital at Home and drive time are
+    // hourly, so their block counts become hours before meeting a rate.
+    const units = await visitTypeUnitMap();
 
     type EmployeeGroup = {
       employeeId: string;
@@ -192,7 +202,12 @@ router.get("/reports/payroll", requireAdmin, async (req, res, next) => {
       }
       // All pay math lives in lib/payroll-calc.ts (pure + unit tested).
       const { multiplier, basePay, mileagePay, perDiemPay, total, missingRate } =
-        computePayrollAmounts(entry, rate, { visitPayRate, hourlyPayRate, multiplier: dayMultiplier });
+        computePayrollAmounts(entry, rate, {
+          visitPayRate,
+          hourlyPayRate,
+          multiplier: dayMultiplier,
+          ...(entry.visitType ? { unit: units.get(entry.visitType) } : {}),
+        });
       if (missingRate) missingRateCount += 1;
 
       let group = groups.get(entry.employeeId);
@@ -233,7 +248,11 @@ router.get("/reports/payroll", requireAdmin, async (req, res, next) => {
         total,
         missingRate,
       });
-      if (entry.visitType) group.visitCount += quantityOf(entry);
+      // Units, not raw quantity: an hour and a half of Hospital at Home is
+      // 1.5 on this tally, not the six 15-minute blocks it is stored as.
+      if (entry.visitType) {
+        group.visitCount += billableUnits(entry, units.get(entry.visitType));
+      }
       if (entry.hours != null) group.totalHours += entry.hours;
       group.basePay = round2(group.basePay + basePay);
       group.mileagePay = round2(group.mileagePay + mileagePay);
@@ -307,6 +326,7 @@ router.get("/reports/reconciliation", requireAdmin, async (req, res, next) => {
     // carry the billed dollars onto every line, subtotal, and the grand total.
     // Summing per-entry amounts reconciles to the invoice total (see
     // resolveEntryBilledAmount).
+    const units = await visitTypeUnitMap();
     const annotated: ReconciliationEntryInput[] = [];
     for (const entry of entries) {
       annotated.push({
@@ -325,7 +345,7 @@ router.get("/reports/reconciliation", requireAdmin, async (req, res, next) => {
         isHoliday: entry.isHoliday,
         note: entry.note,
         ...(entry.isOther ? { isOther: true } : {}),
-        amount: await resolveEntryBilledAmount(entry, client),
+        amount: await resolveEntryBilledAmount(entry, client, units),
       });
     }
 

@@ -55,6 +55,11 @@ export function daySummary(
   // newly-added types render with their real label instead of the raw key.
   labelFor: (key: string | null | undefined) => string = (key) =>
     key ? (visitTypeLabels[key] ?? key) : '',
+  // Resolves a key to its catalog entry, so an hourly type (Hospital at Home,
+  // drive time) can be tallied as time rather than as a count of blocks.
+  // Defaults to "everything is per-visit", which is what it was before.
+  typeFor: (key: string | null | undefined) =>
+    { billingUnit?: string; incrementMinutes?: number } | undefined = () => undefined,
 ) {
   // Only entries that still count toward the day: waiting or already
   // approved. Drafts are private and rejected siblings are out of play —
@@ -67,6 +72,8 @@ export function daySummary(
       (e.status === 'submitted' || e.status === 'approved'),
   );
   const visitCounts = new Map<string, number>();
+  // Labels whose tally is hours, not a count — rendered "1.5 hrs x" not "6 x".
+  const hourlyLabels = new Set<string>();
   let mileage = 0;
   let perDiemType: string | undefined;
   // Legacy entries carry only a numeric per diem with no type — still payable
@@ -80,8 +87,17 @@ export function daySummary(
     if (e.visitType) {
       const label = labelFor(e.visitType);
       // An entry can cover more than one of the same visit ("2 evals"), so the
-      // day's tally counts visits performed rather than rows submitted.
-      visitCounts.set(label, (visitCounts.get(label) ?? 0) + (e.quantity ?? 1));
+      // day's tally counts visits performed rather than rows submitted. An
+      // hourly type stores 15-minute blocks, so six of them is an hour and a
+      // half of Hospital at Home — not six visits.
+      const type = typeFor(e.visitType);
+      const blocks = e.quantity ?? 1;
+      const amount =
+        type?.billingUnit === 'increment'
+          ? (blocks * (type.incrementMinutes ?? 15)) / 60
+          : blocks;
+      if (type?.billingUnit === 'increment') hourlyLabels.add(label);
+      visitCounts.set(label, (visitCounts.get(label) ?? 0) + amount);
     }
     if (e.mileage) mileage += e.mileage;
     if (e.perDiemType) perDiemType = e.perDiemType;
@@ -91,7 +107,16 @@ export function daySummary(
   return {
     siblings,
     visitCounts: [...visitCounts.entries()],
-    totalVisits: siblings.reduce((sum, e) => sum + (e.visitType ? (e.quantity ?? 1) : 0), 0),
+    hourlyLabels,
+    // "Visits this day" counts visits, so an hourly type contributes none.
+    totalVisits: siblings.reduce(
+      (sum, e) =>
+        sum +
+        (e.visitType && typeFor(e.visitType)?.billingUnit !== 'increment'
+          ? (e.quantity ?? 1)
+          : 0),
+      0,
+    ),
     mileage,
     perDiemType,
     perDiemCount,
@@ -192,7 +217,7 @@ function OtherPricingForm({ entry, onError }: { entry: TimeEntry; onError: (mess
 export function ApprovePayrollTable() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { labelFor } = useVisitTypes();
+  const { labelFor, typeFor } = useVisitTypes();
   const { data: entries, isLoading, isError } = useListTimeEntries();
 
   const invalidate = () =>
@@ -361,7 +386,7 @@ export function ApprovePayrollTable() {
               <TableBody>
                 {weekGroups.get(weekKey)!.map(entry => {
                   const expanded = expandedIds.has(entry.id);
-                  const day = expanded ? daySummary(entry, entries ?? [], labelFor) : null;
+                  const day = expanded ? daySummary(entry, entries ?? [], labelFor, typeFor) : null;
                   return [
                   <TableRow
                     key={entry.id}
@@ -522,7 +547,9 @@ export function ApprovePayrollTable() {
                                 <ul className="space-y-0.5" data-testid={`detail-visits-${entry.id}`}>
                                   {day.visitCounts.map(([label, count]) => (
                                     <li key={label} className={label === (entry.visitType ? labelFor(entry.visitType) : '') ? 'font-medium' : ''}>
-                                      {count} × {label}
+                                      {day.hourlyLabels.has(label)
+                                        ? `${count} ${count === 1 ? 'hr' : 'hrs'} × ${label}`
+                                        : `${count} × ${label}`}
                                     </li>
                                   ))}
                                 </ul>

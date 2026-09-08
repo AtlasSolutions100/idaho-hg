@@ -610,8 +610,8 @@ export const ListVisitTypesResponseItem = zod.object({
   "active": zod.boolean(),
   "sortOrder": zod.number(),
   "disciplines": zod.array(zod.string()).optional().describe('Discipline keys allowed to log this visit type. Empty\/omitted means every discipline.'),
-  "billingUnit": zod.enum(['visit', 'increment']).describe('How a visit type is counted and priced. \"visit\" is one flat rate per visit (the default). \"increment\" prices per block of `incrementMinutes` — St. Luke\'s bills Hospital at Home and drive time in 15-minute blocks, so its rate is the per-block rate and the entry records how many blocks.'),
-  "incrementMinutes": zod.number().describe('Minutes per billable block when billingUnit is \"increment\".')
+  "billingUnit": zod.enum(['visit', 'increment']).describe('How a visit type is counted and priced. \"visit\" is one flat rate per visit (the default). \"increment\" is priced BY THE HOUR and entered in `incrementMinutes` steps — St. Luke\'s pays Hospital at Home and drive time hourly but logs them to the quarter hour, so the rate is the hourly rate while the entry records how many blocks. Multiply the two only after converting blocks to hours.'),
+  "incrementMinutes": zod.number().describe('Entry granularity in minutes when billingUnit is \"increment\" — 15 means time is logged in quarter hours. Not a pricing unit: the rate is hourly.')
 })
 export const ListVisitTypesResponse = zod.array(ListVisitTypesResponseItem)
 
@@ -629,7 +629,7 @@ export const CreateVisitTypeBody = zod.object({
   "abbreviation": zod.string(),
   "sortOrder": zod.number().optional(),
   "disciplines": zod.array(zod.string()).optional(),
-  "billingUnit": zod.enum(['visit', 'increment']).optional().describe('How a visit type is counted and priced. \"visit\" is one flat rate per visit (the default). \"increment\" prices per block of `incrementMinutes` — St. Luke\'s bills Hospital at Home and drive time in 15-minute blocks, so its rate is the per-block rate and the entry records how many blocks.'),
+  "billingUnit": zod.enum(['visit', 'increment']).optional().describe('How a visit type is counted and priced. \"visit\" is one flat rate per visit (the default). \"increment\" is priced BY THE HOUR and entered in `incrementMinutes` steps — St. Luke\'s pays Hospital at Home and drive time hourly but logs them to the quarter hour, so the rate is the hourly rate while the entry records how many blocks. Multiply the two only after converting blocks to hours.'),
   "incrementMinutes": zod.number().min(1).max(createVisitTypeBodyIncrementMinutesMax).optional()
 })
 
@@ -640,8 +640,8 @@ export const CreateVisitTypeResponse = zod.object({
   "active": zod.boolean(),
   "sortOrder": zod.number(),
   "disciplines": zod.array(zod.string()).optional().describe('Discipline keys allowed to log this visit type. Empty\/omitted means every discipline.'),
-  "billingUnit": zod.enum(['visit', 'increment']).describe('How a visit type is counted and priced. \"visit\" is one flat rate per visit (the default). \"increment\" prices per block of `incrementMinutes` — St. Luke\'s bills Hospital at Home and drive time in 15-minute blocks, so its rate is the per-block rate and the entry records how many blocks.'),
-  "incrementMinutes": zod.number().describe('Minutes per billable block when billingUnit is \"increment\".')
+  "billingUnit": zod.enum(['visit', 'increment']).describe('How a visit type is counted and priced. \"visit\" is one flat rate per visit (the default). \"increment\" is priced BY THE HOUR and entered in `incrementMinutes` steps — St. Luke\'s pays Hospital at Home and drive time hourly but logs them to the quarter hour, so the rate is the hourly rate while the entry records how many blocks. Multiply the two only after converting blocks to hours.'),
+  "incrementMinutes": zod.number().describe('Entry granularity in minutes when billingUnit is \"increment\" — 15 means time is logged in quarter hours. Not a pricing unit: the rate is hourly.')
 })
 
 
@@ -662,7 +662,7 @@ export const UpdateVisitTypeBody = zod.object({
   "active": zod.boolean().optional(),
   "sortOrder": zod.number().optional(),
   "disciplines": zod.array(zod.string()).optional().describe('Replaces the list outright; an empty array means all disciplines.'),
-  "billingUnit": zod.enum(['visit', 'increment']).optional().describe('How a visit type is counted and priced. \"visit\" is one flat rate per visit (the default). \"increment\" prices per block of `incrementMinutes` — St. Luke\'s bills Hospital at Home and drive time in 15-minute blocks, so its rate is the per-block rate and the entry records how many blocks.'),
+  "billingUnit": zod.enum(['visit', 'increment']).optional().describe('How a visit type is counted and priced. \"visit\" is one flat rate per visit (the default). \"increment\" is priced BY THE HOUR and entered in `incrementMinutes` steps — St. Luke\'s pays Hospital at Home and drive time hourly but logs them to the quarter hour, so the rate is the hourly rate while the entry records how many blocks. Multiply the two only after converting blocks to hours.'),
   "incrementMinutes": zod.number().min(1).max(updateVisitTypeBodyIncrementMinutesMax).optional()
 })
 
@@ -673,8 +673,8 @@ export const UpdateVisitTypeResponse = zod.object({
   "active": zod.boolean(),
   "sortOrder": zod.number(),
   "disciplines": zod.array(zod.string()).optional().describe('Discipline keys allowed to log this visit type. Empty\/omitted means every discipline.'),
-  "billingUnit": zod.enum(['visit', 'increment']).describe('How a visit type is counted and priced. \"visit\" is one flat rate per visit (the default). \"increment\" prices per block of `incrementMinutes` — St. Luke\'s bills Hospital at Home and drive time in 15-minute blocks, so its rate is the per-block rate and the entry records how many blocks.'),
-  "incrementMinutes": zod.number().describe('Minutes per billable block when billingUnit is \"increment\".')
+  "billingUnit": zod.enum(['visit', 'increment']).describe('How a visit type is counted and priced. \"visit\" is one flat rate per visit (the default). \"increment\" is priced BY THE HOUR and entered in `incrementMinutes` steps — St. Luke\'s pays Hospital at Home and drive time hourly but logs them to the quarter hour, so the rate is the hourly rate while the entry records how many blocks. Multiply the two only after converting blocks to hours.'),
+  "incrementMinutes": zod.number().describe('Entry granularity in minutes when billingUnit is \"increment\" — 15 means time is logged in quarter hours. Not a pricing unit: the rate is hourly.')
 })
 
 

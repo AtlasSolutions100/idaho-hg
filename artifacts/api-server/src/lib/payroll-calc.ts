@@ -56,6 +56,41 @@ export function quantityOf(entry: Pick<PayrollEntryInput, "quantity">): number {
   return q != null && q > 0 ? q : 1;
 }
 
+/** The pricing half of a visit type: how its rate is quoted and entered. */
+export type VisitTypeUnit = {
+  /** "visit" = one flat rate per visit; "increment" = an hourly rate. */
+  billingUnit: string;
+  /** Entry granularity for an increment type — 15 means quarter-hour steps. */
+  incrementMinutes: number;
+};
+
+/**
+ * How many rate-units an entry covers — the number the rate is multiplied by.
+ *
+ * A per-visit type charges its rate once per visit, so the units are just the
+ * count: two evals is 2.
+ *
+ * An increment type (Hospital at Home, drive time) is quoted BY THE HOUR on
+ * Molly's rate sheet but entered in `incrementMinutes` steps, so its quantity
+ * counts blocks and has to be converted to hours before it meets the rate.
+ * Her reconciliation sheets put 1.5 in the Hospital-at-Home column against an
+ * $84 rate and bill $126; six 15-minute blocks x $84 would be $504. The
+ * conversion is what keeps those the same number.
+ *
+ * `unit` is undefined when the entry names a visit type that is no longer in
+ * the catalog. That prices per visit — the same thing every entry did before
+ * increment types existed, and the only safe reading of a type we can no
+ * longer ask about.
+ */
+export function billableUnits(
+  entry: Pick<PayrollEntryInput, "quantity">,
+  unit: VisitTypeUnit | undefined,
+): number {
+  const count = quantityOf(entry);
+  if (unit?.billingUnit !== "increment") return count;
+  return round2((count * unit.incrementMinutes) / 60);
+}
+
 export function resolveMultiplier(
   entry: Pick<PayrollEntryInput, "isWeekend" | "isHoliday">,
   rate: PayrollRate,
@@ -83,6 +118,12 @@ export type PayrollComputeOptions = {
   hourlyPayRate?: number;
   /** Pre-resolved weekend/holiday multiplier (per-client); else the employee rate's. */
   multiplier?: number;
+  /**
+   * The entry's visit type as the catalog defines it. Omitting it prices the
+   * entry per visit, which is wrong for an hourly type — every caller that
+   * can reach the visit-type catalog should pass this.
+   */
+  unit?: VisitTypeUnit;
 };
 
 export function computePayrollAmounts(
@@ -120,10 +161,10 @@ export function computePayrollAmounts(
     // employee's flat visitRate so existing behavior is preserved until Molly
     // fills in the discipline × visit-type pay matrix.
     //
-    // The rate is per visit — or, for a type billed in increments, per block —
-    // so it is multiplied by how many the entry covers.
+    // The rate is per visit — or, for an increment type, per hour — so it is
+    // multiplied by the units the entry covers (see billableUnits).
     const perVisitPay = opts.visitPayRate ?? rate.visitRate;
-    basePay = perVisitPay * quantityOf(entry) * multiplier;
+    basePay = perVisitPay * billableUnits(entry, opts.unit) * multiplier;
   } else if (entry.hours != null) {
     // Per-client hourly pay (client_pay_rates) when set; else the employee's
     // flat hourlyRate.
@@ -151,6 +192,7 @@ export type InvoiceAmount = {
 export function computeInvoiceAmount(
   entry: Pick<PayrollEntryInput, "visitType" | "quantity">,
   rate: { rate: number } | undefined,
+  unit?: VisitTypeUnit,
 ): InvoiceAmount {
   if (!entry.visitType) {
     return { amount: 0, billable: false, missingRate: false };
@@ -158,5 +200,9 @@ export function computeInvoiceAmount(
   if (!rate) {
     return { amount: 0, billable: true, missingRate: true };
   }
-  return { amount: round2(rate.rate * quantityOf(entry)), billable: true, missingRate: false };
+  return {
+    amount: round2(rate.rate * billableUnits(entry, unit)),
+    billable: true,
+    missingRate: false,
+  };
 }

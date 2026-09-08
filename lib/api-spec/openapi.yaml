@@ -2915,9 +2915,11 @@ components:
       enum: [visit, increment]
       description: >-
         How a visit type is counted and priced. "visit" is one flat rate per
-        visit (the default). "increment" prices per block of `incrementMinutes`
-        — St. Luke's bills Hospital at Home and drive time in 15-minute blocks,
-        so its rate is the per-block rate and the entry records how many blocks.
+        visit (the default). "increment" is priced BY THE HOUR and entered in
+        `incrementMinutes` steps — St. Luke's pays Hospital at Home and drive
+        time hourly but logs them to the quarter hour, so the rate is the
+        hourly rate while the entry records how many blocks. Multiply the two
+        only after converting blocks to hours.
     VisitTypeItem:
       type: object
       properties:
@@ -2942,7 +2944,10 @@ components:
           $ref: "#/components/schemas/BillingUnit"
         incrementMinutes:
           type: number
-          description: Minutes per billable block when billingUnit is "increment".
+          description: >-
+            Entry granularity in minutes when billingUnit is "increment" — 15
+            means time is logged in quarter hours. Not a pricing unit: the
+            rate is hourly.
       required: [key, label, abbreviation, active, sortOrder, billingUnit, incrementMinutes]
     CreateVisitType:
       type: object

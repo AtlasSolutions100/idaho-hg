@@ -180,6 +180,24 @@ describe('daySummary', () => {
     expect(day.mileage).toBe(42);
   });
 
+  it('tallies an hourly type as hours, and keeps it out of the visit count', () => {
+    // Hospital at Home stores 15-minute blocks: six of them is an hour and a
+    // half. Showing "6 x Hospital at Home" next to a real visit count was the
+    // same per-block/per-hour confusion that four-timed the invoice.
+    const labelFor = (k: string | null | undefined) => (k === 'hospital-at-home' ? 'Hospital at Home' : String(k));
+    const typeFor = (k: string | null | undefined) =>
+      k === 'hospital-at-home' ? { billingUnit: 'increment', incrementMinutes: 15 } : { billingUnit: 'visit' };
+    const siblings = [
+      { ...ENTRIES[4], visitType: 'hospital-at-home', quantity: 6 },
+      { ...ENTRIES[5] },
+    ];
+    const day = daySummary(siblings[0] as never, siblings as never[], labelFor, typeFor);
+    expect(day.visitCounts).toContainEqual(['Hospital at Home', 1.5]);
+    expect(day.hourlyLabels.has('Hospital at Home')).toBe(true);
+    // ENTRIES[5] is a real visit and still counts; the H@H blocks do not.
+    expect(day.totalVisits).toBe(1);
+  });
+
   it('surfaces legacy numeric per diem entries with no type', () => {
     const legacy = [
       { ...ENTRIES[0], perDiem: 1.5, perDiemType: undefined },

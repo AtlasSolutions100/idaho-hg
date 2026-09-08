@@ -12,6 +12,7 @@ import {
   pickDayMultiplier,
 } from "./rate-lookup";
 import { buildInvoiceLines, type InvoiceEntryInput, type InvoiceLine } from "./invoice-lines";
+import { visitTypeUnitMap } from "./visit-types";
 
 export type InvoiceReportData = {
   clientId: string;
@@ -144,7 +145,12 @@ export async function computeInvoiceReport(
     annotated.push(input);
   }
 
-  const { lines, total, missingRateCount, unbilledCount } = buildInvoiceLines(annotated);
+  // Hospital at Home and drive time bill by the hour, so the line builder
+  // needs the catalog to turn their block counts into hours.
+  const { lines, total, missingRateCount, unbilledCount } = buildInvoiceLines(
+    annotated,
+    await visitTypeUnitMap(),
+  );
 
   return {
     clientId,

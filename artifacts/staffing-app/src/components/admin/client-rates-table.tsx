@@ -104,9 +104,9 @@ export function ClientRatesTable() {
   const queryClient = useQueryClient();
   const { visitTypes, typeFor } = useVisitTypes();
   /**
-   * "Rate ($ per visit)" is wrong for a type billed in blocks — the number
-   * being typed is a per-block rate, and getting that confused is a 4x
-   * billing error on a half-hour visit. Name the unit on the input.
+   * "Rate ($ per visit)" is wrong for an hourly type — the number being typed
+   * is an hourly rate, and reading it as per-visit or per-block is a real
+   * billing error. Name the unit on the input.
    */
   const rateUnitLabel = (visitTypeKey: string | null | undefined, hourly = false) => {
     if (hourly) return 'Rate ($ per hour)';
@@ -115,7 +115,7 @@ export function ClientRatesTable() {
     const base = visitTypeKey?.replace(/-[A-Z][A-Z0-9/]*$/, '');
     const type = typeFor(visitTypeKey) ?? typeFor(base);
     return type?.billingUnit === 'increment'
-      ? `Rate ($ per ${type.incrementMinutes} min)`
+      ? 'Rate ($ per hour)'
       : 'Rate ($ per visit)';
   };
   const { data: rates, isLoading, isError } = useListClientRates();

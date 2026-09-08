@@ -261,8 +261,8 @@ describe("batch submit with per-line counts", () => {
   });
 });
 
-describe("visit types billed in 15-minute blocks", () => {
-  it("marks Hospital at Home and Drive Time as increment-billed", async () => {
+describe("visit types paid and billed by the hour", () => {
+  it("marks Hospital at Home and Drive Time as hourly, logged in 15-minute steps", async () => {
     const res = await api("/visit-types");
     expect(res.status).toBe(200);
     const hah = res.body.find((t: any) => t.key === "hospital-at-home");
@@ -273,8 +273,11 @@ describe("visit types billed in 15-minute blocks", () => {
     expect(drive.incrementMinutes).toBe(15);
   });
 
-  it("bills a half hour of Hospital at Home as two blocks", async () => {
-    // Hospital at Home for an RN bills 84 a block on the seeded matrix.
+  it("bills a half hour of Hospital at Home as half an hour, not two blocks", async () => {
+    // Hospital at Home for an RN bills $84 an HOUR on the seeded matrix, and
+    // the entry stores two 15-minute blocks. The invoice has to show 0.5 x $84
+    // = $42, exactly like the Hospital-at-Home column on Molly's
+    // reconciliation sheet. Billing the block count instead is $168 — 4x.
     await createApproved({
       date: "2029-04-12",
       visitType: "hospital-at-home",
@@ -286,8 +289,55 @@ describe("visit types billed in 15-minute blocks", () => {
     const line = invoice.body.lines.find((l: any) =>
       l.description.includes("Hospital at Home"),
     );
-    expect(line.qty).toBe(2);
-    expect(line.amount).toBeCloseTo(line.rate * 2, 2);
+    expect(line.qty).toBe(0.5);
+    expect(line.rate).toBe(84);
+    expect(line.amount).toBeCloseTo(42, 2);
+    await cleanup();
+  });
+
+  it("pays an hour and a half of Hospital at Home at Molly's hourly rate", async () => {
+    // Six 15-minute blocks x $67.20/hr = $100.80, the figure her RN payroll
+    // sheet produces for 1.5 in the Non-visit/HAH column. A weekday, so St.
+    // Luke's +10% weekend/holiday multiplier stays out of the number.
+    await createApproved({
+      date: "2029-04-16",
+      visitType: "hospital-at-home",
+      quantity: 6,
+    });
+    const payroll = await asAdmin(() =>
+      api(`/reports/payroll?start=${START}&end=${END}`),
+    );
+    const emp = payroll.body.employees.find((e: any) => e.employeeId === RN_EMPLOYEE);
+    const line = emp.lines.find((l: any) => l.visitType === "hospital-at-home");
+    expect(line.basePay).toBeCloseTo(100.8, 2);
+    await cleanup();
+  });
+
+  it("pays drive time at $33.60 an hour and leaves it unbilled", async () => {
+    // Molly's RN payroll sheet rates HAH/HOS drive at half the non-visit rate.
+    // The billing side is deliberately unrated until she confirms it, so the
+    // invoice line has to survive as a flagged $0 rather than disappear.
+    await createApproved({
+      date: "2029-04-17",
+      visitType: "drive-time",
+      quantity: 2,
+    });
+    const payroll = await asAdmin(() =>
+      api(`/reports/payroll?start=${START}&end=${END}`),
+    );
+    const emp = payroll.body.employees.find((e: any) => e.employeeId === RN_EMPLOYEE);
+    const payLine = emp.lines.find((l: any) => l.visitType === "drive-time");
+    expect(payLine.basePay).toBeCloseTo(16.8, 2);
+
+    const invoice = await asAdmin(() =>
+      api(`/reports/invoice?clientId=${ST_LUKES}&start=${START}&end=${END}`),
+    );
+    const billLine = invoice.body.lines.find((l: any) =>
+      l.description.includes("Drive time"),
+    );
+    expect(billLine.qty).toBe(0.5);
+    expect(billLine.amount).toBe(0);
+    expect(invoice.body.missingRateCount).toBeGreaterThan(0);
     await cleanup();
   });
 

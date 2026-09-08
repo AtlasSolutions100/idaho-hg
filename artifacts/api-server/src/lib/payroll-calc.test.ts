@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  billableUnits,
   computeInvoiceAmount,
   computePayrollAmounts,
   resolveMultiplier,
   round2,
   type PayrollEntryInput,
   type PayrollRate,
+  type VisitTypeUnit,
 } from "./payroll-calc";
+
+/** Hospital at Home / drive time: hourly rate, logged to the quarter hour. */
+const hourly: VisitTypeUnit = { billingUnit: "increment", incrementMinutes: 15 };
+const perVisit: VisitTypeUnit = { billingUnit: "visit", incrementMinutes: 15 };
 
 const rate: PayrollRate = {
   hourlyRate: 20,
@@ -172,5 +178,93 @@ describe("computeInvoiceAmount", () => {
   it("lists hourly entries as unbilled (no client rate concept)", () => {
     const r = computeInvoiceAmount({ visitType: null }, undefined);
     expect(r).toEqual({ amount: 0, billable: false, missingRate: false });
+  });
+});
+
+// The numbers here are Molly's, off the St. Luke's reconciliation and payroll
+// sheets. They are the whole reason billableUnits exists: her Hospital-at-Home
+// column holds hours (1.5, 0.5, 2) against an $84 rate, but the app stores the
+// same time as 15-minute blocks. Multiplying the hourly rate by the block
+// count bills four times what she invoices.
+describe("billableUnits", () => {
+  it("counts a per-visit type as its plain quantity", () => {
+    expect(billableUnits({ quantity: 2 }, perVisit)).toBe(2);
+  });
+
+  it("turns 15-minute blocks into hours for an hourly type", () => {
+    expect(billableUnits({ quantity: 6 }, hourly)).toBe(1.5);
+    expect(billableUnits({ quantity: 2 }, hourly)).toBe(0.5);
+    expect(billableUnits({ quantity: 1 }, hourly)).toBe(0.25);
+  });
+
+  it("defaults a missing quantity to one unit", () => {
+    expect(billableUnits({ quantity: null }, perVisit)).toBe(1);
+    expect(billableUnits({ quantity: undefined }, hourly)).toBe(0.25);
+  });
+
+  it("prices per visit when the type is no longer in the catalog", () => {
+    expect(billableUnits({ quantity: 6 }, undefined)).toBe(6);
+  });
+
+  it("honors a non-15 step", () => {
+    expect(billableUnits({ quantity: 3 }, { billingUnit: "increment", incrementMinutes: 30 })).toBe(1.5);
+  });
+});
+
+describe("hourly visit types (Hospital at Home, drive time)", () => {
+  it("pays 1.5 hours of Hospital at Home at Molly's $67.20/hr, not per block", () => {
+    const r = computePayrollAmounts(
+      entry({ visitType: "hospital-at-home", quantity: 6 }),
+      rate,
+      { visitPayRate: 67.2, unit: hourly },
+    );
+    expect(r.basePay).toBeCloseTo(100.8, 2);
+  });
+
+  it("bills the same 1.5 hours at $84/hr — the $126 on her sheet", () => {
+    const r = computeInvoiceAmount(
+      { visitType: "hospital-at-home", quantity: 6 },
+      { rate: 84 },
+      hourly,
+    );
+    expect(r.amount).toBe(126);
+  });
+
+  it("would have billed 4x without the unit — the bug this guards", () => {
+    const withoutUnit = computeInvoiceAmount(
+      { visitType: "hospital-at-home", quantity: 6 },
+      { rate: 84 },
+      perVisit,
+    );
+    expect(withoutUnit.amount).toBe(504);
+  });
+
+  it("pays a half hour of drive time at half the non-visit rate", () => {
+    // Her RN payroll sheet rates HAH/HOS drive at $33.60/hr.
+    const r = computePayrollAmounts(
+      entry({ visitType: "drive-time", quantity: 2 }),
+      rate,
+      { visitPayRate: 33.6, unit: hourly },
+    );
+    expect(r.basePay).toBeCloseTo(16.8, 2);
+  });
+
+  it("still applies the weekend/holiday multiplier to an hourly type", () => {
+    const r = computePayrollAmounts(
+      entry({ visitType: "hospital-at-home", quantity: 4, isWeekend: true }),
+      rate,
+      { visitPayRate: 67.2, unit: hourly, multiplier: 1.1 },
+    );
+    // 1 hour x $67.20 x 1.1 (St. Luke's +10%)
+    expect(r.basePay).toBeCloseTo(73.92, 2);
+  });
+
+  it("leaves per-visit types untouched", () => {
+    const r = computePayrollAmounts(
+      entry({ visitType: "soc", quantity: 2 }),
+      rate,
+      { visitPayRate: 268.8, unit: perVisit },
+    );
+    expect(r.basePay).toBeCloseTo(537.6, 2);
   });
 });

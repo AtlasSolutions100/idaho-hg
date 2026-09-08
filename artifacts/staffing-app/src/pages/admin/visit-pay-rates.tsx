@@ -138,7 +138,7 @@ export default function VisitPayRatesPage() {
               <h1 className="text-xl font-semibold">Visit Pay Rates</h1>
               <p className="text-sm text-muted-foreground">
                 What each discipline is paid per visit type (St. Luke’s). Types
-                marked “per N min” are paid per block, not per visit.
+                marked “per hour” are paid hourly, not per visit.
               </p>
             </div>
           </div>
@@ -208,12 +208,11 @@ export default function VisitPayRatesPage() {
                       <div className="text-xs text-muted-foreground">
                         {vt.abbreviation}
                         {/* Saying the unit next to the number is the whole
-                            point for a type billed in blocks: "$84" means
-                            something very different per 15 minutes than it
-                            does per visit. */}
+                            point for an hourly type: "$84" means something
+                            very different per hour than it does per visit. */}
                         {vt.billingUnit === 'increment' && (
                           <span className="ml-2 font-medium text-foreground">
-                            per {vt.incrementMinutes} min
+                            per hour
                           </span>
                         )}
                       </div>

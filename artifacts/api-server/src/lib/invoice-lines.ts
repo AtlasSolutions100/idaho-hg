@@ -14,7 +14,7 @@
 // - One aggregated line per employee + type; if the rate changed mid-range
 //   the line splits per rate so amounts stay honest.
 
-import { round2, quantityOf } from "./payroll-calc";
+import { round2, billableUnits, type VisitTypeUnit } from "./payroll-calc";
 
 export type InvoiceEntryInput = {
   id: number | string;
@@ -74,6 +74,7 @@ export const visitAbbreviations: Record<string, string> = {
   "discharge": "DC",
   "non-visit": "Non-visit",
   "hospital-at-home": "Hospital at Home",
+  "drive-time": "Drive time",
   "hospice": "Hospice",
   "training": "Training",
   "non-billable": "Non-billable",
@@ -155,7 +156,15 @@ export type InvoiceLinesResult = {
   unbilledCount: number;
 };
 
-export function buildInvoiceLines(entries: InvoiceEntryInput[]): InvoiceLinesResult {
+export function buildInvoiceLines(
+  entries: InvoiceEntryInput[],
+  /**
+   * key -> unit for every visit type in the catalog. Without it every visit
+   * line prices per visit, which four-times an hourly type's invoice; the
+   * report route reads the catalog and passes it in.
+   */
+  visitTypeUnits?: Map<string, VisitTypeUnit>,
+): InvoiceLinesResult {
   // Segments per employee+kind+visitType: a new segment starts whenever the
   // rate in effect changes, so an A→B→A rate sequence yields three lines and
   // each line's date range only covers dates actually billed at that rate.
@@ -220,10 +229,17 @@ export function buildInvoiceLines(entries: InvoiceEntryInput[]): InvoiceLinesRes
     }
     let billedSomething = false;
     if (entry.visitType) {
-      // Two evals on one day arrive as a single entry with quantity 2, and an
-      // increment-billed type carries its block count the same way — both are
-      // exactly what the invoice's Qty column means.
-      add(entry, "visit", entry.visitType, entry.visitRate, quantityOf(entry));
+      // Two evals on one day arrive as a single entry with quantity 2. An
+      // increment-billed type carries its block count the same way, but bills
+      // by the hour, so the Qty column shows hours — "1.5" against an $84
+      // rate, exactly like the Hospital-at-Home column on Molly's sheet.
+      add(
+        entry,
+        "visit",
+        entry.visitType,
+        entry.visitRate,
+        billableUnits(entry, visitTypeUnits?.get(entry.visitType)),
+      );
       billedSomething = true;
     } else if (entry.hours != null && entry.hours > 0) {
       add(entry, "hourly", null, entry.hourlyRate, entry.hours);

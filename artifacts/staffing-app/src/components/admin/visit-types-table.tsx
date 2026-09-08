@@ -73,7 +73,7 @@ export function VisitTypesTable() {
   const [editActive, setEditActive] = useState(true);
   // Which disciplines may log this type. Empty = every discipline.
   const [editDisciplines, setEditDisciplines] = useState<string[]>([]);
-  // Per visit, or per block of N minutes (Hospital at Home, drive time).
+  // Per visit, or hourly with N-minute entry steps (Hospital at Home, drive time).
   const [editIsIncrement, setEditIsIncrement] = useState(false);
   const [editIncrementMinutes, setEditIncrementMinutes] = useState('15');
   const [editError, setEditError] = useState<string | null>(null);
@@ -293,7 +293,13 @@ export function VisitTypesTable() {
                     </TableCell>
                     <TableCell className="text-sm" data-testid={`billing-unit-${item.key}`}>
                       {item.billingUnit === 'increment' ? (
-                        <span>per {item.incrementMinutes} min</span>
+                        <span>
+                          per hour
+                          <span className="text-muted-foreground">
+                            {' '}
+                            · {item.incrementMinutes} min steps
+                          </span>
+                        </span>
                       ) : (
                         <span className="text-muted-foreground">per visit</span>
                       )}
@@ -488,10 +494,10 @@ export function VisitTypesTable() {
             <div className="space-y-3 rounded-md border p-3">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="edit-visit-type-increment">Billed in time blocks</Label>
+                  <Label htmlFor="edit-visit-type-increment">Paid and billed by the hour</Label>
                   <p className="text-xs text-muted-foreground">
-                    Off = one flat rate per visit. On = the rate is per block,
-                    and employees enter how long they were there.
+                    Off = one flat rate per visit. On = the rate is an hourly
+                    rate, and employees enter how long they were there.
                   </p>
                 </div>
                 <Switch
@@ -503,7 +509,7 @@ export function VisitTypesTable() {
               </div>
               {editIsIncrement && (
                 <div className="space-y-2">
-                  <Label htmlFor="edit-visit-type-increment-minutes">Minutes per block</Label>
+                  <Label htmlFor="edit-visit-type-increment-minutes">Entered in steps of (minutes)</Label>
                   <Input
                     id="edit-visit-type-increment-minutes"
                     type="number"
@@ -515,9 +521,10 @@ export function VisitTypesTable() {
                     data-testid="input-edit-visit-type-increment-minutes"
                   />
                   <p className="text-xs text-muted-foreground">
-                    The rates on the Client Rates and Visit Pay Rates pages are
-                    then <strong>per block</strong>, not per visit — check them
-                    after switching this on.
+                    This is only how finely employees log their time — 15 means
+                    to the quarter hour. The rates on the Client Rates and
+                    Visit Pay Rates pages are <strong>per hour</strong>, not
+                    per visit — check them after switching this on.
                   </p>
                 </div>
               )}

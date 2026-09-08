@@ -315,14 +315,29 @@ const ST_LUKES_VISIT_PAY: Record<string, [number, number, number, number]> = {
 };
 const PAY_DISCIPLINES = ["RN", "PT", "OT", "SLP"] as const;
 
-const seedVisitPayRates = Object.entries(ST_LUKES_VISIT_PAY).flatMap(([visitType, rates]) =>
-  PAY_DISCIPLINES.map((discipline, i) => ({
-    discipline,
-    visitType,
-    rate: rates[i]!,
-    effectiveDate: "2024-01-01",
-  })),
-);
+// Rates that exist for one discipline only, so they can't go in the matrix
+// above without inventing the other three.
+//
+// Drive time is the RN "HAH/HOS drive" column on Molly's St. Luke's payroll
+// sheets: $33.60/hr, exactly half the $67.20 non-visit rate. It is an hourly
+// rate — see the drive-time entry in SEED_VISIT_TYPES. No PT/OT/SLP drive
+// figure appears anywhere in her files, and halving their non-visit rate
+// would be us inventing a number, so those stay unset and flag "no rate".
+const seedSingleDisciplinePayRates = [
+  { discipline: "RN", visitType: "drive-time", rate: 33.6 },
+];
+
+const seedVisitPayRates = [
+  ...Object.entries(ST_LUKES_VISIT_PAY).flatMap(([visitType, rates]) =>
+    PAY_DISCIPLINES.map((discipline, i) => ({
+      discipline,
+      visitType,
+      rate: rates[i]!,
+      effectiveDate: "2024-01-01",
+    })),
+  ),
+  ...seedSingleDisciplinePayRates.map((r) => ({ ...r, effectiveDate: "2024-01-01" })),
+];
 
 // Per-client hourly employee PAY (differs by client), plus Weiser's distinct
 // weekend pay rows. Keyed like client_rates: "hourly-{DISC}" / "...-weekend".

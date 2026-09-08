@@ -16,6 +16,6 @@ export interface VisitTypeItem {
   /** Discipline keys allowed to log this visit type. Empty/omitted means every discipline. */
   disciplines?: string[];
   billingUnit: BillingUnit;
-  /** Minutes per billable block when billingUnit is "increment". */
+  /** Entry granularity in minutes when billingUnit is "increment" — 15 means time is logged in quarter hours. Not a pricing unit: the rate is hourly. */
   incrementMinutes: number;
 }

@@ -606,7 +606,7 @@ export interface UpdateEmployeeDisciplineResult {
 }
 
 /**
- * How a visit type is counted and priced. "visit" is one flat rate per visit (the default). "increment" prices per block of `incrementMinutes` — St. Luke's bills Hospital at Home and drive time in 15-minute blocks, so its rate is the per-block rate and the entry records how many blocks.
+ * How a visit type is counted and priced. "visit" is one flat rate per visit (the default). "increment" is priced BY THE HOUR and entered in `incrementMinutes` steps — St. Luke's pays Hospital at Home and drive time hourly but logs them to the quarter hour, so the rate is the hourly rate while the entry records how many blocks. Multiply the two only after converting blocks to hours.
  */
 export type BillingUnit = typeof BillingUnit[keyof typeof BillingUnit];
 
@@ -625,7 +625,7 @@ export interface VisitTypeItem {
   /** Discipline keys allowed to log this visit type. Empty/omitted means every discipline. */
   disciplines?: string[];
   billingUnit: BillingUnit;
-  /** Minutes per billable block when billingUnit is "increment". */
+  /** Entry granularity in minutes when billingUnit is "increment" — 15 means time is logged in quarter hours. Not a pricing unit: the rate is hourly. */
   incrementMinutes: number;
 }
 
