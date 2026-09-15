@@ -43,21 +43,17 @@ export const SEED_VISIT_TYPES: SeedVisitType[] = [
   { key: "roc", label: "Resumption of Care (ROC)", abbreviation: "ROC", sortOrder: 90 },
   { key: "discharge", label: "Discharge (DC)", abbreviation: "DC", sortOrder: 100 },
   { key: "non-visit", label: "Non-visit (doc/meeting)", abbreviation: "Non-visit", sortOrder: 110 },
-  // Paid and billed BY THE HOUR, entered in 15-minute steps — not as one flat
-  // visit. Molly's master sheet lists Hospital at Home at $84 bill / $67.20
-  // pay for an RN, the same figure as "Non-visit doc/Mtg" and "Training", and
-  // her reconciliation sheets put fractional hours (1.5, 0.5) against it. An
-  // $84 quarter hour would bill $336/hr — more than a Start of Care visit —
-  // so "increment" here means the rate is hourly and `incrementMinutes` is
-  // only the entry granularity. See billableUnits() in payroll-calc.ts.
+  // Paid and billed BY THE HOUR, logged in 15-minute steps (Molly confirmed,
+  // 2026-09-15): $84/hr billed and $67.20/hr paid for nursing, $94/$75.20 for
+  // PT/OT/SLP, typically two hours or more. "increment" means the rate is
+  // hourly and `incrementMinutes` is only how finely time is logged — see
+  // billableUnits() in payroll-calc.ts.
   { key: "hospital-at-home", label: "Hospital at Home", abbreviation: "Hospital at Home", sortOrder: 120, billingUnit: "increment", incrementMinutes: 15 },
-  // Drive time to and from a Hospital at Home / hospice shift, which St.
-  // Luke's pays for on top of mileage. Her RN payroll sheets rate it $33.60/hr
-  // — exactly half the $67.20 non-visit rate. The billing side is deliberately
-  // left unrated: the only written figure is $84, copied from the column
-  // beside it and never actually used in a total, and $42 (half, holding her
-  // consistent 0.8 pay ratio) is an inference. It invoices $0 flagged
-  // "no rate" until Molly confirms which.
+  // Drive time on a Hospital at Home or hospice shift. St. Luke's pays for it
+  // only then, for any discipline, at the Hospital at Home rate, in 15-minute
+  // steps, on its own invoice line — with mileage billed on top, as for every
+  // visit (Molly, 2026-09-15). The $33.60 on her sample RN payroll sheet was a
+  // leftover in the template, not a rate.
   { key: "drive-time", label: "Drive Time", abbreviation: "Drive time", sortOrder: 125, billingUnit: "increment", incrementMinutes: 15 },
   { key: "hospice", label: "Hospice", abbreviation: "Hospice", sortOrder: 130 },
   { key: "training", label: "Training", abbreviation: "Training", sortOrder: 140 },

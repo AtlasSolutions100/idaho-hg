@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { hoursBetween, isHolidayDate, isValidDateString, isWeekendDate } from "./work-calendar";
+import {
+  hoursBetween,
+  isHolidayDate,
+  isValidDateString,
+  isWeekendDate,
+  payPeriodContaining,
+} from "./work-calendar";
 
 describe("isValidDateString", () => {
   it("accepts real dates and rejects impossible ones", () => {
@@ -55,5 +61,31 @@ describe("hoursBetween", () => {
     expect(hoursBetween("25:00", "16:00")).toBeNull();
     expect(hoursBetween("8:00", "16:00")).toBeNull(); // must be zero-padded HH:MM
     expect(hoursBetween("", "16:00")).toBeNull();
+  });
+});
+
+describe("payPeriodContaining", () => {
+  it("matches the first and last rows of Molly's pay period calendar", () => {
+    // Her calendar lists the Saturday time and mileage are due.
+    expect(payPeriodContaining("2024-07-13")).toEqual({ start: "2024-06-30", end: "2024-07-13" });
+    expect(payPeriodContaining("2025-12-27")).toEqual({ start: "2025-12-14", end: "2025-12-27" });
+  });
+
+  it("finds the open period from a date in the middle of it", () => {
+    expect(payPeriodContaining("2026-09-15")).toEqual({ start: "2026-09-06", end: "2026-09-19" });
+  });
+
+  it("starts a period on the Sunday and ends it on the Saturday", () => {
+    expect(payPeriodContaining("2026-09-06")?.start).toBe("2026-09-06");
+    expect(payPeriodContaining("2026-09-19")?.end).toBe("2026-09-19");
+    expect(payPeriodContaining("2026-09-20")).toEqual({ start: "2026-09-20", end: "2026-10-03" });
+  });
+
+  it("works for dates before the calendar begins", () => {
+    expect(payPeriodContaining("2024-06-29")).toEqual({ start: "2024-06-16", end: "2024-06-29" });
+  });
+
+  it("is null for malformed dates", () => {
+    expect(payPeriodContaining("not-a-date")).toBeNull();
   });
 });

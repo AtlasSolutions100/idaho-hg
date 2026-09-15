@@ -11,7 +11,10 @@ import {
   type ClientRateRow,
   type ClientPayRateRow,
   type EmployeeRateRow,
+  appliedBackfillsTable,
 } from "@workspace/db";
+import { mileageCorrections } from "../lib/staff-mileage";
+import { payPeriodContaining } from "../lib/work-calendar";
 import {
   CreateClientRateBody,
   CreateClientPayRateBody,
@@ -157,9 +160,11 @@ const seedEmployeeRates = seedEmployeeRoster.map((emp) => {
   return {
     ...emp,
     ...defaults,
-    // Mileage reimbursement per Molly's master rate sheet (St. Luke's pays
-    // employees $0.69/mi; clients are billed $0.725 — see client mileage rate).
-    mileageRate: 0.69,
+    // What every employee is reimbursed per mile. The master rate sheet said
+    // $0.69, but that was what Molly paid herself and Adrian before she had
+    // staff; staff are paid $0.65 (confirmed 2026-09-15). Clients are billed
+    // separately, at the GSA-based client mileage rate.
+    mileageRate: 0.65,
     perDiemRate: 45,
     weekendMultiplier: 1.5,
     holidayMultiplier: 2,
@@ -243,6 +248,13 @@ const backfillClientRates = [
   { clientId: "1", clientName: "St. Luke's Health System", visitType: "hospital-at-home-PT", rate: 94, effectiveDate: "2024-01-01" },
   { clientId: "1", clientName: "St. Luke's Health System", visitType: "hospital-at-home-OT", rate: 94, effectiveDate: "2024-01-01" },
   { clientId: "1", clientName: "St. Luke's Health System", visitType: "hospital-at-home-SLP", rate: 94, effectiveDate: "2024-01-01" },
+  // Drive time — billable to St. Luke's only on Hospital at Home or hospice
+  // work, at the Hospital at Home rate, as its own line, with mileage billed
+  // on top as for every visit (Molly, 2026-09-15).
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "drive-time-RN", rate: 84, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "drive-time-PT", rate: 94, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "drive-time-OT", rate: 94, effectiveDate: "2024-01-01" },
+  { clientId: "1", clientName: "St. Luke's Health System", visitType: "drive-time-SLP", rate: 94, effectiveDate: "2024-01-01" },
   // Hospice
   { clientId: "1", clientName: "St. Luke's Health System", visitType: "hospice-RN", rate: 84, effectiveDate: "2024-01-01" },
   { clientId: "1", clientName: "St. Luke's Health System", visitType: "hospice-PT", rate: 94, effectiveDate: "2024-01-01" },
@@ -311,33 +323,21 @@ const ST_LUKES_VISIT_PAY: Record<string, [number, number, number, number]> = {
   "mie-first-last-day": [60, 60, 60, 60],
   "mie-full-day": [80, 80, 80, 80],
   "hospital-at-home": [67.2, 75.2, 75.2, 75.2],
+  // Drive time on Hospital at Home / hospice work pays the Hospital at Home
+  // rate, for every discipline (Molly, 2026-09-15).
+  "drive-time": [67.2, 75.2, 75.2, 75.2],
   hospice: [67.2, 75.2, 75.2, 75.2],
 };
 const PAY_DISCIPLINES = ["RN", "PT", "OT", "SLP"] as const;
 
-// Rates that exist for one discipline only, so they can't go in the matrix
-// above without inventing the other three.
-//
-// Drive time is the RN "HAH/HOS drive" column on Molly's St. Luke's payroll
-// sheets: $33.60/hr, exactly half the $67.20 non-visit rate. It is an hourly
-// rate — see the drive-time entry in SEED_VISIT_TYPES. No PT/OT/SLP drive
-// figure appears anywhere in her files, and halving their non-visit rate
-// would be us inventing a number, so those stay unset and flag "no rate".
-const seedSingleDisciplinePayRates = [
-  { discipline: "RN", visitType: "drive-time", rate: 33.6 },
-];
-
-const seedVisitPayRates = [
-  ...Object.entries(ST_LUKES_VISIT_PAY).flatMap(([visitType, rates]) =>
-    PAY_DISCIPLINES.map((discipline, i) => ({
-      discipline,
-      visitType,
-      rate: rates[i]!,
-      effectiveDate: "2024-01-01",
-    })),
-  ),
-  ...seedSingleDisciplinePayRates.map((r) => ({ ...r, effectiveDate: "2024-01-01" })),
-];
+const seedVisitPayRates = Object.entries(ST_LUKES_VISIT_PAY).flatMap(([visitType, rates]) =>
+  PAY_DISCIPLINES.map((discipline, i) => ({
+    discipline,
+    visitType,
+    rate: rates[i]!,
+    effectiveDate: "2024-01-01",
+  })),
+);
 
 // Per-client hourly employee PAY (differs by client), plus Weiser's distinct
 // weekend pay rows. Keyed like client_rates: "hourly-{DISC}" / "...-weekend".
@@ -372,7 +372,7 @@ const seedWeiserWeekendBilling = [
   { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-SLP-weekend", rate: 108, effectiveDate: "2024-01-01" },
   { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-PTA-weekend", rate: 78, effectiveDate: "2024-01-01" },
   { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-LPN-weekend", rate: 75, effectiveDate: "2024-01-01" },
-  // St. Luke's mileage billing (paid to employee at 0.69, billed at 0.725).
+  // St. Luke's mileage billing at the GSA-based $0.725 (staff are reimbursed $0.65).
   { clientId: "1", clientName: "St. Luke's Health System", visitType: "mileage", rate: 0.725, effectiveDate: "2024-01-01" },
 ];
 
@@ -381,13 +381,11 @@ const seedWeiserWeekendBilling = [
 const clientDayMultipliers: Array<{ clientId: string; weekend: number; holiday: number }> = [
   { clientId: "1", weekend: 1.1, holiday: 1.1 }, // St. Luke's: +10% for both
   { clientId: "2", weekend: 1, holiday: 1.5 }, // Weiser: explicit weekend rows; holidays 1.5x
-  // Idaho Youth Ranch carries the identical footnote to Weiser's on Molly's
-  // master sheet — "time and a half will be paid on: New years, Memorial Day,
-  // Independence Day, labor Day, Thanksgiving, Christmas", which is exactly
-  // the six days work-calendar.ts treats as holidays — but was left at the
-  // default 1, so holiday shifts there paid and billed flat. Matched to
-  // Weiser. Her note says "paid"; the multiplier column drives billing too,
-  // as it already does for Weiser, and that is the open question for her.
+  // Idaho Youth Ranch carries the same footnote as Weiser on Molly's master
+  // sheet — time and a half on New Year's, Memorial Day, Independence Day,
+  // Labor Day, Thanksgiving and Christmas, exactly the six days
+  // work-calendar.ts treats as holidays — and bills the client 1.5x too
+  // (Molly, 2026-09-15).
   { clientId: "3", weekend: 1, holiday: 1.5 },
 ];
 
@@ -436,6 +434,74 @@ async function backfillMollyRates() {
   });
 }
 
+// --- One-time corrections to rates this app seeded wrong. Each runs once per
+// database (a marker row in applied_backfills) inside one transaction with its
+// marker, so a correction that fails is retried on the next boot rather than
+// recorded as done.
+
+/**
+ * Drive time was first seeded to pay an RN $33.60/hr — lifted from the
+ * HAH/HOS drive column of Molly's sample RN payroll sheet, a figure she
+ * doesn't recognise. Drive time pays the Hospital at Home rate. Only that
+ * exact seeded row is corrected: a rate Molly has set herself is a separate
+ * history row and stays as she left it. Returns how many rows changed.
+ */
+export async function backfillDriveTimePayRate(): Promise<number> {
+  return db.transaction(async (tx) => {
+    const [marker] = await tx
+      .insert(appliedBackfillsTable)
+      .values({ name: "drive-time-pays-hospital-at-home-rate" })
+      .onConflictDoNothing()
+      .returning();
+    if (!marker) return 0;
+    const fixed = await tx
+      .update(visitPayRatesTable)
+      .set({ rate: 67.2 })
+      .where(
+        and(
+          eq(visitPayRatesTable.discipline, "RN"),
+          eq(visitPayRatesTable.visitType, "drive-time"),
+          eq(visitPayRatesTable.effectiveDate, "2024-01-01"),
+          // `rate` is single precision, so 33.6 is stored as 33.5999984...;
+          // an equality test would match nothing.
+          sql`abs(${visitPayRatesTable.rate} - 33.6) < 0.001`,
+        ),
+      )
+      .returning();
+    return fixed.length;
+  });
+}
+
+/**
+ * Staff mileage was seeded at $0.69/mi off the rate sheet; every employee is
+ * paid $0.65. Rates are history, so this adds a $0.65 row per employee rather
+ * than rewriting the old one, effective the first day of the pay period open
+ * when it runs — the period nobody has been paid for yet, and never one they
+ * have. `today` is injectable for tests. Returns how many rows it added.
+ */
+export async function backfillStaffMileageRate(
+  today: string = new Date().toISOString().slice(0, 10),
+): Promise<number> {
+  return db.transaction(async (tx) => {
+    const [marker] = await tx
+      .insert(appliedBackfillsTable)
+      .values({ name: "staff-mileage-65-cents" })
+      .onConflictDoNothing()
+      .returning();
+    if (!marker) return 0;
+    const period = payPeriodContaining(today);
+    if (!period) return 0;
+    const corrections = mileageCorrections(
+      await tx.select().from(employeeRatesTable),
+      period.start,
+    );
+    if (corrections.length > 0) {
+      await tx.insert(employeeRatesTable).values(corrections);
+    }
+    return corrections.length;
+  });
+}
+
 let seeded = false;
 export async function ensureSeeded() {
   if (seeded) return;
@@ -457,6 +523,8 @@ export async function ensureSeeded() {
   }
   await backfillMissingClientRates();
   await backfillMollyRates();
+  await backfillDriveTimePayRate();
+  await backfillStaffMileageRate();
   seeded = true;
 }
 

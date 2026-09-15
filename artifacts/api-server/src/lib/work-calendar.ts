@@ -74,3 +74,36 @@ export function hoursBetween(timeIn: string, timeOut: string): number | null {
   if (minutes <= 0) minutes += 24 * 60;
   return Math.round((minutes / 60) * 100) / 100;
 }
+
+/**
+ * Molly's pay periods: two weeks, Sunday through Saturday, with time and
+ * mileage due on the closing Saturday and payday the Friday after. Anchored on
+ * the first row of her pay period calendar (time and mileage due 2024-07-13).
+ */
+const PAY_PERIOD_ANCHOR_END = Date.UTC(2024, 6, 13);
+const PAY_PERIOD_DAYS = 14;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function isoFromUtc(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+/**
+ * The pay period a date falls in, as inclusive YYYY-MM-DD bounds, or null for
+ * a malformed date. Computed in UTC days so a daylight-saving change can't
+ * shift a boundary.
+ */
+export function payPeriodContaining(date: string): { start: string; end: string } | null {
+  const p = parseDate(date);
+  if (!p) return null;
+  const day = Date.UTC(p.y, p.m - 1, p.d);
+  // The containing period closes on the first anchor-aligned Saturday on or
+  // after the date.
+  const offsetDays = Math.round((day - PAY_PERIOD_ANCHOR_END) / DAY_MS);
+  const periodsAhead = Math.ceil(offsetDays / PAY_PERIOD_DAYS);
+  const end = PAY_PERIOD_ANCHOR_END + periodsAhead * PAY_PERIOD_DAYS * DAY_MS;
+  return {
+    start: isoFromUtc(end - (PAY_PERIOD_DAYS - 1) * DAY_MS),
+    end: isoFromUtc(end),
+  };
+}

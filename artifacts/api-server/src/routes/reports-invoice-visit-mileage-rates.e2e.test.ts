@@ -10,6 +10,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { Server } from "node:http";
 import { inArray, and, eq } from "drizzle-orm";
 import { db, pool, timeEntriesTable, employeesTable, employeeRatesTable, clientsTable, clientRatesTable } from "@workspace/db";
+import { getEmployeeRateForDate } from "../lib/rate-lookup";
 
 // Client-rate / employee-rate reads, approvals, and invoice reports are
 // admin-only now, so those calls run as Molly. Time-entry creation stays
@@ -320,9 +321,12 @@ describe("mileage/per-diem invoice missing-rate flagging", () => {
 
   it("passes mileage and per diem through at the employee's rates when on file (positive control)", async () => {
     const visitRate = currentRate(ST_LUKES, "skilled-nursing");
-    const empRatesRes = await asAdmin(() => api("/employee-rates"));
-    expect(empRatesRes.status).toBe(200);
-    const empRate = empRatesRes.body.find((r: any) => r.employeeId === RN_EMPLOYEE);
+    // Rates are effective-dated history, so the invoice passes mileage and per
+    // diem through at the rate in effect on the entry's date, not whatever the
+    // employee is on today (staff mileage moved to $0.65 from the pay period
+    // open when that correction ran). Resolve it the same way the invoice does.
+    const ENTRY_DATE = "2026-04-14";
+    const empRate = await getEmployeeRateForDate(RN_EMPLOYEE, ENTRY_DATE);
     expect(empRate, "expected seeded rates for Adrian Eddins").toBeTruthy();
 
     // Weekday date (see the missing-rate case above): avoids the St. Luke's
@@ -331,7 +335,7 @@ describe("mileage/per-diem invoice missing-rate flagging", () => {
     await submitApprovedEntry({
       employeeId: RN_EMPLOYEE,
       clientId: ST_LUKES,
-      date: "2026-04-14",
+      date: ENTRY_DATE,
       visitType: "skilled-nursing",
       mileage: 20,
       perDiem: 1,
@@ -343,8 +347,8 @@ describe("mileage/per-diem invoice missing-rate flagging", () => {
     );
     expect(mileageLine).toBeTruthy();
     expect(mileageLine.qty).toBe(20);
-    expect(mileageLine.rate).toBe(empRate.mileageRate);
-    expect(mileageLine.amount).toBeCloseTo(20 * empRate.mileageRate, 2);
+    expect(mileageLine.rate).toBe(empRate!.mileageRate);
+    expect(mileageLine.amount).toBeCloseTo(20 * empRate!.mileageRate, 2);
     expect(mileageLine.amount).toBeGreaterThan(0);
 
     const perDiemLine = body.lines.find(
@@ -352,8 +356,8 @@ describe("mileage/per-diem invoice missing-rate flagging", () => {
     );
     expect(perDiemLine).toBeTruthy();
     expect(perDiemLine.qty).toBe(1);
-    expect(perDiemLine.rate).toBe(empRate.perDiemRate);
-    expect(perDiemLine.amount).toBeCloseTo(empRate.perDiemRate, 2);
+    expect(perDiemLine.rate).toBe(empRate!.perDiemRate);
+    expect(perDiemLine.amount).toBeCloseTo(empRate!.perDiemRate, 2);
 
     const visitLine = body.lines.find(
       (l: any) => l.kind === "visit" && l.productService?.includes("Adrian"),

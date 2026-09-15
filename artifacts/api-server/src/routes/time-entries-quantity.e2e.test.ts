@@ -48,6 +48,7 @@ let baseUrl: string;
 // Seeded St. Luke's and roster employees (stable IDs — see routes/rates.ts).
 const ST_LUKES = "1";
 const RN_EMPLOYEE = "e2ae91e4-d3d8-4447-b4ce-85de035b6700"; // Adrian Eddins, RN
+const PT_EMPLOYEE = "c173f799-2391-4acb-b7d8-bd6c1f7811ca"; // Quinton Erhard, PT
 
 // Isolated billing period — April 2029 is used by no other e2e file, and every
 // date below is a weekday and not a holiday, so no multiplier applies.
@@ -313,10 +314,10 @@ describe("visit types paid and billed by the hour", () => {
     await cleanup();
   });
 
-  it("pays drive time at $33.60 an hour and leaves it unbilled", async () => {
-    // Molly's RN payroll sheet rates HAH/HOS drive at half the non-visit rate.
-    // The billing side is deliberately unrated until she confirms it, so the
-    // invoice line has to survive as a flagged $0 rather than disappear.
+  it("bills and pays a nurse's drive time at the Hospital at Home rate", async () => {
+    // Molly: drive time on Hospital at Home or hospice work is billed at the
+    // same rate, in 15-minute steps, on its own invoice line. Half an hour for
+    // an RN pays 0.5 x $67.20 and bills 0.5 x $84.
     await createApproved({
       date: "2029-04-17",
       visitType: "drive-time",
@@ -327,7 +328,8 @@ describe("visit types paid and billed by the hour", () => {
     );
     const emp = payroll.body.employees.find((e: any) => e.employeeId === RN_EMPLOYEE);
     const payLine = emp.lines.find((l: any) => l.visitType === "drive-time");
-    expect(payLine.basePay).toBeCloseTo(16.8, 2);
+    expect(payLine.basePay).toBeCloseTo(33.6, 2);
+    expect(payLine.missingRate).toBe(false);
 
     const invoice = await asAdmin(() =>
       api(`/reports/invoice?clientId=${ST_LUKES}&start=${START}&end=${END}`),
@@ -336,8 +338,37 @@ describe("visit types paid and billed by the hour", () => {
       l.description.includes("Drive time"),
     );
     expect(billLine.qty).toBe(0.5);
-    expect(billLine.amount).toBe(0);
-    expect(invoice.body.missingRateCount).toBeGreaterThan(0);
+    expect(billLine.rate).toBe(84);
+    expect(billLine.amount).toBeCloseTo(42, 2);
+    expect(billLine.missingRate).toBeFalsy();
+    await cleanup();
+  });
+
+  it("pays a therapist's drive time at the therapy Hospital at Home rate", async () => {
+    // Any discipline doing Hospital at Home or hospice can claim drive time.
+    // An hour for a PT pays $75.20 and bills $94.
+    await createApproved({
+      employeeId: PT_EMPLOYEE,
+      date: "2029-04-18",
+      visitType: "drive-time",
+      quantity: 4,
+    });
+    const payroll = await asAdmin(() =>
+      api(`/reports/payroll?start=${START}&end=${END}`),
+    );
+    const emp = payroll.body.employees.find((e: any) => e.employeeId === PT_EMPLOYEE);
+    const payLine = emp.lines.find((l: any) => l.visitType === "drive-time");
+    expect(payLine.basePay).toBeCloseTo(75.2, 2);
+
+    const invoice = await asAdmin(() =>
+      api(`/reports/invoice?clientId=${ST_LUKES}&start=${START}&end=${END}`),
+    );
+    const billLine = invoice.body.lines.find((l: any) =>
+      l.description.includes("Drive time"),
+    );
+    expect(billLine.qty).toBe(1);
+    expect(billLine.rate).toBe(94);
+    expect(billLine.amount).toBeCloseTo(94, 2);
     await cleanup();
   });
 
@@ -369,7 +400,7 @@ describe("mileage entered for a date range", () => {
     );
     const line = invoice.body.lines.find((l: any) => l.kind === "mileage");
     expect(line.qty).toBeCloseTo(210, 2);
-    // St. Luke's bills mileage at 0.725; the employee is reimbursed 0.69.
+    // St. Luke's bills mileage at 0.725; the employee is reimbursed 0.65.
     expect(line.amount).toBeCloseTo(152.25, 2);
     // The description has to span the period, not claim a single day.
     expect(line.description).toContain("4/16-4/27/29");

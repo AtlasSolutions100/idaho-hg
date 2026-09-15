@@ -239,14 +239,14 @@ describe("hourly visit types (Hospital at Home, drive time)", () => {
     expect(withoutUnit.amount).toBe(504);
   });
 
-  it("pays a half hour of drive time at half the non-visit rate", () => {
-    // Her RN payroll sheet rates HAH/HOS drive at $33.60/hr.
+  it("pays a half hour of drive time at the Hospital at Home rate", () => {
+    // Molly: drive time on Hospital at Home work pays the same hourly rate.
     const r = computePayrollAmounts(
       entry({ visitType: "drive-time", quantity: 2 }),
       rate,
-      { visitPayRate: 33.6, unit: hourly },
+      { visitPayRate: 67.2, unit: hourly },
     );
-    expect(r.basePay).toBeCloseTo(16.8, 2);
+    expect(r.basePay).toBeCloseTo(33.6, 2);
   });
 
   it("still applies the weekend/holiday multiplier to an hourly type", () => {

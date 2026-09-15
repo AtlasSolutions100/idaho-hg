@@ -119,7 +119,7 @@ export async function computeInvoiceReport(
       const needsPerDiem = (entry.perDiem ?? 0) > 0;
       // Invoices bill mileage/per-diem at the CLIENT billing rate (e.g. $0.725/mi)
       // when Molly has set one — this is distinct from the employee reimbursement
-      // rate used on payroll (e.g. $0.655/mi). Stored as client_rates rows keyed
+      // rate used on payroll (e.g. $0.65/mi). Stored as client_rates rows keyed
       // "mileage" / "per-diem". Falls back to the employee rate where no client
       // billing rate is set, so existing invoices are unchanged until she sets one.
       const clientMileage = needsMileage

@@ -347,7 +347,7 @@ export function EmployeeRatesTable() {
     setNewRates({
       hourlyRate: '',
       visitRate: '',
-      mileageRate: '0.655',
+      mileageRate: '0.65',
       perDiemRate: '45',
       weekendMultiplier: '1.5',
       holidayMultiplier: '2',
