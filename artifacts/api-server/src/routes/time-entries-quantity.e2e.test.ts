@@ -372,6 +372,34 @@ describe("visit types paid and billed by the hour", () => {
     await cleanup();
   });
 
+  it("bills and pays non-visit time by the hour", async () => {
+    // Molly's invoice 1189 bills non-visit and Hospital at Home on one hourly
+    // line ("NV/H@H 5.5 x $84"), and her PT payroll sample pays a quarter hour
+    // as $18.80. An hour of RN non-visit pays $67.20 and bills $84.
+    await createApproved({
+      date: "2029-04-19",
+      visitType: "non-visit",
+      quantity: 4,
+    });
+    const payroll = await asAdmin(() =>
+      api(`/reports/payroll?start=${START}&end=${END}`),
+    );
+    const emp = payroll.body.employees.find((e: any) => e.employeeId === RN_EMPLOYEE);
+    const payLine = emp.lines.find((l: any) => l.visitType === "non-visit");
+    expect(payLine.basePay).toBeCloseTo(67.2, 2);
+
+    const invoice = await asAdmin(() =>
+      api(`/reports/invoice?clientId=${ST_LUKES}&start=${START}&end=${END}`),
+    );
+    const billLine = invoice.body.lines.find((l: any) =>
+      l.description.includes("Non-visit"),
+    );
+    expect(billLine.qty).toBe(1);
+    expect(billLine.rate).toBe(84);
+    expect(billLine.amount).toBeCloseTo(84, 2);
+    await cleanup();
+  });
+
   it("names the block when the count is not a whole number", async () => {
     const res = await post("/time-entries", {
       employeeId: RN_EMPLOYEE,

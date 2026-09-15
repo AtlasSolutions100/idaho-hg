@@ -3,6 +3,7 @@ import {
   db,
   visitTypesTable,
   appliedBackfillsTable,
+  timeEntriesTable,
   type VisitTypeRow,
 } from "@workspace/db";
 import type { VisitTypeUnit } from "./payroll-calc";
@@ -42,7 +43,11 @@ export const SEED_VISIT_TYPES: SeedVisitType[] = [
   { key: "recert", label: "Recert / Recert RA", abbreviation: "Recert", sortOrder: 80 },
   { key: "roc", label: "Resumption of Care (ROC)", abbreviation: "ROC", sortOrder: 90 },
   { key: "discharge", label: "Discharge (DC)", abbreviation: "DC", sortOrder: 100 },
-  { key: "non-visit", label: "Non-visit (doc/meeting)", abbreviation: "Non-visit", sortOrder: 110 },
+  // Hourly, logged in 15-minute steps, like Hospital at Home. Molly's PT
+  // payroll sample logs non-visit as 0.25 and pays $18.80 (0.25 x $75.20),
+  // and her St. Luke's invoice 1189 bills Ronda Stewart "NV/H@H 5.5 x $84" —
+  // one hourly line covering non-visit and Hospital at Home together.
+  { key: "non-visit", label: "Non-visit (doc/meeting)", abbreviation: "Non-visit", sortOrder: 110, billingUnit: "increment", incrementMinutes: 15 },
   // Paid and billed BY THE HOUR, logged in 15-minute steps (Molly confirmed,
   // 2026-09-15): $84/hr billed and $67.20/hr paid for nursing, $94/$75.20 for
   // PT/OT/SLP, typically two hours or more. "increment" means the rate is
@@ -55,7 +60,10 @@ export const SEED_VISIT_TYPES: SeedVisitType[] = [
   // visit (Molly, 2026-09-15). The $33.60 on her sample RN payroll sheet was a
   // leftover in the template, not a rate.
   { key: "drive-time", label: "Drive Time", abbreviation: "Drive time", sortOrder: 125, billingUnit: "increment", incrementMinutes: 15 },
-  { key: "hospice", label: "Hospice", abbreviation: "Hospice", sortOrder: 130 },
+  // Hourly too: her RN payroll and reconciliation sheets record hospice in a
+  // single hourly column headed "Non visit/HAH/HOS" at the Hospital at Home
+  // rate, and Molly treats hospice and Hospital at Home alike for drive time.
+  { key: "hospice", label: "Hospice", abbreviation: "Hospice", sortOrder: 130, billingUnit: "increment", incrementMinutes: 15 },
   { key: "training", label: "Training", abbreviation: "Training", sortOrder: 140 },
   { key: "non-billable", label: "Non-billable Visit", abbreviation: "Non-billable", sortOrder: 150 },
   { key: "on-call", label: "On Call", abbreviation: "On call", sortOrder: 160 },
@@ -123,6 +131,10 @@ export async function ensureVisitTypesSeeded(): Promise<void> {
       );
     }
   });
+  // Before the older unit backfill: that one would flip these two types to
+  // hourly from the seed without converting the entries already filed
+  // against them, which is exactly what this correction exists to do.
+  await backfillHourlyNonVisitAndHospice();
   await backfillVisitTypeDisciplinesAndUnits();
   seededVisitTypes = true;
 }
@@ -130,6 +142,64 @@ export async function ensureVisitTypesSeeded(): Promise<void> {
 /** Reset the in-process seed guard. Tests only. */
 export function resetVisitTypeSeedCache(): void {
   seededVisitTypes = false;
+}
+
+/**
+ * Non-visit and hospice were seeded as flat per-visit types. Molly's own
+ * records price them by the hour — her PT payroll sample pays 0.25 of an hour
+ * as $18.80, and invoice 1189 bills 5.5 hours of "NV/H@H" at $84 — so they
+ * move to the same hourly, 15-minute-step unit as Hospital at Home.
+ *
+ * Flipping the unit alone would silently reprice every entry already filed:
+ * `quantity` on those rows counts whole units, and the hourly reading treats
+ * the same number as 15-minute blocks, so an approved 2 would drop from
+ * 2 x $84 to half an hour. Each entry's quantity is therefore scaled by the
+ * number of blocks in an hour in the same transaction, which leaves every
+ * existing entry priced at exactly the dollar amount it already had while
+ * letting quarter hours be logged from now on.
+ *
+ * Runs once per database, and only for a type Molly has left per-visit: if
+ * she has already set the unit herself, her entries are already in her unit
+ * and are not touched. Returns what it changed.
+ */
+export async function backfillHourlyNonVisitAndHospice(): Promise<{
+  typesFlipped: string[];
+  entriesRescaled: number;
+}> {
+  return db.transaction(async (tx) => {
+    const [marker] = await tx
+      .insert(appliedBackfillsTable)
+      .values({ name: "hourly-non-visit-and-hospice" })
+      .onConflictDoNothing()
+      .returning();
+    if (!marker) return { typesFlipped: [], entriesRescaled: 0 };
+
+    const typesFlipped: string[] = [];
+    let entriesRescaled = 0;
+    for (const key of ["non-visit", "hospice"]) {
+      const [row] = await tx
+        .select()
+        .from(visitTypesTable)
+        .where(eq(visitTypesTable.key, key));
+      if (!row || row.billingUnit !== "visit") continue;
+
+      const minutes = row.incrementMinutes > 0 ? row.incrementMinutes : 15;
+      await tx
+        .update(visitTypesTable)
+        .set({ billingUnit: "increment", incrementMinutes: minutes })
+        .where(eq(visitTypesTable.key, key));
+      typesFlipped.push(key);
+
+      const blocksPerHour = 60 / minutes;
+      const rescaled = await tx
+        .update(timeEntriesTable)
+        .set({ quantity: sql`${timeEntriesTable.quantity} * ${blocksPerHour}` })
+        .where(eq(timeEntriesTable.visitType, key))
+        .returning({ id: timeEntriesTable.id });
+      entriesRescaled += rescaled.length;
+    }
+    return { typesFlipped, entriesRescaled };
+  });
 }
 
 /**
