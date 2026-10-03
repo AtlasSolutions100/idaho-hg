@@ -67,6 +67,8 @@ export * from './reconciliationEmployeeGroup';
 export * from './reconciliationReport';
 export * from './reconciliationReportLine';
 export * from './reconciliationTotals';
+export * from './session';
+export * from './sessionAccess';
 export * from './timeEntry';
 export * from './updateBusinessSettings';
 export * from './updateClientBilling';

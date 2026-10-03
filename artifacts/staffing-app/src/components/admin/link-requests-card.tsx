@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Check, X, UserPlus, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { LoadFailure } from '@/components/load-failure';
 
 /**
  * Pending "that's me" requests from the mobile app: an employee signed in
@@ -21,7 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 export function LinkRequestsCard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { data: requests, isLoading } = useListLinkRequests();
+  const { data: requests, isLoading, isError, error, refetch } = useListLinkRequests();
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: getListLinkRequestsQueryKey() });
@@ -75,6 +76,29 @@ export function LinkRequestsCard() {
       },
     },
   });
+
+  // A failed load must not look like "nobody is waiting": these are people
+  // who cannot use the app until Molly approves them, and hiding the card
+  // would leave them waiting with nothing on her screen to act on.
+  if (isError) {
+    return (
+      <Card className="border-destructive/40" data-testid="card-link-requests-failed">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UserPlus className="h-5 w-5" />
+            Someone wants to join
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <LoadFailure
+            what="join requests"
+            error={error}
+            onRetry={() => void refetch()}
+          />
+        </CardContent>
+      </Card>
+    );
+  }
 
   // Only show the card when there's something to act on (or while loading
   // an existing list) — no point in an empty card on every visit.

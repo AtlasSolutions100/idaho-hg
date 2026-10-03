@@ -29,6 +29,8 @@ import {
   verifyAdminRequest,
   requireEmployee,
   revokeClerkSessionsForEmail,
+  resolveSessionEmployee,
+  getConfiguredAdminEmail,
 } from "../lib/employee-auth";
 import {
   hasDemoEmployeeData,
@@ -535,6 +537,62 @@ router.get("/me", requireEmployee, async (req, res, next) => {
       employee: import("@workspace/db").EmployeeRow;
     };
     res.json(serializeEmployee(employee, { includeContact: true }));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Who the signed-in caller is, and what they may use.
+ *
+ * The app's single "who am I" call. Without it the web app could not tell
+ * "you are not the administrator" apart from "this server has no
+ * administrator configured": both produced admin screens whose every request
+ * failed, with nothing on screen saying why. Molly sat locked out of her own
+ * admin side for weeks on exactly that ambiguity, so the distinction is now
+ * something the UI can read and say out loud.
+ *
+ * Open to any signed-in caller because every one of them needs to know which
+ * of these they are. The configured admin address is never returned — only
+ * whether one exists — so an employee learns nothing about Molly's address.
+ */
+router.get("/session", requireSignedIn, async (req, res, next) => {
+  try {
+    const adminConfigured = getConfiguredAdminEmail() != null;
+    // Admin first, and through the same check the write routes use: the admin
+    // is not a roster row, so a session can be the admin while having no
+    // employee profile at all.
+    const admin = await verifyAdminRequest(req);
+    const session = await resolveSessionEmployee(req);
+    const email = session.kind === "none" ? null : session.email;
+
+    if (admin.ok) {
+      res.json({ email, isAdmin: true, adminConfigured, access: "admin" });
+      return;
+    }
+    switch (session.kind) {
+      case "employee":
+        res.json({
+          email,
+          isAdmin: false,
+          adminConfigured,
+          access: "employee",
+          employee: serializeEmployee(session.employee, { includeContact: true }),
+        });
+        return;
+      case "pending":
+        res.json({ email, isAdmin: false, adminConfigured, access: "pending" });
+        return;
+      case "disabled":
+        res.json({ email, isAdmin: false, adminConfigured, access: "disabled" });
+        return;
+      // "none" cannot reach here (requireSignedIn ran), but an unmatched email
+      // and a missing one are the same answer to the caller: not linked.
+      case "none":
+      case "unknown":
+        res.json({ email, isAdmin: false, adminConfigured, access: "not-linked" });
+        return;
+    }
   } catch (err) {
     next(err);
   }

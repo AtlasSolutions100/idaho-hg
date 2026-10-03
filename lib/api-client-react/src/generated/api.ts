@@ -64,6 +64,7 @@ import type {
   QboSentInvoiceLookup,
   QboStatus,
   ReconciliationReport,
+  Session,
   TimeEntry,
   UpdateBusinessSettings,
   UpdateClientBilling,
@@ -2777,6 +2778,84 @@ export const useCreateEmployee = <TError = ErrorType<ApiError>,
       > => {
       return useMutation(getCreateEmployeeMutationOptions(options));
     }
+
+export const getGetSessionUrl = () => {
+
+
+
+
+  return `/api/session`
+}
+
+/**
+ * The app's one "who am I" call. Every screen that can fail for an identity reason reads this so it can say WHY rather than rendering an empty or broken page: whether this session is the administrator, whether an administrator is configured on the server at all, and if not an admin, exactly which employee state the caller is in.
+ * @summary Who the signed-in user is and what they may use
+ */
+export const getSession = async ( options?: Parameters<typeof customFetch>[1]): Promise<Session> => {
+
+  return customFetch<Session>(getGetSessionUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSessionQueryKey = () => {
+    return [
+    `/api/session`
+    ] as const;
+    }
+
+
+export const getGetSessionQueryOptions = <TData = Awaited<ReturnType<typeof getSession>>, TError = ErrorType<ApiError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSessionQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSession>>> = ({ signal }) => getSession({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSession>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSessionQueryResult = NonNullable<Awaited<ReturnType<typeof getSession>>>
+export type GetSessionQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Who the signed-in user is and what they may use
+ */
+
+export function useGetSession<TData = Awaited<ReturnType<typeof getSession>>, TError = ErrorType<ApiError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSessionQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetMyEmployeeUrl = () => {
 

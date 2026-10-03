@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { Suspense, lazy, useEffect, useRef } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { ClerkProvider, SignIn, SignUp, Show, useClerk } from '@clerk/react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
@@ -8,19 +8,29 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeProvider } from '@/components/theme-provider';
 import NotFound from '@/pages/not-found';
 import Home from '@/pages/home';
-import EmployeeDashboard from '@/pages/employee-dashboard';
-import AdminDashboard from '@/pages/admin-dashboard';
-import ApprovePayrollPage from '@/pages/admin/approve-payroll';
-import ClientRatesPage from '@/pages/admin/client-rates';
-import VisitTypesPage from '@/pages/admin/visit-types';
-import VisitPayRatesPage from '@/pages/admin/visit-pay-rates';
-import EmployeeRatesPage from '@/pages/admin/employee-rates';
-import ReportsPage from '@/pages/admin/reports';
-import OnboardingPage from '@/pages/admin/onboarding';
-import FeedbackPage from '@/pages/admin/feedback';
-import BusinessSettingsPage from '@/pages/admin/business-settings';
+
+// Everything past the welcome screen loads on demand. These eleven pages pull
+// in the whole admin surface — tables, reports, PDF and invoice machinery —
+// and bundling them into the first download is what made the app crawl on the
+// 1 Oct call. The welcome screen now ships on its own; each screen arrives
+// when it is opened.
+const EmployeeDashboard = lazy(() => import('@/pages/employee-dashboard'));
+const AdminDashboard = lazy(() => import('@/pages/admin-dashboard'));
+const ApprovePayrollPage = lazy(() => import('@/pages/admin/approve-payroll'));
+const ClientRatesPage = lazy(() => import('@/pages/admin/client-rates'));
+const VisitTypesPage = lazy(() => import('@/pages/admin/visit-types'));
+const VisitPayRatesPage = lazy(() => import('@/pages/admin/visit-pay-rates'));
+const EmployeeRatesPage = lazy(() => import('@/pages/admin/employee-rates'));
+const ReportsPage = lazy(() => import('@/pages/admin/reports'));
+const OnboardingPage = lazy(() => import('@/pages/admin/onboarding'));
+const FeedbackPage = lazy(() => import('@/pages/admin/feedback'));
+const BusinessSettingsPage = lazy(() => import('@/pages/admin/business-settings'));
 import { Route, Switch, Redirect, useLocation, Router as WouterRouter } from 'wouter';
 import { FeedbackDialog } from '@/components/feedback-dialog';
+import { AdminAccessDenied } from '@/components/access-denied';
+import { LoadFailure } from '@/components/load-failure';
+import { useSession } from '@/lib/use-session';
+import { Loader2 } from 'lucide-react';
 
 const queryClient = new QueryClient();
 
@@ -131,9 +141,61 @@ function SignedInGate({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Admin pages need Molly signed in — the server only accepts approve/deny,
-// email, and sign-in-access changes from the configured admin's session.
-const AdminGate = SignedInGate;
+/** Centered spinner for a whole page that isn't ready yet. */
+function FullPageLoading({ label }: { label: string }) {
+  return (
+    <div
+      className="min-h-[100dvh] flex items-center justify-center gap-2 text-muted-foreground"
+      data-testid="text-page-loading"
+    >
+      <Loader2 className="h-5 w-5 animate-spin" />
+      {label}
+    </div>
+  );
+}
+
+/**
+ * Admin pages need Molly specifically — the server only accepts approvals,
+ * rates and report reads from the configured administrator's session.
+ *
+ * This used to be an alias for SignedInGate, which let any signed-in person
+ * walk into the admin screens and watch every panel inside them fail with no
+ * explanation. That is what Molly hit. The gate now asks the server who she
+ * is, and the three answers each get their own screen: still checking, we
+ * couldn't ask, and you are not the administrator (with the reason).
+ */
+function AdminGateInner({ children }: { children: React.ReactNode }) {
+  const { data: session, isPending, error, refetch } = useSession();
+
+  if (isPending) return <FullPageLoading label="Checking your access…" />;
+
+  if (error || !session) {
+    return (
+      <div className="min-h-[100dvh] bg-background">
+        <div className="max-w-2xl mx-auto px-4 py-10">
+          <LoadFailure
+            what="your account"
+            error={error}
+            onRetry={() => void refetch()}
+            testId="admin-session-failure"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (!session.isAdmin) return <AdminAccessDenied session={session} />;
+
+  return <>{children}</>;
+}
+
+function AdminGate({ children }: { children: React.ReactNode }) {
+  return (
+    <SignedInGate>
+      <AdminGateInner>{children}</AdminGateInner>
+    </SignedInGate>
+  );
+}
 
 // Keeps the webview up-to-date when the signed-in user changes.
 function ClerkQueryClientCacheInvalidator() {
@@ -157,6 +219,7 @@ function ClerkQueryClientCacheInvalidator() {
 
 function Router() {
   return (
+    <Suspense fallback={<FullPageLoading label="Loading…" />}>
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/employee">
@@ -218,6 +281,7 @@ function Router() {
       </Route>
       <Route component={NotFound} />
     </Switch>
+    </Suspense>
   );
 }
 

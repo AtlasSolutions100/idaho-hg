@@ -108,3 +108,12 @@ invoice sending.
 ## Pointers
 
 - See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+
+## Who the caller is, and saying why a screen won't open
+
+- `GET /api/session` is the app's one "who am I" call (any signed-in caller). It returns `isAdmin`, `adminConfigured`, an `access` of `admin | employee | pending | disabled | not-linked`, and the roster `employee` when there is one. It never returns the configured admin address — only whether one exists.
+- `AdminGate` in `App.tsx` reads it. It used to be an alias for `SignedInGate`, which let anyone signed in walk into the admin screens and watch every panel inside fail with no explanation — that is what locked Molly out of her own admin side from August to October. The three answers now render differently: checking, couldn't ask (with Retry), and not the administrator.
+- **`adminConfigured: false` is its own message.** With no `ADMIN_EMAIL` set nobody is the admin, so the app says the account isn't set up rather than telling the owner she isn't the administrator.
+- `LoadFailure` / `failureReason` in `components/load-failure.tsx` is the house fallback: the reason in Molly's words plus a Retry. Reach for it instead of returning `null` on error — a silent `null` reads as "nothing here", which is how a broken join-requests list looked like "nobody is waiting" and a failed rate check looked like "every client has rates".
+- `RoleToggle` lets the admin switch between the admin screens and the employee screens (Molly asked for this on the 1 Oct call). It renders only for the admin.
+- Admin pages are `React.lazy`-loaded. Keep them that way: statically importing one pulls the whole admin surface back into the first download, which is what made the app crawl.

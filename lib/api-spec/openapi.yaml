@@ -1026,6 +1026,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /session:
+    get:
+      operationId: getSession
+      tags: [roster]
+      summary: Who the signed-in user is and what they may use
+      description: >-
+        The app's one "who am I" call. Every screen that can fail for an
+        identity reason reads this so it can say WHY rather than rendering an
+        empty or broken page: whether this session is the administrator,
+        whether an administrator is configured on the server at all, and if
+        not an admin, exactly which employee state the caller is in.
+      responses:
+        "200":
+          description: The caller's identity and access
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /me:
     get:
       operationId: getMyEmployee
@@ -2546,6 +2570,38 @@ components:
         noteToCustomer:
           type: string
           description: Only applied when present; per-client PDF invoice footer note (clears on blank)
+    SessionAccess:
+      type: string
+      enum: [admin, employee, pending, disabled, not-linked]
+      description: >-
+        What the signed-in caller may use. "admin" is the configured
+        administrator; "employee" is linked to an active roster profile;
+        "pending" has asked to be linked and is waiting; "disabled" is on the
+        roster with sign-in turned off; "not-linked" is signed in but matches
+        no roster profile.
+    Session:
+      type: object
+      properties:
+        email:
+          type: string
+          nullable: true
+          description: The signed-in email, or null when Clerk has none on file.
+        isAdmin:
+          type: boolean
+          description: True when this session is the configured administrator.
+        adminConfigured:
+          type: boolean
+          description: >-
+            Whether the server has an administrator email configured at all.
+            False means ADMIN_EMAIL is unset or blank, so NO ONE can reach the
+            admin screens — the app says that plainly instead of telling the
+            owner she is not the administrator. The configured address itself
+            is deliberately not returned.
+        access:
+          $ref: "#/components/schemas/SessionAccess"
+        employee:
+          $ref: "#/components/schemas/Employee"
+      required: [email, isAdmin, adminConfigured, access]
     Employee:
       type: object
       properties:

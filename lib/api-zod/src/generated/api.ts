@@ -1018,6 +1018,30 @@ export const CreateEmployeeResponse = zod.object({
 
 
 /**
+ * The app's one "who am I" call. Every screen that can fail for an identity reason reads this so it can say WHY rather than rendering an empty or broken page: whether this session is the administrator, whether an administrator is configured on the server at all, and if not an admin, exactly which employee state the caller is in.
+ * @summary Who the signed-in user is and what they may use
+ */
+export const GetSessionResponse = zod.object({
+  "email": zod.string().nullable().describe('The signed-in email, or null when Clerk has none on file.'),
+  "isAdmin": zod.boolean().describe('True when this session is the configured administrator.'),
+  "adminConfigured": zod.boolean().describe('Whether the server has an administrator email configured at all. False means ADMIN_EMAIL is unset or blank, so NO ONE can reach the admin screens — the app says that plainly instead of telling the owner she is not the administrator. The configured address itself is deliberately not returned.'),
+  "access": zod.enum(['admin', 'employee', 'pending', 'disabled', 'not-linked']).describe('What the signed-in caller may use. \"admin\" is the configured administrator; \"employee\" is linked to an active roster profile; \"pending\" has asked to be linked and is waiting; \"disabled\" is on the roster with sign-in turned off; \"not-linked\" is signed in but matches no roster profile.'),
+  "employee": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "active": zod.boolean(),
+  "isDemo": zod.boolean(),
+  "email": zod.string().optional(),
+  "signInEnabled": zod.boolean(),
+  "phone": zod.string().optional(),
+  "contactEmail": zod.string().optional(),
+  "address": zod.string().optional()
+}).optional()
+})
+
+
+/**
  * @summary Get the roster employee for the signed-in user
  */
 export const GetMyEmployeeResponse = zod.object({

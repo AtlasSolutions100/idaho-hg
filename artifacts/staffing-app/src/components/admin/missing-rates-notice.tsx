@@ -1,13 +1,34 @@
 import { Link } from 'wouter';
 import { useListClients, useListClientRates } from '@workspace/api-client-react';
 import { AlertTriangle } from 'lucide-react';
+import { LoadFailure } from '@/components/load-failure';
 
 // Heads-up shown above the report cards: lists active clients that have no
 // billing rates on file at all. Any invoice generated for these clients would
 // bill every line at $0, so Molly can fix rates before running month-end.
 export function MissingRatesNotice() {
-  const { data: clients } = useListClients();
-  const { data: rates } = useListClientRates();
+  const clientsQuery = useListClients();
+  const ratesQuery = useListClientRates();
+  const clients = clientsQuery.data;
+  const rates = ratesQuery.data;
+
+  // Rendering nothing when the check itself failed reads as "every client has
+  // rates" — the exact opposite of what is known — and this notice is the
+  // last thing standing between Molly and an invoice that bills every line at
+  // $0. Say the check didn't run instead.
+  if (clientsQuery.isError || ratesQuery.isError) {
+    return (
+      <LoadFailure
+        what="the billing-rate check"
+        error={clientsQuery.error ?? ratesQuery.error}
+        onRetry={() => {
+          void clientsQuery.refetch();
+          void ratesQuery.refetch();
+        }}
+        testId="missing-rates-check-failed"
+      />
+    );
+  }
 
   if (!clients || !rates) return null;
 

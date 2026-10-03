@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { RoleToggle } from '@/components/role-toggle';
 import { PracticeDataCard } from '@/components/admin/practice-data-card';
 import { NextStepsCard } from '@/components/admin/next-steps-card';
 import { QuickBooksCard } from '@/components/admin/quickbooks-card';
@@ -133,6 +134,7 @@ export default function AdminDashboard() {
               <p className="text-sm text-muted-foreground mt-1">Idaho Healthcare Staffing</p>
             </div>
             <div className="flex items-center gap-2">
+              <RoleToggle current="admin" />
               <ThemeToggle />
               <Button
                 variant="ghost"

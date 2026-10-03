@@ -16,13 +16,18 @@ import { Plus, Clock, CheckCircle, LogOut, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { useLocation } from 'wouter';
+import { RoleToggle } from '@/components/role-toggle';
+import { useSession } from '@/lib/use-session';
 
 /**
  * What to tell someone who is signed in but whose email isn't (yet) an
  * employee we can log hours for. The server sends a stable `code` with each
  * of these so the wording here can change without breaking the branch.
  */
-function accessMessage(error: unknown): { title: string; body: string } {
+function accessMessage(
+  error: unknown,
+  isAdmin: boolean,
+): { title: string; body: string } {
   const code =
     error instanceof ApiError && error.data && typeof error.data === 'object'
       ? (error.data as { code?: string }).code
@@ -39,10 +44,18 @@ function accessMessage(error: unknown): { title: string; body: string } {
         body: 'Your sign-in has been turned off. Ask Molly if you think this is a mistake.',
       };
     case 'NOT_LINKED':
-      return {
-        title: "You're not set up yet",
-        body: "This email isn't linked to a team profile. Ask Molly to add it to your profile, then sign in again.",
-      };
+      // Molly is the administrator AND a working PT who bills her own visits,
+      // so she lands here herself. Telling her to "ask Molly" was absurd; she
+      // needs to know she has no employee profile and that she can add one.
+      return isAdmin
+        ? {
+            title: 'You don’t have an employee profile',
+            body: 'You’re signed in as the administrator, so there are no hours of your own here yet. Add yourself on the Team page to log and bill your own visits.',
+          }
+        : {
+            title: "You're not set up yet",
+            body: "This email isn't linked to a team profile. Ask Molly to add it to your profile, then sign in again.",
+          };
     default:
       return {
         title: "Couldn't load your profile",
@@ -68,7 +81,10 @@ function DashboardShell({
               <h1 className="text-xl font-semibold">Log Hours</h1>
               <p className="text-sm text-muted-foreground">{subtitle}</p>
             </div>
-            <ThemeToggle />
+            <div className="flex items-center gap-2">
+              <RoleToggle current="employee" />
+              <ThemeToggle />
+            </div>
           </div>
         </div>
       </div>
@@ -82,6 +98,7 @@ export default function EmployeeDashboard() {
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [, setLocation] = useLocation();
   const { signOut } = useClerk();
+  const { data: session } = useSession();
   const { toast } = useToast();
   // The page is behind a sign-in gate, so there is always a session here —
   // but a session isn't automatically a roster profile. Everything below
@@ -115,7 +132,7 @@ export default function EmployeeDashboard() {
   }
 
   if (error || !me) {
-    const { title, body } = accessMessage(error);
+    const { title, body } = accessMessage(error, session?.isAdmin ?? false);
     return (
       <DashboardShell subtitle="Not signed in to a profile">
         <div className="rounded-xl border bg-card px-6 py-8 text-center space-y-3">
@@ -203,6 +220,7 @@ function SignedInDashboard({
                 <CheckCircle className="h-4 w-4 text-primary" />
                 <span className="font-mono font-medium">{submittedCount} submitted</span>
               </div>
+              <RoleToggle current="employee" />
               <ThemeToggle />
               <Button
                 variant="ghost"

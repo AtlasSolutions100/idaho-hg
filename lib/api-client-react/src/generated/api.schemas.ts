@@ -395,6 +395,20 @@ export interface UpdateClientBilling {
   noteToCustomer?: string;
 }
 
+/**
+ * What the signed-in caller may use. "admin" is the configured administrator; "employee" is linked to an active roster profile; "pending" has asked to be linked and is waiting; "disabled" is on the roster with sign-in turned off; "not-linked" is signed in but matches no roster profile.
+ */
+export type SessionAccess = typeof SessionAccess[keyof typeof SessionAccess];
+
+
+export const SessionAccess = {
+  admin: 'admin',
+  employee: 'employee',
+  pending: 'pending',
+  disabled: 'disabled',
+  'not-linked': 'not-linked',
+} as const;
+
 export interface Employee {
   id: string;
   name: string;
@@ -406,6 +420,17 @@ export interface Employee {
   phone?: string;
   contactEmail?: string;
   address?: string;
+}
+
+export interface Session {
+  /** The signed-in email, or null when Clerk has none on file. */
+  email: string | null;
+  /** True when this session is the configured administrator. */
+  isAdmin: boolean;
+  /** Whether the server has an administrator email configured at all. False means ADMIN_EMAIL is unset or blank, so NO ONE can reach the admin screens — the app says that plainly instead of telling the owner she is not the administrator. The configured address itself is deliberately not returned. */
+  adminConfigured: boolean;
+  access: SessionAccess;
+  employee?: Employee;
 }
 
 export interface EmployeeInput {
