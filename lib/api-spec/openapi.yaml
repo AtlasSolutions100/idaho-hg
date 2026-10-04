@@ -1050,6 +1050,145 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /travel-allowances:
+    get:
+      operationId: listTravelAllowances
+      tags: [rates]
+      summary: Per-day travel allowances, one row per employee, client and location
+      responses:
+        "200":
+          description: The allowance currently in effect for each combination
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TravelAllowance"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not the administrator
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createTravelAllowance
+      tags: [rates]
+      summary: Set a travel allowance for an employee at one of a client's locations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTravelAllowance"
+      responses:
+        "201":
+          description: The stored allowance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TravelAllowance"
+        "400":
+          description: Invalid allowance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not the administrator
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /travel-allowances/{id}:
+    patch:
+      operationId: updateTravelAllowance
+      tags: [rates]
+      summary: Change an allowance, keeping the previous one as history
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTravelAllowance"
+      responses:
+        "200":
+          description: The new allowance row
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TravelAllowance"
+        "400":
+          description: Invalid allowance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not the administrator
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No such allowance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /me/travel-locations:
+    get:
+      operationId: listMyTravelLocations
+      tags: [roster]
+      summary: Clinic locations the signed-in employee has a travel allowance for
+      description: >-
+        Lets the hours form offer only the locations this person is actually
+        paid travel for, so nobody picks a clinic that produces an unpayable
+        entry.
+      responses:
+        "200":
+          description: The caller's locations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TravelLocation"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Signed-in email is not on the roster
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /me:
     get:
       operationId: getMyEmployee
@@ -2082,6 +2221,11 @@ components:
     PayrollReportLine:
       type: object
       properties:
+        travelLocation:
+          type: string
+          description: >-
+            Set on a travel-allowance line: the clinic location the day's
+            allowance was paid for.
         entryId:
           type: string
         date:
@@ -2192,7 +2336,7 @@ components:
         - missingRateCount
     InvoiceLineKind:
       type: string
-      enum: [visit, hourly, mileage, per-diem, other]
+      enum: [visit, hourly, mileage, per-diem, travel, other]
     InvoiceReportLine:
       type: object
       properties:
@@ -3095,6 +3239,68 @@ components:
         effectiveDate:
           type: string
       required: [rate]
+    TravelAllowance:
+      type: object
+      description: >-
+        A per-day allowance paid to one employee for working at one of a
+        client's locations, and billed to that client as its own line. Stored
+        as billable round-trip miles (already net of any the contract deducts)
+        because the money is miles x a mileage rate, and both rates move.
+      properties:
+        id:
+          type: string
+        employeeId:
+          type: string
+        employeeName:
+          type: string
+        clientId:
+          type: string
+        clientName:
+          type: string
+        location:
+          type: string
+        miles:
+          type: number
+        effectiveDate:
+          type: string
+      required: [id, employeeId, employeeName, clientId, clientName, location, miles, effectiveDate]
+    CreateTravelAllowance:
+      type: object
+      properties:
+        employeeId:
+          type: string
+        clientId:
+          type: string
+        location:
+          type: string
+          minLength: 1
+        miles:
+          type: number
+          minimum: 0
+        effectiveDate:
+          type: string
+          description: Defaults to today when omitted
+      required: [employeeId, clientId, location, miles]
+    UpdateTravelAllowance:
+      type: object
+      properties:
+        miles:
+          type: number
+          minimum: 0
+        effectiveDate:
+          type: string
+          description: Defaults to today when omitted
+      required: [miles]
+    TravelLocation:
+      type: object
+      properties:
+        clientId:
+          type: string
+        clientName:
+          type: string
+        location:
+          type: string
+      required: [clientId, clientName, location]
     HourKind:
       type: string
       enum: [regular, on-call, call-back]
@@ -3110,6 +3316,9 @@ components:
       properties:
         hourKind:
           $ref: "#/components/schemas/HourKind"
+        travelLocation:
+          type: string
+          description: Clinic location worked at, when the client pays a per-day travel allowance
         id:
           type: string
         employeeId:
@@ -3194,6 +3403,9 @@ components:
       properties:
         hourKind:
           $ref: "#/components/schemas/HourKind"
+        travelLocation:
+          type: string
+          description: Clinic location worked at, when the client pays a per-day travel allowance
         employeeId:
           type: string
         clientId:
@@ -3326,6 +3538,9 @@ components:
       properties:
         hourKind:
           $ref: "#/components/schemas/HourKind"
+        travelLocation:
+          type: string
+          description: Clinic location worked at, when the client pays a per-day travel allowance
         clientId:
           type: string
         date:

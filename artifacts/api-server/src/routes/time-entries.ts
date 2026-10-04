@@ -47,6 +47,7 @@ function serialize(row: TimeEntryRow) {
     ...(row.hourKind && row.hourKind !== "regular"
       ? { hourKind: row.hourKind as "on-call" | "call-back" }
       : {}),
+    ...(row.travelLocation ? { travelLocation: row.travelLocation } : {}),
     quantity: row.quantity,
     ...(row.timeIn ? { timeIn: row.timeIn } : {}),
     ...(row.timeOut ? { timeOut: row.timeOut } : {}),
@@ -392,6 +393,15 @@ router.post("/time-entries", async (req, res, next) => {
       res.status(400).json({ message: "Provide a visit type, your time in and out, or mileage" });
       return;
     }
+    // A travel allowance stands in for mileage, so an entry can't claim both.
+    const travelLocation = body.travelLocation?.trim() || null;
+    if (travelLocation && (body.mileage ?? 0) > 0) {
+      res.status(400).json({
+        message:
+          "That location pays a travel allowance instead of mileage — leave the miles blank.",
+      });
+      return;
+    }
     // On call and call back describe hours worked, so they make no sense on
     // a visit entry, a mileage-only entry or a one-off.
     const hourKind = normalizeHourKind(body.hourKind);
@@ -482,6 +492,7 @@ router.post("/time-entries", async (req, res, next) => {
           endDate: range.endDate,
           visitType: body.visitType ?? null,
           hourKind: hourKind === "regular" ? null : hourKind,
+          travelLocation,
           quantity: qty.quantity,
           timeIn: hasTimes ? (body.timeIn ?? null) : null,
           timeOut: hasTimes ? (body.timeOut ?? null) : null,

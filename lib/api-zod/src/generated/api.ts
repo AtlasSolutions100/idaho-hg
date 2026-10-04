@@ -28,6 +28,7 @@ export const ListTimeEntriesQueryParams = zod.object({
 
 export const ListTimeEntriesResponseItem = zod.object({
   "hourKind": zod.enum(['regular', 'on-call', 'call-back']).optional().describe('What kind of hours an hourly entry covers. \"regular\" is ordinary worked time; \"on-call\" is time carried on call, billed at the client\'s on-call rate; \"call-back\" is being called in while on call, which a contract may pay a minimum number of hours for (see Client.callBackMinimumHours). Absent means regular. Only hourly entries use it — a client that bills by visit type never does.'),
+  "travelLocation": zod.string().optional().describe('Clinic location worked at, when the client pays a per-day travel allowance'),
   "id": zod.string(),
   "employeeId": zod.string(),
   "employeeName": zod.string(),
@@ -79,6 +80,7 @@ export const createTimeEntryBodyPerDiemMax = 1;
 
 export const CreateTimeEntryBody = zod.object({
   "hourKind": zod.enum(['regular', 'on-call', 'call-back']).optional().describe('What kind of hours an hourly entry covers. \"regular\" is ordinary worked time; \"on-call\" is time carried on call, billed at the client\'s on-call rate; \"call-back\" is being called in while on call, which a contract may pay a minimum number of hours for (see Client.callBackMinimumHours). Absent means regular. Only hourly entries use it — a client that bills by visit type never does.'),
+  "travelLocation": zod.string().optional().describe('Clinic location worked at, when the client pays a per-day travel allowance'),
   "employeeId": zod.string(),
   "clientId": zod.string(),
   "date": zod.string(),
@@ -100,6 +102,7 @@ export const CreateTimeEntryBody = zod.object({
 
 export const CreateTimeEntryResponse = zod.object({
   "hourKind": zod.enum(['regular', 'on-call', 'call-back']).optional().describe('What kind of hours an hourly entry covers. \"regular\" is ordinary worked time; \"on-call\" is time carried on call, billed at the client\'s on-call rate; \"call-back\" is being called in while on call, which a contract may pay a minimum number of hours for (see Client.callBackMinimumHours). Absent means regular. Only hourly entries use it — a client that bills by visit type never does.'),
+  "travelLocation": zod.string().optional().describe('Clinic location worked at, when the client pays a per-day travel allowance'),
   "id": zod.string(),
   "employeeId": zod.string(),
   "employeeName": zod.string(),
@@ -155,6 +158,7 @@ export const updateTimeEntryBodyPerDiemMax = 1;
 
 export const UpdateTimeEntryBody = zod.object({
   "hourKind": zod.enum(['regular', 'on-call', 'call-back']).optional().describe('What kind of hours an hourly entry covers. \"regular\" is ordinary worked time; \"on-call\" is time carried on call, billed at the client\'s on-call rate; \"call-back\" is being called in while on call, which a contract may pay a minimum number of hours for (see Client.callBackMinimumHours). Absent means regular. Only hourly entries use it — a client that bills by visit type never does.'),
+  "travelLocation": zod.string().optional().describe('Clinic location worked at, when the client pays a per-day travel allowance'),
   "clientId": zod.string(),
   "date": zod.string(),
   "endDate": zod.string().optional().describe('Last day covered for a mileage-only entry spanning a range; must be >= date'),
@@ -172,6 +176,7 @@ export const UpdateTimeEntryBody = zod.object({
 
 export const UpdateTimeEntryResponse = zod.object({
   "hourKind": zod.enum(['regular', 'on-call', 'call-back']).optional().describe('What kind of hours an hourly entry covers. \"regular\" is ordinary worked time; \"on-call\" is time carried on call, billed at the client\'s on-call rate; \"call-back\" is being called in while on call, which a contract may pay a minimum number of hours for (see Client.callBackMinimumHours). Absent means regular. Only hourly entries use it — a client that bills by visit type never does.'),
+  "travelLocation": zod.string().optional().describe('Clinic location worked at, when the client pays a per-day travel allowance'),
   "id": zod.string(),
   "employeeId": zod.string(),
   "employeeName": zod.string(),
@@ -224,6 +229,7 @@ export const PriceTimeEntryBody = zod.object({
 
 export const PriceTimeEntryResponse = zod.object({
   "hourKind": zod.enum(['regular', 'on-call', 'call-back']).optional().describe('What kind of hours an hourly entry covers. \"regular\" is ordinary worked time; \"on-call\" is time carried on call, billed at the client\'s on-call rate; \"call-back\" is being called in while on call, which a contract may pay a minimum number of hours for (see Client.callBackMinimumHours). Absent means regular. Only hourly entries use it — a client that bills by visit type never does.'),
+  "travelLocation": zod.string().optional().describe('Clinic location worked at, when the client pays a per-day travel allowance'),
   "id": zod.string(),
   "employeeId": zod.string(),
   "employeeName": zod.string(),
@@ -264,6 +270,7 @@ export const ApproveTimeEntryParams = zod.object({
 
 export const ApproveTimeEntryResponse = zod.object({
   "hourKind": zod.enum(['regular', 'on-call', 'call-back']).optional().describe('What kind of hours an hourly entry covers. \"regular\" is ordinary worked time; \"on-call\" is time carried on call, billed at the client\'s on-call rate; \"call-back\" is being called in while on call, which a contract may pay a minimum number of hours for (see Client.callBackMinimumHours). Absent means regular. Only hourly entries use it — a client that bills by visit type never does.'),
+  "travelLocation": zod.string().optional().describe('Clinic location worked at, when the client pays a per-day travel allowance'),
   "id": zod.string(),
   "employeeId": zod.string(),
   "employeeName": zod.string(),
@@ -304,6 +311,7 @@ export const RejectTimeEntryParams = zod.object({
 
 export const RejectTimeEntryResponse = zod.object({
   "hourKind": zod.enum(['regular', 'on-call', 'call-back']).optional().describe('What kind of hours an hourly entry covers. \"regular\" is ordinary worked time; \"on-call\" is time carried on call, billed at the client\'s on-call rate; \"call-back\" is being called in while on call, which a contract may pay a minimum number of hours for (see Client.callBackMinimumHours). Absent means regular. Only hourly entries use it — a client that bills by visit type never does.'),
+  "travelLocation": zod.string().optional().describe('Clinic location worked at, when the client pays a per-day travel allowance'),
   "id": zod.string(),
   "employeeId": zod.string(),
   "employeeName": zod.string(),
@@ -366,6 +374,7 @@ export const BatchCreateTimeEntriesBody = zod.object({
 
 export const BatchCreateTimeEntriesResponseItem = zod.object({
   "hourKind": zod.enum(['regular', 'on-call', 'call-back']).optional().describe('What kind of hours an hourly entry covers. \"regular\" is ordinary worked time; \"on-call\" is time carried on call, billed at the client\'s on-call rate; \"call-back\" is being called in while on call, which a contract may pay a minimum number of hours for (see Client.callBackMinimumHours). Absent means regular. Only hourly entries use it — a client that bills by visit type never does.'),
+  "travelLocation": zod.string().optional().describe('Clinic location worked at, when the client pays a per-day travel allowance'),
   "id": zod.string(),
   "employeeId": zod.string(),
   "employeeName": zod.string(),
@@ -1055,6 +1064,90 @@ export const GetSessionResponse = zod.object({
   "address": zod.string().optional()
 }).optional()
 })
+
+
+/**
+ * @summary Per-day travel allowances, one row per employee, client and location
+ */
+export const ListTravelAllowancesResponseItem = zod.object({
+  "id": zod.string(),
+  "employeeId": zod.string(),
+  "employeeName": zod.string(),
+  "clientId": zod.string(),
+  "clientName": zod.string(),
+  "location": zod.string(),
+  "miles": zod.number(),
+  "effectiveDate": zod.string()
+}).describe('A per-day allowance paid to one employee for working at one of a client\'s locations, and billed to that client as its own line. Stored as billable round-trip miles (already net of any the contract deducts) because the money is miles x a mileage rate, and both rates move.')
+export const ListTravelAllowancesResponse = zod.array(ListTravelAllowancesResponseItem)
+
+
+/**
+ * @summary Set a travel allowance for an employee at one of a client's locations
+ */
+
+export const createTravelAllowanceBodyMilesMin = 0;
+
+
+
+export const CreateTravelAllowanceBody = zod.object({
+  "employeeId": zod.string(),
+  "clientId": zod.string(),
+  "location": zod.string().min(1),
+  "miles": zod.number().min(createTravelAllowanceBodyMilesMin),
+  "effectiveDate": zod.string().optional().describe('Defaults to today when omitted')
+})
+
+export const CreateTravelAllowanceResponse = zod.object({
+  "id": zod.string(),
+  "employeeId": zod.string(),
+  "employeeName": zod.string(),
+  "clientId": zod.string(),
+  "clientName": zod.string(),
+  "location": zod.string(),
+  "miles": zod.number(),
+  "effectiveDate": zod.string()
+}).describe('A per-day allowance paid to one employee for working at one of a client\'s locations, and billed to that client as its own line. Stored as billable round-trip miles (already net of any the contract deducts) because the money is miles x a mileage rate, and both rates move.')
+
+
+/**
+ * @summary Change an allowance, keeping the previous one as history
+ */
+export const UpdateTravelAllowanceParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const updateTravelAllowanceBodyMilesMin = 0;
+
+
+
+export const UpdateTravelAllowanceBody = zod.object({
+  "miles": zod.number().min(updateTravelAllowanceBodyMilesMin),
+  "effectiveDate": zod.string().optional().describe('Defaults to today when omitted')
+})
+
+export const UpdateTravelAllowanceResponse = zod.object({
+  "id": zod.string(),
+  "employeeId": zod.string(),
+  "employeeName": zod.string(),
+  "clientId": zod.string(),
+  "clientName": zod.string(),
+  "location": zod.string(),
+  "miles": zod.number(),
+  "effectiveDate": zod.string()
+}).describe('A per-day allowance paid to one employee for working at one of a client\'s locations, and billed to that client as its own line. Stored as billable round-trip miles (already net of any the contract deducts) because the money is miles x a mileage rate, and both rates move.')
+
+
+/**
+ * Lets the hours form offer only the locations this person is actually paid travel for, so nobody picks a clinic that produces an unpayable entry.
+ * @summary Clinic locations the signed-in employee has a travel allowance for
+ */
+export const ListMyTravelLocationsResponseItem = zod.object({
+  "clientId": zod.string(),
+  "clientName": zod.string(),
+  "location": zod.string()
+})
+export const ListMyTravelLocationsResponse = zod.array(ListMyTravelLocationsResponseItem)
 
 
 /**

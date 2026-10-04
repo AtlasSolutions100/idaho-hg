@@ -54,9 +54,21 @@ export type InvoiceEntryInput = {
   unbillableReason?: string;
   /** What kind of hours an hourly entry covers; absent means regular. */
   hourKind?: HourKind;
+  /**
+   * A day's travel allowance, which the client asked to see as its own
+   * line. `perDay` is undefined when no allowance is on file, which bills
+   * $0 and is flagged rather than quietly charging nothing.
+   */
+  travel?: { location: string; perDay: number | undefined };
 };
 
-export type InvoiceLineKind = "visit" | "hourly" | "mileage" | "per-diem" | "other";
+export type InvoiceLineKind =
+  | "visit"
+  | "hourly"
+  | "mileage"
+  | "per-diem"
+  | "travel"
+  | "other";
 
 export type InvoiceLine = {
   lineId: string;
@@ -152,7 +164,8 @@ const KIND_ORDER: Record<InvoiceLineKind, number> = {
   hourly: 1,
   mileage: 2,
   "per-diem": 3,
-  other: 4,
+  travel: 4,
+  other: 5,
 };
 
 const MISSING_NOTES: Record<InvoiceLineKind, string> = {
@@ -160,6 +173,7 @@ const MISSING_NOTES: Record<InvoiceLineKind, string> = {
   hourly: "No hourly billing rate on file — add one on the Client Rates page",
   mileage: "No mileage rate on file for this employee/date",
   "per-diem": "No per-diem rate on file for this employee/date",
+  travel: "No travel allowance on file for this employee and location",
   other: "No billing amount set for this one-off",
 };
 
@@ -268,6 +282,13 @@ export function buildInvoiceLines(
       }
       continue;
     }
+    // A travel allowance is a day's entitlement rather than work logged, so
+    // it is its own entry and its own line — which is how the client asked to
+    // see it.
+    if (entry.travel) {
+      add(entry, "travel", entry.travel.location, entry.travel.perDay, 1);
+      continue;
+    }
     let billedSomething = false;
     if (entry.visitType) {
       // Two evals on one day arrive as a single entry with quantity 2. An
@@ -340,6 +361,11 @@ export function buildInvoiceLines(
       case "per-diem":
         description = `${initials} Per diem ${range}`;
         break;
+      case "travel": {
+        const days = `${b.qty} ${b.qty === 1 ? "day" : "days"}`;
+        description = `${initials} travel ${b.visitType ?? ""} ${range} (${days})`;
+        break;
+      }
       case "other":
         description = `${initials} ${b.otherNote ?? "one-off"} ${range}`;
         break;

@@ -7,6 +7,7 @@ import {
   employeesTable,
   employeeLinkRequestsTable,
   appliedBackfillsTable,
+  employeeTravelAllowancesTable,
   clientRatesTable,
   employeeRatesTable,
   timeEntriesTable,
@@ -862,6 +863,37 @@ router.delete("/employees/:id", requireAdmin, async (req, res, next) => {
       return;
     }
     res.json(serializeEmployee(row));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Clinic locations the signed-in employee is paid a travel allowance for.
+ * The hours form offers only these, so nobody picks a location that would
+ * produce an entry nobody can pay.
+ */
+router.get("/me/travel-locations", requireEmployee, async (req, res, next) => {
+  try {
+    const { employee } = req as typeof req & {
+      employee: import("@workspace/db").EmployeeRow;
+    };
+    const rows = await db
+      .select()
+      .from(employeeTravelAllowancesTable)
+      .where(eq(employeeTravelAllowancesTable.employeeId, employee.id));
+    const seen = new Map<string, { clientId: string; clientName: string; location: string }>();
+    for (const row of rows) {
+      const key = `${row.clientId}|${row.location}`;
+      if (!seen.has(key)) {
+        seen.set(key, {
+          clientId: row.clientId,
+          clientName: row.clientName,
+          location: row.location,
+        });
+      }
+    }
+    res.json([...seen.values()].sort((a, b) => a.location.localeCompare(b.location)));
   } catch (err) {
     next(err);
   }

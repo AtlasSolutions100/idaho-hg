@@ -25,6 +25,7 @@ const ReportsPage = lazy(() => import('@/pages/admin/reports'));
 const OnboardingPage = lazy(() => import('@/pages/admin/onboarding'));
 const FeedbackPage = lazy(() => import('@/pages/admin/feedback'));
 const BusinessSettingsPage = lazy(() => import('@/pages/admin/business-settings'));
+const TravelAllowancesPage = lazy(() => import('@/pages/admin/travel-allowances'));
 import { Route, Switch, Redirect, useLocation, Router as WouterRouter } from 'wouter';
 import { FeedbackDialog } from '@/components/feedback-dialog';
 import { AdminAccessDenied } from '@/components/access-denied';
@@ -272,6 +273,11 @@ function Router() {
       <Route path="/admin/feedback">
         <AdminGate>
           <FeedbackPage />
+        </AdminGate>
+      </Route>
+      <Route path="/admin/travel-allowances">
+        <AdminGate>
+          <TravelAllowancesPage />
         </AdminGate>
       </Route>
       <Route path="/admin/business-settings">

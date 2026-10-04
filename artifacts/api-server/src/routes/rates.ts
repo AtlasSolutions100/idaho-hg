@@ -12,10 +12,14 @@ import {
   type ClientPayRateRow,
   type EmployeeRateRow,
   appliedBackfillsTable,
+  employeeTravelAllowancesTable,
+  type EmployeeTravelAllowanceRow,
 } from "@workspace/db";
 import { mileageCorrections } from "../lib/staff-mileage";
 import { payPeriodContaining } from "../lib/work-calendar";
 import {
+  CreateTravelAllowanceBody,
+  UpdateTravelAllowanceBody,
   CreateClientRateBody,
   CreateClientPayRateBody,
   UpdateClientRateBody,
@@ -862,6 +866,126 @@ router.get("/employee-rates/:id/history", requireAdmin, async (req, res, next) =
       .where(eq(employeeRatesTable.employeeId, existing.employeeId))
       .orderBy(desc(employeeRatesTable.effectiveDate), desc(employeeRatesTable.id));
     res.json(rows.map(serializeEmployeeRate));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** An allowance row as the apps read it. */
+function serializeTravelAllowance(row: EmployeeTravelAllowanceRow) {
+  return {
+    id: String(row.id),
+    employeeId: row.employeeId,
+    employeeName: row.employeeName,
+    clientId: row.clientId,
+    clientName: row.clientName,
+    location: row.location,
+    miles: row.miles,
+    effectiveDate: row.effectiveDate,
+  };
+}
+
+// Per-day travel allowances: paid to an employee for working at one of a
+// client's locations, instead of mileage. Molly's figures, Molly's screen.
+router.get("/travel-allowances", requireAdmin, async (_req, res, next) => {
+  try {
+    await ensureSeeded();
+    const rows = await db.select().from(employeeTravelAllowancesTable);
+    const current = latestPerGroup(rows, (row) =>
+      [row.employeeId, row.clientId, row.location].join("|"),
+    ).sort(
+      (a, b) =>
+        a.employeeName.localeCompare(b.employeeName) ||
+        a.location.localeCompare(b.location),
+    );
+    res.json(current.map(serializeTravelAllowance));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/travel-allowances", requireAdmin, async (req, res, next) => {
+  try {
+    const parsed = CreateTravelAllowanceBody.safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ message: parsed.error.issues[0]?.message ?? "Invalid allowance" });
+      return;
+    }
+    const { employeeId, clientId, miles } = parsed.data;
+    const location = parsed.data.location.trim();
+    if (!location) {
+      res.status(400).json({ message: "Name the clinic location." });
+      return;
+    }
+    const [employee] = await db
+      .select()
+      .from(employeesTable)
+      .where(eq(employeesTable.id, employeeId));
+    const [client] = await db
+      .select()
+      .from(clientsTable)
+      .where(eq(clientsTable.id, clientId));
+    if (!employee || !client) {
+      res.status(400).json({ message: "Pick an employee and a client that exist." });
+      return;
+    }
+    const [row] = await db
+      .insert(employeeTravelAllowancesTable)
+      .values({
+        employeeId,
+        employeeName: employee.name,
+        clientId,
+        clientName: client.name,
+        location,
+        miles,
+        effectiveDate: parsed.data.effectiveDate?.trim() || new Date().toISOString().slice(0, 10),
+      })
+      .returning();
+    res.status(201).json(serializeTravelAllowance(row!));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch("/travel-allowances/:id", requireAdmin, async (req, res, next) => {
+  try {
+    const parsed = UpdateTravelAllowanceBody.safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ message: parsed.error.issues[0]?.message ?? "Invalid allowance" });
+      return;
+    }
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(404).json({ message: "Allowance not found" });
+      return;
+    }
+    const [existing] = await db
+      .select()
+      .from(employeeTravelAllowancesTable)
+      .where(eq(employeeTravelAllowancesTable.id, id));
+    if (!existing) {
+      res.status(404).json({ message: "Allowance not found" });
+      return;
+    }
+    // Append-only, like every other rate: the old figure stays attached to the
+    // periods it was paid for.
+    const [row] = await db
+      .insert(employeeTravelAllowancesTable)
+      .values({
+        employeeId: existing.employeeId,
+        employeeName: existing.employeeName,
+        clientId: existing.clientId,
+        clientName: existing.clientName,
+        location: existing.location,
+        miles: parsed.data.miles,
+        effectiveDate: parsed.data.effectiveDate?.trim() || new Date().toISOString().slice(0, 10),
+      })
+      .returning();
+    res.json(serializeTravelAllowance(row!));
   } catch (err) {
     next(err);
   }

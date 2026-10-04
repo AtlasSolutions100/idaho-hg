@@ -716,6 +716,44 @@ export interface UpdateVisitPayRate {
 }
 
 /**
+ * A per-day allowance paid to one employee for working at one of a client's locations, and billed to that client as its own line. Stored as billable round-trip miles (already net of any the contract deducts) because the money is miles x a mileage rate, and both rates move.
+ */
+export interface TravelAllowance {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  clientId: string;
+  clientName: string;
+  location: string;
+  miles: number;
+  effectiveDate: string;
+}
+
+export interface CreateTravelAllowance {
+  employeeId: string;
+  clientId: string;
+  /** @minLength 1 */
+  location: string;
+  /** @minimum 0 */
+  miles: number;
+  /** Defaults to today when omitted */
+  effectiveDate?: string;
+}
+
+export interface UpdateTravelAllowance {
+  /** @minimum 0 */
+  miles: number;
+  /** Defaults to today when omitted */
+  effectiveDate?: string;
+}
+
+export interface TravelLocation {
+  clientId: string;
+  clientName: string;
+  location: string;
+}
+
+/**
  * What kind of hours an hourly entry covers. "regular" is ordinary worked time; "on-call" is time carried on call, billed at the client's on-call rate; "call-back" is being called in while on call, which a contract may pay a minimum number of hours for (see Client.callBackMinimumHours). Absent means regular. Only hourly entries use it — a client that bills by visit type never does.
  */
 export type HourKind = typeof HourKind[keyof typeof HourKind];
@@ -740,6 +778,8 @@ export const PerDiemType = {
 
 export interface TimeEntry {
   hourKind?: HourKind;
+  /** Clinic location worked at, when the client pays a per-day travel allowance */
+  travelLocation?: string;
   id: string;
   employeeId: string;
   employeeName: string;
@@ -781,6 +821,8 @@ export interface TimeEntry {
 
 export interface CreateTimeEntry {
   hourKind?: HourKind;
+  /** Clinic location worked at, when the client pays a per-day travel allowance */
+  travelLocation?: string;
   employeeId: string;
   clientId: string;
   date: string;
@@ -872,6 +914,8 @@ export interface BatchCreateTimeEntry {
  */
 export interface UpdateTimeEntry {
   hourKind?: HourKind;
+  /** Clinic location worked at, when the client pays a per-day travel allowance */
+  travelLocation?: string;
   clientId: string;
   date: string;
   /** Last day covered for a mileage-only entry spanning a range; must be >= date */

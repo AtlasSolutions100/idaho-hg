@@ -23,6 +23,7 @@ import {
 import { visitTypeUnitMap } from "../lib/visit-types";
 import { daysWithDriveTimeWork, unbillableReason } from "../lib/drive-time";
 import { billableHours, hourlyRateKeys, normalizeHourKind } from "../lib/hour-kinds";
+import { getTravelAllowanceForDate, travelDays } from "../lib/travel-allowance";
 import { computeInvoiceReport } from "../lib/invoice-report";
 import {
   buildReconciliationReport,
@@ -290,6 +291,42 @@ router.get("/reports/payroll", requireAdmin, async (req, res, next) => {
       group.total = round2(group.total + total);
     }
 
+    // Travel allowances are paid per day worked at a location, not per entry,
+    // and stand in for mileage rather than adding to it.
+    for (const day of travelDays(entries)) {
+      const group = groups.get(day.employeeId);
+      if (!group) continue;
+      const allowance = await getTravelAllowanceForDate(
+        day.employeeId,
+        day.clientId,
+        day.location,
+        day.date,
+      );
+      const employeeRate = await getEmployeeRateForDate(day.employeeId, day.date);
+      const missing = !allowance || !employeeRate;
+      if (missing) missingRateCount += 1;
+      const pay =
+        allowance && employeeRate
+          ? round2(allowance.miles * employeeRate.mileageRate)
+          : 0;
+      group.lines.push({
+        entryId: `travel-${day.employeeId}-${day.location}-${day.date}`,
+        date: day.date,
+        clientName: day.clientName,
+        travelLocation: day.location,
+        isWeekend: false,
+        isHoliday: false,
+        multiplier: 1,
+        basePay: pay,
+        mileagePay: 0,
+        perDiemPay: 0,
+        total: pay,
+        missingRate: missing,
+      });
+      group.basePay = round2(group.basePay + pay);
+      group.total = round2(group.total + pay);
+    }
+
     const employees = [...groups.values()].sort((a, b) =>
       a.employeeName.localeCompare(b.employeeName),
     );
@@ -377,6 +414,38 @@ router.get("/reports/reconciliation", requireAdmin, async (req, res, next) => {
         note: entry.note,
         ...(entry.isOther ? { isOther: true } : {}),
         amount: await resolveEntryBilledAmount(entry, client, units, daysWithWork),
+      });
+    }
+
+    // Travel bills the client, so it has to be in here too or reconciliation
+    // stops tying back to the invoice by exactly the travel total.
+    for (const day of travelDays(entries)) {
+      const allowance = await getTravelAllowanceForDate(
+        day.employeeId,
+        day.clientId,
+        day.location,
+        day.date,
+      );
+      const clientMileage = await getClientRateForDate(clientId, "mileage", day.date);
+      const employeeRate = clientMileage
+        ? undefined
+        : await getEmployeeRateForDate(day.employeeId, day.date);
+      const perMile = clientMileage?.rate ?? employeeRate?.mileageRate;
+      annotated.push({
+        id: `travel-${day.employeeId}-${day.location}-${day.date}`,
+        date: day.date,
+        employeeId: day.employeeId,
+        employeeName: day.employeeName,
+        employeeRole: day.employeeRole,
+        visitType: null,
+        hours: null,
+        mileage: null,
+        perDiem: null,
+        isWeekend: false,
+        isHoliday: false,
+        note: `Travel — ${day.location}`,
+        amount:
+          allowance && perMile != null ? round2(allowance.miles * perMile) : 0,
       });
     }
 

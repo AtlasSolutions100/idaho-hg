@@ -20,6 +20,7 @@ import {
   LogOut,
   Stethoscope,
   Table2,
+  MapPin,
 } from 'lucide-react';
 import { useLocation } from 'wouter';
 
@@ -64,6 +65,13 @@ export default function AdminDashboard() {
       href: '/admin/approve-payroll',
       count: entriesQuery.isLoading ? undefined : pendingCount,
       testId: 'link-approve-payroll',
+    },
+    {
+      title: 'Travel Allowances',
+      description: 'Per-day travel paid instead of mileage',
+      icon: MapPin,
+      href: '/admin/travel-allowances',
+      testId: 'link-travel-allowances',
     },
     {
       title: 'Client Rates',

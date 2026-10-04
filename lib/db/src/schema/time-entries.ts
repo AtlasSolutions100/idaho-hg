@@ -29,6 +29,9 @@ export const timeEntriesTable = pgTable("time_entries", {
   // rates, and call-back carries a contract minimum (clients.call_back_
   // minimum_hours). Visit-billing clients never use it.
   hourKind: text("hour_kind"),
+  // The clinic location worked at, for clients that pay a per-day travel
+  // allowance instead of mileage (Current PT). Null everywhere else.
+  travelLocation: text("travel_location"),
   // How many of this visit type the entry covers. Two things need it:
   //   - the same visit more than once in a day (two evals and a discharge is
   //     one eval line with quantity 2, plus a discharge line);

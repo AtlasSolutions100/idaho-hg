@@ -15,6 +15,8 @@ import type { VisitType } from './visitType';
  */
 export interface UpdateTimeEntry {
   hourKind?: HourKind;
+  /** Clinic location worked at, when the client pays a per-day travel allowance */
+  travelLocation?: string;
   clientId: string;
   date: string;
   /** Last day covered for a mileage-only entry spanning a range; must be >= date */

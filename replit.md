@@ -125,3 +125,12 @@ invoice sending.
 - **A call-back is paid and billed for `clients.call_back_minimum_hours` however short the visit ran** (Idaho Youth Ranch: 4). `billableHours()` applies it, and both the invoice and the pay statement report those hours — the money and the number on the page agree.
 - Seeded for Idaho Youth Ranch: billed $40/hr on call and $93/hr called in, paid $20 and $71.
 - Schema change — **`db push` before deploying this one.**
+
+## Travel allowances (Current PT)
+
+- Paid per day worked at a clinic, **instead of mileage, not on top of it** (Molly, 11 Sep 2026). An entry carries `time_entries.travel_location`; the server refuses mileage on the same entry.
+- Stored as **billable round-trip miles**, net of any the contract deducts — not dollars. The money is miles x the mileage rate in effect: the client's for the invoice, the employee's for pay. Storing dollars would freeze each allowance at today's rate and go wrong the next time GSA moves, which Molly said it does.
+- One allowance per employee, location and **day**, however many entries that day produced (`travelDays()` in `lib/travel-allowance.ts`).
+- Invoice shows it as its own line, which the client asked for. Reconciliation includes it too, or the two stop tying.
+- **Nothing is seeded.** Her sheet's own numbers disagree at Fruitland (93 vs 94 miles, and Paige's pay row looks copied from Molly's), so the figures are Molly's to enter on Admin → Travel Allowances. Until she does, a travel day bills $0 and is flagged rather than silently free.
+- Schema change — **`db push` before deploying.**

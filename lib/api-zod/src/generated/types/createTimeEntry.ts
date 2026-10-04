@@ -12,6 +12,8 @@ import type { VisitType } from './visitType';
 
 export interface CreateTimeEntry {
   hourKind?: HourKind;
+  /** Clinic location worked at, when the client pays a per-day travel allowance */
+  travelLocation?: string;
   employeeId: string;
   clientId: string;
   date: string;

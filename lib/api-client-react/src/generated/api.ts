@@ -35,6 +35,7 @@ import type {
   CreateDiscipline,
   CreateLinkRequest,
   CreateTimeEntry,
+  CreateTravelAllowance,
   CreateVisitPayRate,
   CreateVisitType,
   DemoDataStatus,
@@ -66,6 +67,8 @@ import type {
   ReconciliationReport,
   Session,
   TimeEntry,
+  TravelAllowance,
+  TravelLocation,
   UpdateBusinessSettings,
   UpdateClientBilling,
   UpdateClientRate,
@@ -78,6 +81,7 @@ import type {
   UpdateEmployeeSignInAccess,
   UpdateOnboardingItem,
   UpdateTimeEntry,
+  UpdateTravelAllowance,
   UpdateVisitPayRate,
   UpdateVisitType,
   VisitEntryCount,
@@ -2845,6 +2849,304 @@ export function useGetSession<TData = Awaited<ReturnType<typeof getSession>>, TE
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetSessionQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListTravelAllowancesUrl = () => {
+
+
+
+
+  return `/api/travel-allowances`
+}
+
+/**
+ * @summary Per-day travel allowances, one row per employee, client and location
+ */
+export const listTravelAllowances = async ( options?: Parameters<typeof customFetch>[1]): Promise<TravelAllowance[]> => {
+
+  return customFetch<TravelAllowance[]>(getListTravelAllowancesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListTravelAllowancesQueryKey = () => {
+    return [
+    `/api/travel-allowances`
+    ] as const;
+    }
+
+
+export const getListTravelAllowancesQueryOptions = <TData = Awaited<ReturnType<typeof listTravelAllowances>>, TError = ErrorType<ApiError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTravelAllowances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListTravelAllowancesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listTravelAllowances>>> = ({ signal }) => listTravelAllowances({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listTravelAllowances>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListTravelAllowancesQueryResult = NonNullable<Awaited<ReturnType<typeof listTravelAllowances>>>
+export type ListTravelAllowancesQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Per-day travel allowances, one row per employee, client and location
+ */
+
+export function useListTravelAllowances<TData = Awaited<ReturnType<typeof listTravelAllowances>>, TError = ErrorType<ApiError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTravelAllowances>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListTravelAllowancesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateTravelAllowanceUrl = () => {
+
+
+
+
+  return `/api/travel-allowances`
+}
+
+/**
+ * @summary Set a travel allowance for an employee at one of a client's locations
+ */
+export const createTravelAllowance = async (createTravelAllowance: CreateTravelAllowance, options?: Parameters<typeof customFetch>[1]): Promise<TravelAllowance> => {
+
+  return customFetch<TravelAllowance>(getCreateTravelAllowanceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createTravelAllowance)
+  }
+);}
+
+
+
+
+
+export const getCreateTravelAllowanceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTravelAllowance>>, TError,{data: BodyType<CreateTravelAllowance>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createTravelAllowance>>, TError,{data: BodyType<CreateTravelAllowance>}, TContext> => {
+
+const mutationKey = ['createTravelAllowance'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createTravelAllowance>>, {data: BodyType<CreateTravelAllowance>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createTravelAllowance(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateTravelAllowanceMutationResult = NonNullable<Awaited<ReturnType<typeof createTravelAllowance>>>
+    export type CreateTravelAllowanceMutationBody = BodyType<CreateTravelAllowance>
+    export type CreateTravelAllowanceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Set a travel allowance for an employee at one of a client's locations
+ */
+export const useCreateTravelAllowance = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTravelAllowance>>, TError,{data: BodyType<CreateTravelAllowance>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createTravelAllowance>>,
+        TError,
+        {data: BodyType<CreateTravelAllowance>},
+        TContext
+      > => {
+      return useMutation(getCreateTravelAllowanceMutationOptions(options));
+    }
+
+export const getUpdateTravelAllowanceUrl = (id: string,) => {
+
+
+
+
+  return `/api/travel-allowances/${id}`
+}
+
+/**
+ * @summary Change an allowance, keeping the previous one as history
+ */
+export const updateTravelAllowance = async (id: string,
+    updateTravelAllowance: UpdateTravelAllowance, options?: Parameters<typeof customFetch>[1]): Promise<TravelAllowance> => {
+
+  return customFetch<TravelAllowance>(getUpdateTravelAllowanceUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateTravelAllowance)
+  }
+);}
+
+
+
+
+
+export const getUpdateTravelAllowanceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTravelAllowance>>, TError,{id: string;data: BodyType<UpdateTravelAllowance>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateTravelAllowance>>, TError,{id: string;data: BodyType<UpdateTravelAllowance>}, TContext> => {
+
+const mutationKey = ['updateTravelAllowance'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTravelAllowance>>, {id: string;data: BodyType<UpdateTravelAllowance>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateTravelAllowance(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateTravelAllowanceMutationResult = NonNullable<Awaited<ReturnType<typeof updateTravelAllowance>>>
+    export type UpdateTravelAllowanceMutationBody = BodyType<UpdateTravelAllowance>
+    export type UpdateTravelAllowanceMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Change an allowance, keeping the previous one as history
+ */
+export const useUpdateTravelAllowance = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTravelAllowance>>, TError,{id: string;data: BodyType<UpdateTravelAllowance>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateTravelAllowance>>,
+        TError,
+        {id: string;data: BodyType<UpdateTravelAllowance>},
+        TContext
+      > => {
+      return useMutation(getUpdateTravelAllowanceMutationOptions(options));
+    }
+
+export const getListMyTravelLocationsUrl = () => {
+
+
+
+
+  return `/api/me/travel-locations`
+}
+
+/**
+ * Lets the hours form offer only the locations this person is actually paid travel for, so nobody picks a clinic that produces an unpayable entry.
+ * @summary Clinic locations the signed-in employee has a travel allowance for
+ */
+export const listMyTravelLocations = async ( options?: Parameters<typeof customFetch>[1]): Promise<TravelLocation[]> => {
+
+  return customFetch<TravelLocation[]>(getListMyTravelLocationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyTravelLocationsQueryKey = () => {
+    return [
+    `/api/me/travel-locations`
+    ] as const;
+    }
+
+
+export const getListMyTravelLocationsQueryOptions = <TData = Awaited<ReturnType<typeof listMyTravelLocations>>, TError = ErrorType<ApiError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyTravelLocations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyTravelLocationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyTravelLocations>>> = ({ signal }) => listMyTravelLocations({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyTravelLocations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyTravelLocationsQueryResult = NonNullable<Awaited<ReturnType<typeof listMyTravelLocations>>>
+export type ListMyTravelLocationsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Clinic locations the signed-in employee has a travel allowance for
+ */
+
+export function useListMyTravelLocations<TData = Awaited<ReturnType<typeof listMyTravelLocations>>, TError = ErrorType<ApiError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyTravelLocations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyTravelLocationsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -5,6 +5,7 @@ import {
   useCreateTimeEntry,
   useUpdateTimeEntry,
   useListClients,
+  useListMyTravelLocations,
   getListTimeEntriesQueryKey,
   type PerDiemType,
   type TimeEntry,
@@ -17,6 +18,13 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useVisitTypes } from '@/lib/use-visit-types';
 import { VisitPicker, type VisitLine } from '@/components/employee/visit-picker';
 import { useToast } from '@/hooks/use-toast';
@@ -63,6 +71,9 @@ export function LogHoursForm({ employeeId = '1', discipline, entry, allowDraft =
   );
   // Regular worked hours, time carried on call, or being called in while on
   // call — the last of which several contracts pay a minimum for.
+  // Which clinic today was at, for clients that pay a per-day travel
+  // allowance in place of mileage.
+  const [travelLocation, setTravelLocation] = useState(entry?.travelLocation ?? '');
   const [hourKind, setHourKind] = useState<'regular' | 'on-call' | 'call-back'>(
     entry?.hourKind ?? 'regular',
   );
@@ -104,6 +115,13 @@ export function LogHoursForm({ employeeId = '1', discipline, entry, allowDraft =
   // Visit types only apply to clients that bill by visit type (St. Luke's);
   // everyone else gets the simple time-in/time-out form.
   const billsByVisit = selectedClient?.billsByVisitType ?? false;
+  // Only the locations this person is actually paid travel for at this
+  // client, so nobody picks one that produces an unpayable entry.
+  const myTravelLocations = useListMyTravelLocations();
+  const travelChoices = (myTravelLocations.data ?? []).filter(
+    (l) => l.clientId === clientId,
+  );
+  const travelPaysInsteadOfMileage = !!travelLocation;
   // "Other" is always available (one-offs like training or meetings happen
   // for any client); Visit only for clients that bill by visit type.
   const effectiveEntryType: 'visit' | 'hourly' | 'other' =
@@ -180,7 +198,10 @@ export function LogHoursForm({ employeeId = '1', discipline, entry, allowDraft =
             ...(effectiveEntryType === 'hourly' && hourKind !== 'regular'
               ? { hourKind }
               : {}),
-            ...(mileageAllowed && hasMileage && mileage ? { mileage: parseFloat(mileage) } : {}),
+            ...(travelLocation ? { travelLocation } : {}),
+            ...(mileageAllowed && hasMileage && mileage && !travelPaysInsteadOfMileage
+              ? { mileage: parseFloat(mileage) }
+              : {}),
             ...(mileageAllowed && mileageOnly && mileageIsRange && mileageEndDate
               ? { endDate: mileageEndDate }
               : {}),
@@ -372,6 +393,29 @@ export function LogHoursForm({ employeeId = '1', discipline, entry, allowDraft =
             </TabsContent>
 
             <TabsContent value="hourly" className="space-y-4 mt-4">
+              {travelChoices.length > 0 && (
+                <div className="space-y-2">
+                  <Label htmlFor="travel-location">Clinic location</Label>
+                  <Select value={travelLocation} onValueChange={setTravelLocation}>
+                    <SelectTrigger id="travel-location" data-testid="select-travel-location">
+                      <SelectValue placeholder="Where did you work today?" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {travelChoices.map((l) => (
+                        <SelectItem key={l.location} value={l.location}>
+                          {l.location}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {travelPaysInsteadOfMileage && (
+                    <p className="text-xs text-muted-foreground" data-testid="travel-replaces-mileage">
+                      {travelLocation} pays a set travel amount for the day, so you
+                      don’t add mileage for it.
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Type of hours</Label>
                 <div className="flex flex-wrap gap-2" data-testid="hour-kind">

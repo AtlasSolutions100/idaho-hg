@@ -15,6 +15,8 @@ import { buildInvoiceLines, type InvoiceEntryInput, type InvoiceLine } from "./i
 import { visitTypeUnitMap } from "./visit-types";
 import { daysWithDriveTimeWork, unbillableReason } from "./drive-time";
 import { billableHours, hourlyRateKeys, normalizeHourKind } from "./hour-kinds";
+import { getTravelAllowanceForDate, travelDays } from "./travel-allowance";
+import { round2 } from "./payroll-calc";
 
 export type InvoiceReportData = {
   clientId: string;
@@ -163,6 +165,42 @@ export async function computeInvoiceReport(
       }
     }
     annotated.push(input);
+  }
+
+  // Travel allowances: one per employee, location and day worked there,
+  // billed at the client's mileage rate against the miles on file. An
+  // employee with no allowance for that location still gets a line, at $0 and
+  // flagged, so a missing allowance is visible rather than silently free.
+  for (const day of travelDays(entries)) {
+    const allowance = await getTravelAllowanceForDate(
+      day.employeeId,
+      day.clientId,
+      day.location,
+      day.date,
+    );
+    const mileageRate = await getClientRateForDate(clientId, "mileage", day.date);
+    const employeeRate = mileageRate
+      ? undefined
+      : await getEmployeeRateForDate(day.employeeId, day.date);
+    const perMile = mileageRate?.rate ?? employeeRate?.mileageRate;
+    annotated.push({
+      id: `travel-${day.employeeId}-${day.location}-${day.date}`,
+      date: day.date,
+      employeeId: day.employeeId,
+      employeeName: day.employeeName,
+      employeeRole: day.employeeRole,
+      visitType: null,
+      hours: null,
+      mileage: null,
+      perDiem: null,
+      travel: {
+        location: day.location,
+        perDay:
+          allowance && perMile != null
+            ? round2(allowance.miles * perMile)
+            : undefined,
+      },
+    });
   }
 
   // Hospital at Home and drive time bill by the hour, so the line builder
