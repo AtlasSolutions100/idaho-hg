@@ -7,6 +7,8 @@
  */
 
 export interface Client {
+  /** Hours a call-back is paid and billed for even when the visit runs shorter. 0 means no minimum. */
+  callBackMinimumHours?: number;
   id: string;
   name: string;
   active: boolean;

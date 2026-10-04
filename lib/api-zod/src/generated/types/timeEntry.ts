@@ -6,10 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { EntryStatus } from './entryStatus';
+import type { HourKind } from './hourKind';
 import type { PerDiemType } from './perDiemType';
 import type { VisitType } from './visitType';
 
 export interface TimeEntry {
+  hourKind?: HourKind;
   id: string;
   employeeId: string;
   employeeName: string;

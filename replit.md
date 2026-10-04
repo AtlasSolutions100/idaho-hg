@@ -117,3 +117,11 @@ invoice sending.
 - `LoadFailure` / `failureReason` in `components/load-failure.tsx` is the house fallback: the reason in Molly's words plus a Retry. Reach for it instead of returning `null` on error — a silent `null` reads as "nothing here", which is how a broken join-requests list looked like "nobody is waiting" and a failed rate check looked like "every client has rates".
 - `RoleToggle` lets the admin switch between the admin screens and the employee screens (Molly asked for this on the 1 Oct call). It renders only for the admin.
 - Admin pages are `React.lazy`-loaded. Keep them that way: statically importing one pulls the whole admin surface back into the first download, which is what made the app crawl.
+
+## On-call and call-back hours
+
+- Idaho Youth Ranch and the other hourly clients **reject visit types outright** (`clients.bills_by_visit_type`), so on-call is not a visit type. The kind of hours rides on the entry: `time_entries.hour_kind` is `on-call`, `call-back`, or null for ordinary worked time.
+- Rates resolve through `hourlyRateKeys()` in `lib/hour-kinds.ts`, which returns `["on-call-RN", "on-call"]` in place of `["hourly-RN", "hourly"]`. That means on-call and call-back inherit per-discipline rates, weekend/holiday variants and per-client pay from the machinery the ordinary hourly rate already uses — nothing new to maintain.
+- **A call-back is paid and billed for `clients.call_back_minimum_hours` however short the visit ran** (Idaho Youth Ranch: 4). `billableHours()` applies it, and both the invoice and the pay statement report those hours — the money and the number on the page agree.
+- Seeded for Idaho Youth Ranch: billed $40/hr on call and $93/hr called in, paid $20 and $71.
+- Schema change — **`db push` before deploying this one.**

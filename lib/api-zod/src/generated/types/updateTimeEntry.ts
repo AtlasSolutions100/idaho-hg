@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CreateEntryStatus } from './createEntryStatus';
+import type { HourKind } from './hourKind';
 import type { PerDiemType } from './perDiemType';
 import type { VisitType } from './visitType';
 
@@ -13,6 +14,7 @@ import type { VisitType } from './visitType';
  * Full replacement of an entry's editable fields. The employee never changes — only client, date, work details, and (optionally) status.
  */
 export interface UpdateTimeEntry {
+  hourKind?: HourKind;
   clientId: string;
   date: string;
   /** Last day covered for a mileage-only entry spanning a range; must be >= date */

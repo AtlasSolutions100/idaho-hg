@@ -344,6 +344,8 @@ export interface HourlyEntryCount {
 }
 
 export interface Client {
+  /** Hours a call-back is paid and billed for even when the visit runs shorter. 0 means no minimum. */
+  callBackMinimumHours?: number;
   id: string;
   name: string;
   active: boolean;
@@ -381,6 +383,11 @@ export interface UpdateClientBilling {
   mileageOnContract?: boolean;
   /** Only applied when present; controls whether the visit-type entry form is shown */
   billsByVisitType?: boolean;
+  /**
+     * Only applied when present; hours a call-back is paid and billed for at minimum
+     * @minimum 0
+     */
+  callBackMinimumHours?: number;
   /**
      * Only applied when present; per-client weekend pay+bill multiplier
      * @minimum 0
@@ -709,6 +716,18 @@ export interface UpdateVisitPayRate {
 }
 
 /**
+ * What kind of hours an hourly entry covers. "regular" is ordinary worked time; "on-call" is time carried on call, billed at the client's on-call rate; "call-back" is being called in while on call, which a contract may pay a minimum number of hours for (see Client.callBackMinimumHours). Absent means regular. Only hourly entries use it — a client that bills by visit type never does.
+ */
+export type HourKind = typeof HourKind[keyof typeof HourKind];
+
+
+export const HourKind = {
+  regular: 'regular',
+  'on-call': 'on-call',
+  'call-back': 'call-back',
+} as const;
+
+/**
  * Per-diem option — "First/Last day" or "Full day"
  */
 export type PerDiemType = typeof PerDiemType[keyof typeof PerDiemType];
@@ -720,6 +739,7 @@ export const PerDiemType = {
 } as const;
 
 export interface TimeEntry {
+  hourKind?: HourKind;
   id: string;
   employeeId: string;
   employeeName: string;
@@ -760,6 +780,7 @@ export interface TimeEntry {
 }
 
 export interface CreateTimeEntry {
+  hourKind?: HourKind;
   employeeId: string;
   clientId: string;
   date: string;
@@ -850,6 +871,7 @@ export interface BatchCreateTimeEntry {
  * Full replacement of an entry's editable fields. The employee never changes — only client, date, work details, and (optionally) status.
  */
 export interface UpdateTimeEntry {
+  hourKind?: HourKind;
   clientId: string;
   date: string;
   /** Last day covered for a mileage-only entry spanning a range; must be >= date */

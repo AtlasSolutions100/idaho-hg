@@ -15,6 +15,7 @@
 //   the line splits per rate so amounts stay honest.
 
 import { round2, billableUnits, type VisitTypeUnit } from "./payroll-calc";
+import { HOUR_KIND_LABELS, normalizeHourKind, type HourKind } from "./hour-kinds";
 
 export type InvoiceEntryInput = {
   id: number | string;
@@ -51,6 +52,8 @@ export type InvoiceEntryInput = {
    * missing rate: nothing is misconfigured, the rule simply says no.
    */
   unbillableReason?: string;
+  /** What kind of hours an hourly entry covers; absent means regular. */
+  hourKind?: HourKind;
 };
 
 export type InvoiceLineKind = "visit" | "hourly" | "mileage" | "per-diem" | "other";
@@ -140,6 +143,8 @@ type Bucket = {
   otherNote?: string;
   /** Why the client won't pay for this line, when a rule says they won't. */
   unbillableReason?: string;
+  /** Hourly lines only: regular, on call or call back. */
+  hourKind?: HourKind;
 };
 
 const KIND_ORDER: Record<InvoiceLineKind, number> = {
@@ -193,14 +198,28 @@ export function buildInvoiceLines(
     // the same type would hide it, and merging it with a genuinely unrated
     // line would blur two different problems into one.
     const unbillableReason = kind === "visit" ? entry.unbillableReason : undefined;
-    const key = [entry.employeeId, kind, visitType ?? "", unbillableReason ?? ""].join("|");
+    // On-call hours are a different line from worked hours even at the same
+    // rate — the client reads them as different things.
+    const hourKind = kind === "hourly" ? normalizeHourKind(entry.hourKind) : undefined;
+    const key = [
+      entry.employeeId,
+      kind,
+      visitType ?? "",
+      unbillableReason ?? "",
+      hourKind ?? "",
+    ].join("|");
     let list = segments.get(key);
     if (!list) {
       list = [];
       segments.set(key, list);
     }
     let bucket = list[list.length - 1];
-    if (!bucket || bucket.rate !== rate || bucket.unbillableReason !== unbillableReason) {
+    if (
+      !bucket ||
+      bucket.rate !== rate ||
+      bucket.unbillableReason !== unbillableReason ||
+      bucket.hourKind !== hourKind
+    ) {
       bucket = {
         kind,
         employeeName: entry.employeeName,
@@ -212,6 +231,7 @@ export function buildInvoiceLines(
         lastDate: entry.date,
         order: order++,
         ...(unbillableReason ? { unbillableReason } : {}),
+        ...(hourKind ? { hourKind } : {}),
       };
       list.push(bucket);
     }
@@ -310,7 +330,8 @@ export function buildInvoiceLines(
         break;
       case "hourly": {
         const hrs = `${b.qty} ${b.qty === 1 ? "hr" : "hrs"}`;
-        description = `${initials} hourly ${range} (${hrs})`;
+        const label = HOUR_KIND_LABELS[b.hourKind ?? "regular"];
+        description = `${initials} ${label} ${range} (${hrs})`;
         break;
       }
       case "mileage":

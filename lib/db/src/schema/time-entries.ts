@@ -23,6 +23,12 @@ export const timeEntriesTable = pgTable("time_entries", {
   // one total, so the entry covers date..endDate. NULL = a single-day entry.
   endDate: text("end_date"),
   visitType: text("visit_type"),
+  // What kind of hours an hourly entry covers: null/"regular" is ordinary
+  // worked time, "on-call" is time carried on call, "call-back" is being
+  // called in while on call. Idaho Youth Ranch pays these at their own
+  // rates, and call-back carries a contract minimum (clients.call_back_
+  // minimum_hours). Visit-billing clients never use it.
+  hourKind: text("hour_kind"),
   // How many of this visit type the entry covers. Two things need it:
   //   - the same visit more than once in a day (two evals and a discharge is
   //     one eval line with quantity 2, plus a discharge line);

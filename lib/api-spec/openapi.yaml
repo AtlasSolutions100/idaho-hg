@@ -2489,6 +2489,11 @@ components:
     Client:
       type: object
       properties:
+        callBackMinimumHours:
+          type: number
+          description: >-
+            Hours a call-back is paid and billed for even when the visit runs
+            shorter. 0 means no minimum.
         id:
           type: string
         name:
@@ -2559,6 +2564,10 @@ components:
         billsByVisitType:
           type: boolean
           description: Only applied when present; controls whether the visit-type entry form is shown
+        callBackMinimumHours:
+          type: number
+          minimum: 0
+          description: Only applied when present; hours a call-back is paid and billed for at minimum
         weekendMultiplier:
           type: number
           minimum: 0
@@ -3086,9 +3095,21 @@ components:
         effectiveDate:
           type: string
       required: [rate]
+    HourKind:
+      type: string
+      enum: [regular, on-call, call-back]
+      description: >-
+        What kind of hours an hourly entry covers. "regular" is ordinary worked
+        time; "on-call" is time carried on call, billed at the client's on-call
+        rate; "call-back" is being called in while on call, which a contract may
+        pay a minimum number of hours for (see Client.callBackMinimumHours).
+        Absent means regular. Only hourly entries use it — a client that bills
+        by visit type never does.
     TimeEntry:
       type: object
       properties:
+        hourKind:
+          $ref: "#/components/schemas/HourKind"
         id:
           type: string
         employeeId:
@@ -3171,6 +3192,8 @@ components:
     CreateTimeEntry:
       type: object
       properties:
+        hourKind:
+          $ref: "#/components/schemas/HourKind"
         employeeId:
           type: string
         clientId:
@@ -3301,6 +3324,8 @@ components:
         Full replacement of an entry's editable fields. The employee never
         changes — only client, date, work details, and (optionally) status.
       properties:
+        hourKind:
+          $ref: "#/components/schemas/HourKind"
         clientId:
           type: string
         date:

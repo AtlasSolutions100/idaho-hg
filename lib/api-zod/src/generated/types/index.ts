@@ -44,6 +44,7 @@ export * from './getQboSentInvoiceParams';
 export * from './getReconciliationReportParams';
 export * from './getWorkflowStatusParams';
 export * from './healthStatus';
+export * from './hourKind';
 export * from './hourlyEntryCount';
 export * from './invoiceLineKind';
 export * from './invoiceReport';

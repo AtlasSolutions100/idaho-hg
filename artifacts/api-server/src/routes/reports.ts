@@ -22,6 +22,7 @@ import {
 } from "../lib/payroll-calc";
 import { visitTypeUnitMap } from "../lib/visit-types";
 import { daysWithDriveTimeWork, unbillableReason } from "../lib/drive-time";
+import { billableHours, hourlyRateKeys, normalizeHourKind } from "../lib/hour-kinds";
 import { computeInvoiceReport } from "../lib/invoice-report";
 import {
   buildReconciliationReport,
@@ -69,7 +70,12 @@ async function approvedEntriesInRange(start: string, end: string): Promise<TimeE
  */
 async function resolveEntryBilledAmount(
   entry: TimeEntryRow,
-  client: { id: string; weekendMultiplier: number; holidayMultiplier: number },
+  client: {
+    id: string;
+    weekendMultiplier: number;
+    holidayMultiplier: number;
+    callBackMinimumHours: number;
+  },
   units: Map<string, VisitTypeUnit>,
   /** Employee-days carrying Hospital at Home or hospice work. */
   daysWithWork: Set<string>,
@@ -106,15 +112,19 @@ async function resolveEntryBilledAmount(
       amount += rate.rate * billableUnits(entry, units.get(entry.visitType)) * mult;
     }
   } else if (entry.hours != null && entry.hours > 0) {
+    const kind = normalizeHourKind(entry.hourKind);
     const resolved = await resolveDayTypeRate(
       (key) => getClientRateForDate(client.id, key, entry.date),
-      [`hourly-${entry.employeeRole}`, "hourly"],
+      hourlyRateKeys(kind, entry.employeeRole),
       entry.isWeekend,
       entry.isHoliday,
       client.weekendMultiplier,
       client.holidayMultiplier,
     );
-    if (resolved) amount += entry.hours * resolved.rate * resolved.multiplier;
+    if (resolved) {
+      const hours = billableHours(entry.hours, kind, client.callBackMinimumHours);
+      amount += hours * resolved.rate * resolved.multiplier;
+    }
   }
 
   // Mileage / per-diem bill at the CLIENT rate when Molly set one, else the
@@ -196,7 +206,7 @@ router.get("/reports/payroll", requireAdmin, async (req, res, next) => {
       } else if (entry.hours != null) {
         const resolved = await resolveDayTypeRate(
           (key) => getClientPayRateForDate(entry.clientId, key, entry.date),
-          [`hourly-${entry.employeeRole}`, "hourly"],
+          hourlyRateKeys(normalizeHourKind(entry.hourKind), entry.employeeRole),
           entry.isWeekend,
           entry.isHoliday,
           wM,
@@ -207,9 +217,22 @@ router.get("/reports/payroll", requireAdmin, async (req, res, next) => {
           dayMultiplier = resolved.multiplier;
         }
       }
+      // A call-back pays the contract minimum however short it ran, so the
+      // entry is priced (and reported) on its billable hours.
+      const pricedEntry =
+        entry.hours == null
+          ? entry
+          : {
+              ...entry,
+              hours: billableHours(
+                entry.hours,
+                normalizeHourKind(entry.hourKind),
+                client?.callBackMinimumHours ?? 0,
+              ),
+            };
       // All pay math lives in lib/payroll-calc.ts (pure + unit tested).
       const { multiplier, basePay, mileagePay, perDiemPay, total, missingRate } =
-        computePayrollAmounts(entry, rate, {
+        computePayrollAmounts(pricedEntry, rate, {
           visitPayRate,
           hourlyPayRate,
           multiplier: dayMultiplier,
@@ -240,7 +263,7 @@ router.get("/reports/payroll", requireAdmin, async (req, res, next) => {
         clientName: entry.clientName,
         ...(entry.visitType ? { visitType: entry.visitType } : {}),
         ...(entry.visitType && entry.quantity !== 1 ? { quantity: entry.quantity } : {}),
-        ...(entry.hours != null ? { hours: entry.hours } : {}),
+        ...(pricedEntry.hours != null ? { hours: pricedEntry.hours } : {}),
         // One-off "Other" work: labeled and carrying the employee's
         // description so the export reads like Molly's spreadsheets.
         ...(entry.isOther ? { isOther: true, description: entry.note ?? "" } : {}),
@@ -260,7 +283,7 @@ router.get("/reports/payroll", requireAdmin, async (req, res, next) => {
       if (entry.visitType) {
         group.visitCount += billableUnits(entry, units.get(entry.visitType));
       }
-      if (entry.hours != null) group.totalHours += entry.hours;
+      if (pricedEntry.hours != null) group.totalHours += pricedEntry.hours;
       group.basePay = round2(group.basePay + basePay);
       group.mileagePay = round2(group.mileagePay + mileagePay);
       group.perDiemPay = round2(group.perDiemPay + perDiemPay);

@@ -185,8 +185,12 @@ const backfillClientRates = [
   { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-SLP", rate: 88, effectiveDate: "2024-01-01" },
   { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-PTA", rate: 58, effectiveDate: "2024-01-01" },
   { clientId: "2", clientName: "Weiser Memorial Hospital", visitType: "hourly-LPN", rate: 55, effectiveDate: "2024-01-01" },
-  // Idaho Youth Ranch RN hourly
+  // Idaho Youth Ranch RN hourly, plus the on-call and call-back rates from
+  // Molly 11 Sep 2026: on call is by the hour, and a call-back is charged at
+  // the ordinary hourly rate with a 4-hour minimum (clients.callBackMinimumHours).
   { clientId: "3", clientName: "Idaho Youth Ranch", visitType: "hourly-RN", rate: 93, effectiveDate: "2024-01-01" },
+  { clientId: "3", clientName: "Idaho Youth Ranch", visitType: "on-call-RN", rate: 40, effectiveDate: "2024-01-01" },
+  { clientId: "3", clientName: "Idaho Youth Ranch", visitType: "call-back-RN", rate: 93, effectiveDate: "2024-01-01" },
   // Treasure Valley Outpatient general hourly (PT-led)
   { clientId: "4", clientName: "Treasure Valley Outpatient Clinic", visitType: "hourly", rate: 69, effectiveDate: "2024-01-01" },
 
@@ -358,6 +362,8 @@ const seedClientPayRates = [
   { clientId: "2", visitType: "hourly-LPN-weekend", rate: 53 },
   // Idaho Youth Ranch
   { clientId: "3", visitType: "hourly-RN", rate: 71 },
+  { clientId: "3", visitType: "on-call-RN", rate: 20 },
+  { clientId: "3", visitType: "call-back-RN", rate: 71 },
   { clientId: "3", visitType: "hourly-LCSW", rate: 71 },
   // Current PT / Thrive
   { clientId: "6", visitType: "hourly-PT", rate: 57 },
@@ -431,6 +437,13 @@ async function backfillMollyRates() {
           eq(clientsTable.holidayMultiplier, 1),
         ));
     }
+    // Idaho Youth Ranch pays a called-in nurse for four hours however short
+    // the visit runs (Molly, 11 Sep 2026). Only set while still the default 0,
+    // so a later change of hers is never stomped.
+    await tx
+      .update(clientsTable)
+      .set({ callBackMinimumHours: 4 })
+      .where(and(eq(clientsTable.id, "3"), eq(clientsTable.callBackMinimumHours, 0)));
   });
 }
 

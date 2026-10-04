@@ -23,6 +23,9 @@ export const clientsTable = pgTable("clients", {
   // Optional free-text footer note shown on this client's PDF invoice
   // (e.g. Weiser's "Time cards will be sent for reconciliation…").
   noteToCustomer: text("note_to_customer"),
+  // Hours a call-back is paid and billed for even when the visit is
+  // shorter — Idaho Youth Ranch's contract says 4. 0 = no minimum.
+  callBackMinimumHours: real("call_back_minimum_hours").notNull().default(0),
 });
 
 // One-time data backfills that have been applied to this database. Lets

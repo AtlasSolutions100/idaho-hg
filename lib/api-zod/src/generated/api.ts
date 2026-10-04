@@ -27,6 +27,7 @@ export const ListTimeEntriesQueryParams = zod.object({
 })
 
 export const ListTimeEntriesResponseItem = zod.object({
+  "hourKind": zod.enum(['regular', 'on-call', 'call-back']).optional().describe('What kind of hours an hourly entry covers. \"regular\" is ordinary worked time; \"on-call\" is time carried on call, billed at the client\'s on-call rate; \"call-back\" is being called in while on call, which a contract may pay a minimum number of hours for (see Client.callBackMinimumHours). Absent means regular. Only hourly entries use it — a client that bills by visit type never does.'),
   "id": zod.string(),
   "employeeId": zod.string(),
   "employeeName": zod.string(),
@@ -77,6 +78,7 @@ export const createTimeEntryBodyPerDiemMax = 1;
 
 
 export const CreateTimeEntryBody = zod.object({
+  "hourKind": zod.enum(['regular', 'on-call', 'call-back']).optional().describe('What kind of hours an hourly entry covers. \"regular\" is ordinary worked time; \"on-call\" is time carried on call, billed at the client\'s on-call rate; \"call-back\" is being called in while on call, which a contract may pay a minimum number of hours for (see Client.callBackMinimumHours). Absent means regular. Only hourly entries use it — a client that bills by visit type never does.'),
   "employeeId": zod.string(),
   "clientId": zod.string(),
   "date": zod.string(),
@@ -97,6 +99,7 @@ export const CreateTimeEntryBody = zod.object({
 })
 
 export const CreateTimeEntryResponse = zod.object({
+  "hourKind": zod.enum(['regular', 'on-call', 'call-back']).optional().describe('What kind of hours an hourly entry covers. \"regular\" is ordinary worked time; \"on-call\" is time carried on call, billed at the client\'s on-call rate; \"call-back\" is being called in while on call, which a contract may pay a minimum number of hours for (see Client.callBackMinimumHours). Absent means regular. Only hourly entries use it — a client that bills by visit type never does.'),
   "id": zod.string(),
   "employeeId": zod.string(),
   "employeeName": zod.string(),
@@ -151,6 +154,7 @@ export const updateTimeEntryBodyPerDiemMax = 1;
 
 
 export const UpdateTimeEntryBody = zod.object({
+  "hourKind": zod.enum(['regular', 'on-call', 'call-back']).optional().describe('What kind of hours an hourly entry covers. \"regular\" is ordinary worked time; \"on-call\" is time carried on call, billed at the client\'s on-call rate; \"call-back\" is being called in while on call, which a contract may pay a minimum number of hours for (see Client.callBackMinimumHours). Absent means regular. Only hourly entries use it — a client that bills by visit type never does.'),
   "clientId": zod.string(),
   "date": zod.string(),
   "endDate": zod.string().optional().describe('Last day covered for a mileage-only entry spanning a range; must be >= date'),
@@ -167,6 +171,7 @@ export const UpdateTimeEntryBody = zod.object({
 }).describe('Full replacement of an entry\'s editable fields. The employee never changes — only client, date, work details, and (optionally) status.\n')
 
 export const UpdateTimeEntryResponse = zod.object({
+  "hourKind": zod.enum(['regular', 'on-call', 'call-back']).optional().describe('What kind of hours an hourly entry covers. \"regular\" is ordinary worked time; \"on-call\" is time carried on call, billed at the client\'s on-call rate; \"call-back\" is being called in while on call, which a contract may pay a minimum number of hours for (see Client.callBackMinimumHours). Absent means regular. Only hourly entries use it — a client that bills by visit type never does.'),
   "id": zod.string(),
   "employeeId": zod.string(),
   "employeeName": zod.string(),
@@ -218,6 +223,7 @@ export const PriceTimeEntryBody = zod.object({
 })
 
 export const PriceTimeEntryResponse = zod.object({
+  "hourKind": zod.enum(['regular', 'on-call', 'call-back']).optional().describe('What kind of hours an hourly entry covers. \"regular\" is ordinary worked time; \"on-call\" is time carried on call, billed at the client\'s on-call rate; \"call-back\" is being called in while on call, which a contract may pay a minimum number of hours for (see Client.callBackMinimumHours). Absent means regular. Only hourly entries use it — a client that bills by visit type never does.'),
   "id": zod.string(),
   "employeeId": zod.string(),
   "employeeName": zod.string(),
@@ -257,6 +263,7 @@ export const ApproveTimeEntryParams = zod.object({
 })
 
 export const ApproveTimeEntryResponse = zod.object({
+  "hourKind": zod.enum(['regular', 'on-call', 'call-back']).optional().describe('What kind of hours an hourly entry covers. \"regular\" is ordinary worked time; \"on-call\" is time carried on call, billed at the client\'s on-call rate; \"call-back\" is being called in while on call, which a contract may pay a minimum number of hours for (see Client.callBackMinimumHours). Absent means regular. Only hourly entries use it — a client that bills by visit type never does.'),
   "id": zod.string(),
   "employeeId": zod.string(),
   "employeeName": zod.string(),
@@ -296,6 +303,7 @@ export const RejectTimeEntryParams = zod.object({
 })
 
 export const RejectTimeEntryResponse = zod.object({
+  "hourKind": zod.enum(['regular', 'on-call', 'call-back']).optional().describe('What kind of hours an hourly entry covers. \"regular\" is ordinary worked time; \"on-call\" is time carried on call, billed at the client\'s on-call rate; \"call-back\" is being called in while on call, which a contract may pay a minimum number of hours for (see Client.callBackMinimumHours). Absent means regular. Only hourly entries use it — a client that bills by visit type never does.'),
   "id": zod.string(),
   "employeeId": zod.string(),
   "employeeName": zod.string(),
@@ -357,6 +365,7 @@ export const BatchCreateTimeEntriesBody = zod.object({
 }).describe('Submit several visits for the same client\/date in a single atomic request. The server inserts one time entry per line inside one transaction; mileage and per diem are recorded on the first entry only.\nSend `visits` to give each line its own quantity. `visitTypes` is the older shape — a plain list of keys, each counted once — and is still accepted so existing app versions keep working. Send one or the other, not both.\n')
 
 export const BatchCreateTimeEntriesResponseItem = zod.object({
+  "hourKind": zod.enum(['regular', 'on-call', 'call-back']).optional().describe('What kind of hours an hourly entry covers. \"regular\" is ordinary worked time; \"on-call\" is time carried on call, billed at the client\'s on-call rate; \"call-back\" is being called in while on call, which a contract may pay a minimum number of hours for (see Client.callBackMinimumHours). Absent means regular. Only hourly entries use it — a client that bills by visit type never does.'),
   "id": zod.string(),
   "employeeId": zod.string(),
   "employeeName": zod.string(),
@@ -821,6 +830,7 @@ export const ListEmployeeRateHistoryResponse = zod.array(ListEmployeeRateHistory
  * @summary List active clients
  */
 export const ListClientsResponseItem = zod.object({
+  "callBackMinimumHours": zod.number().optional().describe('Hours a call-back is paid and billed for even when the visit runs shorter. 0 means no minimum.'),
   "id": zod.string(),
   "name": zod.string(),
   "active": zod.boolean(),
@@ -853,6 +863,7 @@ export const CreateClientBody = zod.object({
 })
 
 export const CreateClientResponse = zod.object({
+  "callBackMinimumHours": zod.number().optional().describe('Hours a call-back is paid and billed for even when the visit runs shorter. 0 means no minimum.'),
   "id": zod.string(),
   "name": zod.string(),
   "active": zod.boolean(),
@@ -900,6 +911,8 @@ export const UpdateClientBillingParams = zod.object({
   "id": zod.coerce.string()
 })
 
+export const updateClientBillingBodyCallBackMinimumHoursMin = 0;
+
 export const updateClientBillingBodyWeekendMultiplierMin = 0;
 
 export const updateClientBillingBodyHolidayMultiplierMin = 0;
@@ -911,12 +924,14 @@ export const UpdateClientBillingBody = zod.object({
   "billingAddress": zod.string().optional(),
   "mileageOnContract": zod.boolean().optional().describe('Only applied when present; billing fields keep their clear-on-blank behavior'),
   "billsByVisitType": zod.boolean().optional().describe('Only applied when present; controls whether the visit-type entry form is shown'),
+  "callBackMinimumHours": zod.number().min(updateClientBillingBodyCallBackMinimumHoursMin).optional().describe('Only applied when present; hours a call-back is paid and billed for at minimum'),
   "weekendMultiplier": zod.number().min(updateClientBillingBodyWeekendMultiplierMin).optional().describe('Only applied when present; per-client weekend pay+bill multiplier'),
   "holidayMultiplier": zod.number().min(updateClientBillingBodyHolidayMultiplierMin).optional().describe('Only applied when present; per-client holiday pay+bill multiplier'),
   "noteToCustomer": zod.string().optional().describe('Only applied when present; per-client PDF invoice footer note (clears on blank)')
 })
 
 export const UpdateClientBillingResponse = zod.object({
+  "callBackMinimumHours": zod.number().optional().describe('Hours a call-back is paid and billed for even when the visit runs shorter. 0 means no minimum.'),
   "id": zod.string(),
   "name": zod.string(),
   "active": zod.boolean(),
@@ -939,6 +954,7 @@ export const RemoveClientParams = zod.object({
 })
 
 export const RemoveClientResponse = zod.object({
+  "callBackMinimumHours": zod.number().optional().describe('Hours a call-back is paid and billed for even when the visit runs shorter. 0 means no minimum.'),
   "id": zod.string(),
   "name": zod.string(),
   "active": zod.boolean(),

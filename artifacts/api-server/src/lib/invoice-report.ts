@@ -14,6 +14,7 @@ import {
 import { buildInvoiceLines, type InvoiceEntryInput, type InvoiceLine } from "./invoice-lines";
 import { visitTypeUnitMap } from "./visit-types";
 import { daysWithDriveTimeWork, unbillableReason } from "./drive-time";
+import { billableHours, hourlyRateKeys, normalizeHourKind } from "./hour-kinds";
 
 export type InvoiceReportData = {
   clientId: string;
@@ -87,6 +88,14 @@ export async function computeInvoiceReport(
     const refused = unbillableReason(entry, daysWithWork);
     if (refused) input.unbillableReason = refused;
 
+    const kind = normalizeHourKind(entry.hourKind);
+    if (kind !== "regular") input.hourKind = kind;
+    // A call-back is charged for the contract minimum however short the visit
+    // turned out to be, so the invoice carries the billable hours.
+    if (input.hours != null) {
+      input.hours = billableHours(input.hours, kind, client.callBackMinimumHours);
+    }
+
     if (entry.isOther) {
       // One-offs bill only Molly's flat amount (already on the entry) —
       // no client rate, mileage, or per-diem lookups.
@@ -117,7 +126,7 @@ export async function computeInvoiceReport(
       // client day multiplier; role-specific ("hourly-RN") before generic.
       const resolved = await resolveDayTypeRate(
         (key) => getClientRateForDate(clientId, key, entry.date),
-        [`hourly-${entry.employeeRole}`, "hourly"],
+        hourlyRateKeys(kind, entry.employeeRole),
         entry.isWeekend,
         entry.isHoliday,
         client.weekendMultiplier,

@@ -29,6 +29,7 @@ import {
   isValidDateString,
   isWeekendDate,
 } from "../lib/work-calendar";
+import { normalizeHourKind } from "../lib/hour-kinds";
 
 const router: IRouter = Router();
 
@@ -43,6 +44,9 @@ function serialize(row: TimeEntryRow) {
     date: row.date,
     ...(row.endDate ? { endDate: row.endDate } : {}),
     ...(row.visitType ? { visitType: row.visitType } : {}),
+    ...(row.hourKind && row.hourKind !== "regular"
+      ? { hourKind: row.hourKind as "on-call" | "call-back" }
+      : {}),
     quantity: row.quantity,
     ...(row.timeIn ? { timeIn: row.timeIn } : {}),
     ...(row.timeOut ? { timeOut: row.timeOut } : {}),
@@ -388,6 +392,16 @@ router.post("/time-entries", async (req, res, next) => {
       res.status(400).json({ message: "Provide a visit type, your time in and out, or mileage" });
       return;
     }
+    // On call and call back describe hours worked, so they make no sense on
+    // a visit entry, a mileage-only entry or a one-off.
+    const hourKind = normalizeHourKind(body.hourKind);
+    if (hourKind !== "regular" && (body.visitType || isOther || hours == null)) {
+      res.status(400).json({
+        message:
+          "On call and call back apply to hours — enter your time in and out.",
+      });
+      return;
+    }
     // Visit types only apply to clients that bill by visit type (St. Luke's).
     if (body.visitType && !client.billsByVisitType) {
       res.status(400).json({
@@ -467,6 +481,7 @@ router.post("/time-entries", async (req, res, next) => {
           date: body.date,
           endDate: range.endDate,
           visitType: body.visitType ?? null,
+          hourKind: hourKind === "regular" ? null : hourKind,
           quantity: qty.quantity,
           timeIn: hasTimes ? (body.timeIn ?? null) : null,
           timeOut: hasTimes ? (body.timeOut ?? null) : null,
@@ -841,6 +856,12 @@ router.patch("/time-entries/:id", async (req, res, next) => {
         date: body.date,
         endDate: range.endDate,
         visitType: body.visitType ?? null,
+        hourKind:
+          body.hourKind === undefined
+            ? existing.hourKind
+            : normalizeHourKind(body.hourKind) === "regular"
+              ? null
+              : normalizeHourKind(body.hourKind),
         quantity: qty.quantity,
         timeIn: hasTimes ? (body.timeIn ?? null) : null,
         timeOut: hasTimes ? (body.timeOut ?? null) : null,

@@ -14,6 +14,11 @@ export interface UpdateClientBilling {
   /** Only applied when present; controls whether the visit-type entry form is shown */
   billsByVisitType?: boolean;
   /**
+     * Only applied when present; hours a call-back is paid and billed for at minimum
+     * @minimum 0
+     */
+  callBackMinimumHours?: number;
+  /**
      * Only applied when present; per-client weekend pay+bill multiplier
      * @minimum 0
      */

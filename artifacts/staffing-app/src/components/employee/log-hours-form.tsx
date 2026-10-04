@@ -61,6 +61,11 @@ export function LogHoursForm({ employeeId = '1', discipline, entry, allowDraft =
       ? [{ visitType: entry.visitType, quantity: entry.quantity ?? 1 }]
       : [],
   );
+  // Regular worked hours, time carried on call, or being called in while on
+  // call — the last of which several contracts pay a minimum for.
+  const [hourKind, setHourKind] = useState<'regular' | 'on-call' | 'call-back'>(
+    entry?.hourKind ?? 'regular',
+  );
   const [timeIn, setTimeIn] = useState(entry?.timeIn ?? '');
   const [timeOut, setTimeOut] = useState(entry?.timeOut ?? '');
   const [date, setDate] = useState(entry?.date ?? new Date().toISOString().split('T')[0]);
@@ -140,6 +145,7 @@ export function LogHoursForm({ employeeId = '1', discipline, entry, allowDraft =
               ? { visitType: visitLines[0].visitType, quantity: visitLines[0].quantity }
               : {}),
             ...(effectiveEntryType !== 'visit' && timeIn && timeOut ? { timeIn, timeOut } : {}),
+            ...(effectiveEntryType === 'hourly' ? { hourKind } : {}),
             ...(mileageAllowed && hasMileage && mileage ? { mileage: parseFloat(mileage) } : {}),
             ...(mileageAllowed && mileageOnly && mileageIsRange && mileageEndDate
               ? { endDate: mileageEndDate }
@@ -171,6 +177,9 @@ export function LogHoursForm({ employeeId = '1', discipline, entry, allowDraft =
             clientId,
             date,
             ...(timeIn && timeOut ? { timeIn, timeOut } : {}),
+            ...(effectiveEntryType === 'hourly' && hourKind !== 'regular'
+              ? { hourKind }
+              : {}),
             ...(mileageAllowed && hasMileage && mileage ? { mileage: parseFloat(mileage) } : {}),
             ...(mileageAllowed && mileageOnly && mileageIsRange && mileageEndDate
               ? { endDate: mileageEndDate }
@@ -363,6 +372,36 @@ export function LogHoursForm({ employeeId = '1', discipline, entry, allowDraft =
             </TabsContent>
 
             <TabsContent value="hourly" className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Label>Type of hours</Label>
+                <div className="flex flex-wrap gap-2" data-testid="hour-kind">
+                  {(
+                    [
+                      ['regular', 'Regular'],
+                      ['on-call', 'On call'],
+                      ['call-back', 'Called in'],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <Button
+                      key={value}
+                      type="button"
+                      variant={hourKind === value ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setHourKind(value)}
+                      aria-pressed={hourKind === value}
+                      data-testid={`hour-kind-${value}`}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+                {hourKind === 'call-back' && (
+                  <p className="text-xs text-muted-foreground" data-testid="call-back-hint">
+                    Called in while on call. Some contracts pay a minimum number of
+                    hours for this even if you’re home again sooner.
+                  </p>
+                )}
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label htmlFor="time-in">Time In *</Label>
