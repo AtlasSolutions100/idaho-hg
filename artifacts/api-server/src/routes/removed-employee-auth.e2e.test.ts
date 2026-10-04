@@ -265,7 +265,7 @@ describe("Molly can turn an employee's sign-in off and on", () => {
       signInEnabled: false,
     });
     expect(attempt.status).toBe(403);
-    expect(attempt.body.message).toContain("Only Molly");
+    expect(attempt.body.message).toContain("Only an administrator");
 
     // A disabled employee's session can't re-enable itself either.
     await db
@@ -315,7 +315,7 @@ describe("Molly can turn an employee's sign-in off and on", () => {
       signInEnabled: false,
     });
     expect(attempt.status).toBe(403);
-    expect(attempt.body.message).toContain("Only Molly");
+    expect(attempt.body.message).toContain("Only an administrator");
   });
 
   it("fails closed when no admin email is configured", async () => {
@@ -357,7 +357,7 @@ describe("Molly can turn an employee's sign-in off and on", () => {
       signInEnabled: false,
     });
     expect(attempt.status).toBe(403);
-    expect(attempt.body.message).toContain("Only Molly");
+    expect(attempt.body.message).toContain("Only an administrator");
 
     // Restore the row's real email for the remaining tests (as the admin —
     // the email endpoint requires Molly's session now).

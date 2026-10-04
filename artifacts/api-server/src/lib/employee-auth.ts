@@ -133,9 +133,17 @@ export const requireSignedIn: RequestHandler = (req, res, next) => {
  * anyone assign themselves the admin email and escalate. An environment
  * variable can only be changed by whoever operates the server.
  */
-export function getConfiguredAdminEmail(): string | null {
-  const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
-  return email || null;
+export function getConfiguredAdminEmails(): string[] {
+  return (process.env.ADMIN_EMAIL ?? "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+/** True when this email is one of the configured administrators. */
+export function isConfiguredAdminEmail(email: string | null | undefined): boolean {
+  const normalized = email?.trim().toLowerCase();
+  return !!normalized && getConfiguredAdminEmails().includes(normalized);
 }
 
 /**
@@ -151,8 +159,8 @@ export async function verifyAdminRequest(
   if (!auth?.userId) {
     return { ok: false, status: 401, message: "Please sign in first." };
   }
-  const adminEmail = getConfiguredAdminEmail();
-  if (!adminEmail) {
+  const adminEmails = getConfiguredAdminEmails();
+  if (adminEmails.length === 0) {
     // Fail closed: without a configured admin, nobody is the admin.
     return {
       ok: false,
@@ -170,8 +178,12 @@ export async function verifyAdminRequest(
   )
     .trim()
     .toLowerCase();
-  if (!email || email !== adminEmail) {
-    return { ok: false, status: 403, message: "Only Molly can make this change." };
+  if (!email || !adminEmails.includes(email)) {
+    return {
+      ok: false,
+      status: 403,
+      message: "Only an administrator can make this change.",
+    };
   }
   return { ok: true };
 }

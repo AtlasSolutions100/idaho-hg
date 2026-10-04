@@ -179,7 +179,7 @@ describe("self-serve profile linking", () => {
 
     const list = await api("GET", "/link-requests");
     expect(list.status).toBe(403);
-    expect(list.body.message).toContain("Only Molly");
+    expect(list.body.message).toContain("Only an administrator");
 
     const approve = await api("POST", `/link-requests/${request.id}/approve`);
     expect(approve.status).toBe(403);
@@ -208,7 +208,7 @@ describe("self-serve profile linking", () => {
       email: NEW_EMAIL,
     });
     expect(claimant.status).toBe(403);
-    expect(claimant.body.message).toContain("Only Molly");
+    expect(claimant.body.message).toContain("Only an administrator");
 
     // Nor can anyone self-provision access by creating an employee with an
     // email attached.

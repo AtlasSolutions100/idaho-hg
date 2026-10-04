@@ -10,7 +10,7 @@ import { ensureRosterSeeded } from "./routes/roster";
 import { ensureSeeded } from "./routes/rates";
 import {
   ensureClerkUserForEmail,
-  getConfiguredAdminEmail,
+  getConfiguredAdminEmails,
 } from "./lib/employee-auth";
 
 const rawPort = process.env["PORT"];
@@ -66,10 +66,12 @@ try {
 // code emailed to that address. Best-effort: a Clerk outage must not stop the
 // server from booting.
 try {
-  const adminEmail = getConfiguredAdminEmail();
-  if (adminEmail) {
-    await ensureClerkUserForEmail(adminEmail);
-    logger.info({ adminEmail }, "Admin sign-in account is ready");
+  const adminEmails = getConfiguredAdminEmails();
+  if (adminEmails.length > 0) {
+    for (const adminEmail of adminEmails) {
+      await ensureClerkUserForEmail(adminEmail);
+    }
+    logger.info({ adminEmails }, "Admin sign-in accounts are ready");
   } else {
     logger.warn(
       "ADMIN_EMAIL is not set — nobody can sign in as admin until it is configured",

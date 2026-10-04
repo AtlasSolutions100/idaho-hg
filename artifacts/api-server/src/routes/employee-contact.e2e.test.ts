@@ -143,7 +143,7 @@ describe("employee contact details", () => {
       holidayMultiplier: 2,
     });
     expect(outsiderCreate.status).toBe(403);
-    expect(outsiderCreate.body.message).toContain("Only Molly");
+    expect(outsiderCreate.body.message).toContain("Only an administrator");
 
     // Removal is admin-only too — and a rejected attempt changes nothing.
     mockState.email = null;
@@ -153,7 +153,7 @@ describe("employee contact details", () => {
     mockState.email = "someone-else-contact-e2e@example.com";
     const outsiderRemove = await api("DELETE", `/employees/${EMPLOYEE_ID}`);
     expect(outsiderRemove.status).toBe(403);
-    expect(outsiderRemove.body.message).toContain("Only Molly");
+    expect(outsiderRemove.body.message).toContain("Only an administrator");
 
     const [row] = await db
       .select()
@@ -209,7 +209,7 @@ describe("employee contact details", () => {
       phone: "555-0000",
     });
     expect(outsider.status).toBe(403);
-    expect(outsider.body.message).toContain("Only Molly");
+    expect(outsider.body.message).toContain("Only an administrator");
 
     const [row] = await db
       .select()

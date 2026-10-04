@@ -161,6 +161,23 @@ describe("GET /session", () => {
     }
   });
 
+  it("accepts several administrators, so the owner and the developer both get in", async () => {
+    // ADMIN_EMAIL is a list. One value is still one administrator, but a
+    // second means adding the developer no longer takes Molly's access away.
+    const SECOND = "second-admin-session-e2e@example.com";
+    process.env.ADMIN_EMAIL = `${ADMIN_EMAIL} ,  ${SECOND}`;
+    try {
+      mockState.email = SECOND;
+      expect((await getSession()).body.isAdmin).toBe(true);
+      mockState.email = ADMIN_EMAIL;
+      expect((await getSession()).body.isAdmin).toBe(true);
+      mockState.email = STRANGER_EMAIL;
+      expect((await getSession()).body.isAdmin).toBe(false);
+    } finally {
+      process.env.ADMIN_EMAIL = ADMIN_EMAIL;
+    }
+  });
+
   it("never returns the configured administrator address to anyone else", async () => {
     mockState.email = WORKER_EMAIL;
     const res = await getSession();

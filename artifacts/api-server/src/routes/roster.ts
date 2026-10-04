@@ -31,7 +31,7 @@ import {
   requireEmployee,
   revokeClerkSessionsForEmail,
   resolveSessionEmployee,
-  getConfiguredAdminEmail,
+  getConfiguredAdminEmails,
 } from "../lib/employee-auth";
 import {
   hasDemoEmployeeData,
@@ -559,7 +559,7 @@ router.get("/me", requireEmployee, async (req, res, next) => {
  */
 router.get("/session", requireSignedIn, async (req, res, next) => {
   try {
-    const adminConfigured = getConfiguredAdminEmail() != null;
+    const adminConfigured = getConfiguredAdminEmails().length > 0;
     // Admin first, and through the same check the write routes use: the admin
     // is not a roster row, so a session can be the admin while having no
     // employee profile at all.
