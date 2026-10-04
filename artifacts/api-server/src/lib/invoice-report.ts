@@ -13,6 +13,7 @@ import {
 } from "./rate-lookup";
 import { buildInvoiceLines, type InvoiceEntryInput, type InvoiceLine } from "./invoice-lines";
 import { visitTypeUnitMap } from "./visit-types";
+import { daysWithDriveTimeWork, unbillableReason } from "./drive-time";
 
 export type InvoiceReportData = {
   clientId: string;
@@ -61,6 +62,10 @@ export async function computeInvoiceReport(
   // - mileage and per diem are passed through at the employee's
   //   reimbursement rates in effect on the entry date
   // Missing rates produce $0 lines flagged "No rate" — never dropped.
+  // Drive time only bills alongside Hospital at Home or hospice work on the
+  // same employee's day (see lib/drive-time.ts).
+  const daysWithWork = daysWithDriveTimeWork(entries);
+
   const annotated: InvoiceEntryInput[] = [];
   for (const entry of entries) {
     const input: InvoiceEntryInput = {
@@ -79,9 +84,15 @@ export async function computeInvoiceReport(
         ? { isOther: true, customBillAmount: entry.customBillAmount, note: entry.note }
         : {}),
     };
+    const refused = unbillableReason(entry, daysWithWork);
+    if (refused) input.unbillableReason = refused;
+
     if (entry.isOther) {
       // One-offs bill only Molly's flat amount (already on the entry) —
       // no client rate, mileage, or per-diem lookups.
+    } else if (refused) {
+      // Leave the rate off entirely: the line shows the work at $0 with the
+      // reason, rather than a rate that was never going to be charged.
     } else if (entry.visitType) {
       // Try role-specific visit rate first (e.g. "soc-RN"), fall back to the
       // generic visit type so clients with a single rate per visit type still work.

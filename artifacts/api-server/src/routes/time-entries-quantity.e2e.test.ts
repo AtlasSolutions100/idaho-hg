@@ -318,6 +318,13 @@ describe("visit types paid and billed by the hour", () => {
     // Molly: drive time on Hospital at Home or hospice work is billed at the
     // same rate, in 15-minute steps, on its own invoice line. Half an hour for
     // an RN pays 0.5 x $67.20 and bills 0.5 x $84.
+    // Drive time only bills alongside Hospital at Home or hospice work, so
+    // the day has to carry the visit that earns it.
+    await createApproved({
+      date: "2029-04-17",
+      visitType: "hospital-at-home",
+      quantity: 4,
+    });
     await createApproved({
       date: "2029-04-17",
       visitType: "drive-time",
@@ -347,6 +354,12 @@ describe("visit types paid and billed by the hour", () => {
   it("pays a therapist's drive time at the therapy Hospital at Home rate", async () => {
     // Any discipline doing Hospital at Home or hospice can claim drive time.
     // An hour for a PT pays $75.20 and bills $94.
+    await createApproved({
+      employeeId: PT_EMPLOYEE,
+      date: "2029-04-18",
+      visitType: "hospital-at-home",
+      quantity: 4,
+    });
     await createApproved({
       employeeId: PT_EMPLOYEE,
       date: "2029-04-18",

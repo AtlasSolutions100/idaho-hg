@@ -21,6 +21,7 @@ import {
   type VisitTypeUnit,
 } from "../lib/payroll-calc";
 import { visitTypeUnitMap } from "../lib/visit-types";
+import { daysWithDriveTimeWork, unbillableReason } from "../lib/drive-time";
 import { computeInvoiceReport } from "../lib/invoice-report";
 import {
   buildReconciliationReport,
@@ -70,6 +71,8 @@ async function resolveEntryBilledAmount(
   entry: TimeEntryRow,
   client: { id: string; weekendMultiplier: number; holidayMultiplier: number },
   units: Map<string, VisitTypeUnit>,
+  /** Employee-days carrying Hospital at Home or hospice work. */
+  daysWithWork: Set<string>,
 ): Promise<number> {
   // "Other" one-offs bill only Molly's flat amount (already on the entry) —
   // no rate, mileage, or per-diem lookups — mirroring the invoice.
@@ -78,6 +81,10 @@ async function resolveEntryBilledAmount(
       ? entry.customBillAmount
       : 0;
   }
+
+  // Reconciliation has to tie back to the invoice, so a line the invoice
+  // refuses to bill contributes nothing here either.
+  if (unbillableReason(entry, daysWithWork)) return 0;
 
   let amount = 0;
   if (entry.visitType) {
@@ -327,6 +334,7 @@ router.get("/reports/reconciliation", requireAdmin, async (req, res, next) => {
     // Summing per-entry amounts reconciles to the invoice total (see
     // resolveEntryBilledAmount).
     const units = await visitTypeUnitMap();
+    const daysWithWork = daysWithDriveTimeWork(entries);
     const annotated: ReconciliationEntryInput[] = [];
     for (const entry of entries) {
       annotated.push({
@@ -345,7 +353,7 @@ router.get("/reports/reconciliation", requireAdmin, async (req, res, next) => {
         isHoliday: entry.isHoliday,
         note: entry.note,
         ...(entry.isOther ? { isOther: true } : {}),
-        amount: await resolveEntryBilledAmount(entry, client, units),
+        amount: await resolveEntryBilledAmount(entry, client, units, daysWithWork),
       });
     }
 

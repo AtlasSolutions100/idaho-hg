@@ -211,6 +211,20 @@ export function VisitPicker({
         )}
       </div>
 
+      {!singleLine &&
+        lines.some((l) => l.visitType === 'drive-time') &&
+        !lines.some(
+          (l) => l.visitType === 'hospital-at-home' || l.visitType === 'hospice',
+        ) && (
+          <p
+            className="text-xs text-amber-700 dark:text-amber-400"
+            data-testid="drive-time-hint"
+          >
+            Drive time is only paid for on a Hospital at Home or hospice day. Add
+            that visit too, or this drive time won’t be billed.
+          </p>
+        )}
+
       {!singleLine && lines.length > 0 && (
         <p className="text-xs text-muted-foreground" data-testid="visit-picker-hint">
           Tap a visit type again to add another one. Mileage and per diem attach

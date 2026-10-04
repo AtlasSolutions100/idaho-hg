@@ -44,6 +44,13 @@ export type InvoiceEntryInput = {
   customBillAmount?: number | null;
   /** The employee's description of an Other entry (used as the line description). */
   note?: string | null;
+  /**
+   * Set when the client will not pay for this entry by contract (see
+   * lib/drive-time.ts). The line still appears — Molly needs to see the
+   * work — but at $0 carrying this reason, and it is NOT counted as a
+   * missing rate: nothing is misconfigured, the rule simply says no.
+   */
+  unbillableReason?: string;
 };
 
 export type InvoiceLineKind = "visit" | "hourly" | "mileage" | "per-diem" | "other";
@@ -131,6 +138,8 @@ type Bucket = {
   order: number; // insertion order within its group, keeps date order stable
   /** Description override for "other" lines — the employee's own words. */
   otherNote?: string;
+  /** Why the client won't pay for this line, when a rule says they won't. */
+  unbillableReason?: string;
 };
 
 const KIND_ORDER: Record<InvoiceLineKind, number> = {
@@ -180,14 +189,18 @@ export function buildInvoiceLines(
     rate: number | undefined,
     qty: number,
   ) => {
-    const key = [entry.employeeId, kind, visitType ?? ""].join("|");
+    // Unbillable work keeps its own segment: merging it with billable work of
+    // the same type would hide it, and merging it with a genuinely unrated
+    // line would blur two different problems into one.
+    const unbillableReason = kind === "visit" ? entry.unbillableReason : undefined;
+    const key = [entry.employeeId, kind, visitType ?? "", unbillableReason ?? ""].join("|");
     let list = segments.get(key);
     if (!list) {
       list = [];
       segments.set(key, list);
     }
     let bucket = list[list.length - 1];
-    if (!bucket || bucket.rate !== rate) {
+    if (!bucket || bucket.rate !== rate || bucket.unbillableReason !== unbillableReason) {
       bucket = {
         kind,
         employeeName: entry.employeeName,
@@ -198,6 +211,7 @@ export function buildInvoiceLines(
         firstDate: entry.date,
         lastDate: entry.date,
         order: order++,
+        ...(unbillableReason ? { unbillableReason } : {}),
       };
       list.push(bucket);
     }
@@ -207,6 +221,9 @@ export function buildInvoiceLines(
     // range has to reach that far — "MC mileage 7/12-7/25/26", not 7/12 alone.
     const last = entry.endDate && entry.endDate > entry.date ? entry.endDate : entry.date;
     if (last > bucket.lastDate) bucket.lastDate = last;
+    // Returned so callers never rebuild the segment key themselves — doing
+    // that meant a change to the key quietly detached them from their bucket.
+    return bucket;
   };
 
   const sortedEntries = [...entries].sort((a, b) =>
@@ -220,10 +237,14 @@ export function buildInvoiceLines(
     if (entry.isOther) {
       if (entry.customBillAmount != null && entry.customBillAmount > 0) {
         // One line per entry (keyed by entry id) — one-offs never merge.
-        add(entry, "other", `other-${entry.id}`, entry.customBillAmount, 1);
-        const list = segments.get([entry.employeeId, "other", `other-${entry.id}`].join("|"));
-        const bucket = list?.[list.length - 1];
-        if (bucket) bucket.otherNote = entry.note?.trim() || undefined;
+        const bucket = add(
+          entry,
+          "other",
+          `other-${entry.id}`,
+          entry.customBillAmount,
+          1,
+        );
+        bucket.otherNote = entry.note?.trim() || undefined;
       }
       continue;
     }
@@ -272,9 +293,12 @@ export function buildInvoiceLines(
   let missingRateCount = 0;
   const lines: InvoiceLine[] = sorted.map((b, i) => {
     const range = dateRangeLabel(b.firstDate, b.lastDate);
-    const missingRate = b.rate == null;
+    // A line the contract refuses is not a configuration problem, so it must
+    // not land in the "missing rate" warning Molly uses to find unset rates.
+    const missingRate = b.rate == null && !b.unbillableReason;
     if (missingRate) missingRateCount += 1;
-    const amount = b.rate != null ? round2(b.qty * b.rate) : 0;
+    const amount =
+      b.rate != null && !b.unbillableReason ? round2(b.qty * b.rate) : 0;
     total = round2(total + amount);
     // Descriptions follow Molly's real invoices: initials first, then the
     // item label and date info ("MC SNV 7/12-7/25/26", "MC mileage ...").
@@ -309,7 +333,11 @@ export function buildInvoiceLines(
       amount,
       kind: b.kind,
       missingRate,
-      ...(missingRate ? { note: MISSING_NOTES[b.kind] } : {}),
+      ...(b.unbillableReason
+        ? { note: b.unbillableReason }
+        : missingRate
+          ? { note: MISSING_NOTES[b.kind] }
+          : {}),
     };
   });
 
