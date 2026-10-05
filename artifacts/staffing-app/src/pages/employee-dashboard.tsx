@@ -49,8 +49,8 @@ function accessMessage(
       // needs to know she has no employee profile and that she can add one.
       return isAdmin
         ? {
-            title: 'You don’t have an employee profile',
-            body: 'You’re signed in as the administrator, so there are no hours of your own here yet. Add yourself on the Team page to log and bill your own visits.',
+            title: 'Your sign-in isn’t linked to an employee profile',
+            body: 'You’re signed in as the administrator. To log your own hours, open Employees and add this sign-in email to your profile there — or add yourself if you aren’t on the list yet.',
           }
         : {
             title: "You're not set up yet",

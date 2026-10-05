@@ -148,6 +148,8 @@ export function ClientRatesTable() {
   // Kept as strings so the numeric inputs stay controlled while being edited.
   const [weekendMultiplier, setWeekendMultiplier] = useState('1');
   const [holidayMultiplier, setHolidayMultiplier] = useState('1');
+  // Hours a call-back is paid and billed for at minimum (0 = none).
+  const [callBackMinimumHours, setCallBackMinimumHours] = useState('0');
   const [noteToCustomer, setNoteToCustomer] = useState('');
   // Set when Molly tries to turn off visit billing for a client that still has
   // recent visit-type entries — she must confirm before the change saves.
@@ -358,6 +360,10 @@ export function ClientRatesTable() {
         billsByVisitType,
         weekendMultiplier: Number.isFinite(parsedWeekend) && parsedWeekend >= 0 ? parsedWeekend : 1,
         holidayMultiplier: Number.isFinite(parsedHoliday) && parsedHoliday >= 0 ? parsedHoliday : 1,
+        callBackMinimumHours:
+          Number.isFinite(Number(callBackMinimumHours)) && Number(callBackMinimumHours) >= 0
+            ? Number(callBackMinimumHours)
+            : 0,
         noteToCustomer,
       },
     });
@@ -388,6 +394,7 @@ export function ClientRatesTable() {
     setBillsByVisitType(client?.billsByVisitType ?? false);
     setWeekendMultiplier(String(client?.weekendMultiplier ?? 1));
     setHolidayMultiplier(String(client?.holidayMultiplier ?? 1));
+    setCallBackMinimumHours(String(client?.callBackMinimumHours ?? 0));
     setNoteToCustomer(client?.noteToCustomer ?? '');
     setBillingFor({ clientId, clientName });
   };
@@ -1274,6 +1281,24 @@ export function ClientRatesTable() {
             <p className="-mt-2 text-xs text-muted-foreground">
               1 = no change; 1.1 = +10%; applies to both billing and pay.
             </p>
+            <div className="space-y-2">
+              <Label htmlFor="call-back-minimum">Call-back minimum (hours)</Label>
+              <Input
+                id="call-back-minimum"
+                type="number"
+                min="0"
+                step="0.25"
+                value={callBackMinimumHours}
+                onChange={(e) => setCallBackMinimumHours(e.target.value)}
+                placeholder="0"
+                data-testid="input-call-back-minimum"
+              />
+              <p className="text-xs text-muted-foreground">
+                When someone on call is called in, they are paid and the client is
+                billed for at least this many hours, even if the visit is shorter.
+                0 = no minimum.
+              </p>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="note-to-customer">Note to customer (optional)</Label>
               <Textarea

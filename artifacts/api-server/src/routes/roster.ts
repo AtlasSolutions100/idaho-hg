@@ -209,6 +209,7 @@ function serializeClient(row: ClientRow) {
     billsByVisitType: row.billsByVisitType,
     weekendMultiplier: row.weekendMultiplier,
     holidayMultiplier: row.holidayMultiplier,
+    callBackMinimumHours: row.callBackMinimumHours,
     ...(row.noteToCustomer ? { noteToCustomer: row.noteToCustomer } : {}),
   };
 }
@@ -381,6 +382,9 @@ router.patch("/clients/:id", requireAdmin, async (req, res, next) => {
           : {}),
         ...(parsed.data.holidayMultiplier !== undefined
           ? { holidayMultiplier: parsed.data.holidayMultiplier }
+          : {}),
+        ...(parsed.data.callBackMinimumHours !== undefined
+          ? { callBackMinimumHours: parsed.data.callBackMinimumHours }
           : {}),
         ...(parsed.data.noteToCustomer !== undefined
           ? { noteToCustomer: parsed.data.noteToCustomer.trim() || null }

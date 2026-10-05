@@ -145,6 +145,33 @@ describe("on-call and call-back hours", () => {
     expect(kinds).toHaveLength(3);
   });
 
+  it("shows Molly the call-back minimum and lets her change it", async () => {
+    // The minimum was being priced from without ever being served, so the
+    // contract term that decides what a call-back costs could be neither seen
+    // nor corrected from the app.
+    const before = (await api("/clients")).body.find((c: any) => c.id === YOUTH_RANCH);
+    expect(before.callBackMinimumHours).toBe(4);
+
+    // Send the billing fields back unchanged: this endpoint clears them when
+    // they are left out.
+    const keep = {
+      billingContact: before.billingContact ?? "",
+      billingAddress: before.billingAddress ?? "",
+    };
+    const changed = await api(`/clients/${YOUTH_RANCH}`, {
+      method: "PATCH",
+      body: JSON.stringify({ ...keep, callBackMinimumHours: 6 }),
+    });
+    expect(changed.status).toBe(200);
+    expect(changed.body.callBackMinimumHours).toBe(6);
+
+    const restored = await api(`/clients/${YOUTH_RANCH}`, {
+      method: "PATCH",
+      body: JSON.stringify({ ...keep, callBackMinimumHours: 4 }),
+    });
+    expect(restored.body.callBackMinimumHours).toBe(4);
+  });
+
   it("refuses on-call on a visit entry, which is not a kind of hours", async () => {
     const res = await api("/time-entries", {
       method: "POST",
